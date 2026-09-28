@@ -3,6 +3,7 @@ import os
 from app.engines.base_engine import BaseEngine
 from app.engines.registry import engine_registry
 from app.models.engine_result import EngineResult, EngineStatus
+from app.models.scan_input import ScanInput
 
 # Create data directory if it doesn't exist
 DB_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
@@ -74,13 +75,13 @@ class SenderEngine(BaseEngine):
     def name(self) -> str:
         return "sender_engine"
 
-    async def analyze(self, input_data: dict) -> EngineResult:
-        sender_id = input_data.get("sender_id")
+    async def analyze(self, input_data: ScanInput) -> EngineResult:
+        sender_id = input_data.sender_id
         if not sender_id:
             return EngineResult.skipped(self.name, "No sender_id provided")
             
-        has_link = input_data.get("has_link", False)
-        has_file = input_data.get("has_file", False)
+        has_link = bool(input_data.url)
+        has_file = bool(input_data.file_bytes) or bool(input_data.file_name)
         
         # Run synchronously as it was in V1
         res = _analyze_sender_internal(sender_id, has_link, has_file)

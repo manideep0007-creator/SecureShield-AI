@@ -4,6 +4,7 @@ from app.config.config import settings
 from app.engines.base_engine import BaseEngine
 from app.engines.registry import engine_registry
 from app.models.engine_result import EngineResult, EngineStatus
+from app.models.scan_input import ScanInput
 
 def lexical_heuristics(url: str) -> dict:
     """Analyze URL string for suspicious patterns."""
@@ -76,8 +77,8 @@ class URLEngine(BaseEngine):
     def name(self) -> str:
         return "url_engine"
 
-    async def analyze(self, input_data: dict) -> EngineResult:
-        url = input_data.get("url")
+    async def analyze(self, input_data: ScanInput) -> EngineResult:
+        url = input_data.url
         if not url:
             return EngineResult.skipped(self.name, "No URL provided")
             
@@ -117,7 +118,7 @@ engine_registry.register(URLEngine())
 # Legacy function to preserve working functionality for existing pipeline
 async def analyze_url(url: str) -> dict:
     engine = URLEngine()
-    res = await engine.analyze({"url": url})
+    res = await engine.analyze(ScanInput(url=url))
     
     legacy_dict = {
         "type": "url",

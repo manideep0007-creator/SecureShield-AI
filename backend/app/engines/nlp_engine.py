@@ -2,6 +2,7 @@ import re
 from app.engines.base_engine import BaseEngine
 from app.engines.registry import engine_registry
 from app.models.engine_result import EngineResult, EngineStatus
+from app.models.scan_input import ScanInput
 
 CATEGORIES = {
     "urgency": [r"\b(act now|urgent|immediately|asap|time is running out|24 hours)\b"],
@@ -43,8 +44,8 @@ class NLPEngine(BaseEngine):
     def name(self) -> str:
         return "nlp_engine"
 
-    async def analyze(self, input_data: dict) -> EngineResult:
-        text = input_data.get("text")
+    async def analyze(self, input_data: ScanInput) -> EngineResult:
+        text = input_data.text
         if not text:
             return EngineResult.skipped(self.name, "No text provided")
             

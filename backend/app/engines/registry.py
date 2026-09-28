@@ -22,6 +22,7 @@ from typing import Any
 
 from app.engines.base_engine import BaseEngine
 from app.models.engine_result import EngineResult
+from app.models.scan_input import ScanInput
 
 
 class EngineRegistry:
@@ -54,7 +55,7 @@ class EngineRegistry:
         """List all registered engine instances."""
         return list(self._engines.values())
 
-    async def run_all(self, input_data: dict[str, Any]) -> list[EngineResult]:
+    async def run_all(self, input_data: ScanInput) -> list[EngineResult]:
         """
         Execute every registered engine against the input and collect results.
 

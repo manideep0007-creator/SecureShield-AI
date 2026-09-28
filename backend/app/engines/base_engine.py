@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.models.engine_result import EngineResult, EngineStatus
+from app.models.scan_input import ScanInput
 
 
 class BaseEngine(ABC):
@@ -37,18 +38,18 @@ class BaseEngine(ABC):
         ...
 
     @abstractmethod
-    async def analyze(self, input_data: dict[str, Any]) -> EngineResult:
+    async def analyze(self, input_data: ScanInput) -> EngineResult:
         """
         Run the detection analysis.
 
         Parameters
         ----------
-        input_data : dict
-            Flexible input payload. Each engine decides which keys it needs:
-            - URL engine expects:    {"url": str}
-            - Malware engine expects: {"file_bytes": bytes, "filename": str}
-            - NLP engine expects:    {"text": str}
-            - Sender engine expects: {"sender_id": str, "has_link": bool, "has_file": bool}
+        input_data : ScanInput
+            Universal input payload. Each engine decides which fields it needs:
+            - URL engine expects:    input_data.url
+            - Malware engine expects: input_data.file_bytes
+            - NLP engine expects:    input_data.text
+            - Sender engine expects: input_data.sender_id
 
         Returns
         -------
@@ -57,7 +58,7 @@ class BaseEngine(ABC):
         """
         ...
 
-    async def safe_analyze(self, input_data: dict[str, Any]) -> EngineResult:
+    async def safe_analyze(self, input_data: ScanInput) -> EngineResult:
         """
         Fault-tolerant wrapper around `analyze`.
 
