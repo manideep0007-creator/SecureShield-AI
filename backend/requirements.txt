@@ -7,3 +7,5 @@ httpx
 filetype
 cachetools
 python-multipart
+asyncwhois
+tldextract

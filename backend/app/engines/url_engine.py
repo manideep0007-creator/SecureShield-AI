@@ -1,6 +1,10 @@
 import re
 import math
+import asyncio
 import httpx
+import asyncwhois
+import tldextract
+from datetime import datetime, timezone
 from urllib.parse import urlparse, parse_qsl
 from app.config.config import settings
 from app.engines.base_engine import BaseEngine
@@ -227,6 +231,33 @@ async def check_google_safe_browsing(url: str) -> dict:
     except Exception as e:
         return {"gsb_score": 0.0, "error": str(e)}
 
+async def _get_domain_age_days(domain: str) -> int | None:
+    try:
+        # Strictly enforce maximum 2-second timeout
+        result = await asyncio.wait_for(asyncwhois.aio_whois_domain(domain), timeout=2.0)
+        created = result.parser_dict.get('created')
+        
+        if not created:
+            return None
+            
+        if isinstance(created, list):
+            dates = [d for d in created if isinstance(d, datetime)]
+            if not dates:
+                return None
+            dt = min(dates)
+        elif isinstance(created, datetime):
+            dt = created
+        else:
+            return None
+            
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        return max(0, (now - dt).days)
+    except Exception:
+        # WHOIS errors/timeouts must not fail the engine
+        return None
+
 class URLEngine(BaseEngine):
     @property
     def name(self) -> str:
@@ -240,6 +271,17 @@ class URLEngine(BaseEngine):
         heuristics = lexical_heuristics(url)
         gsb_result = await check_google_safe_browsing(url)
         
+        # Feature 18: DOMAIN_AGE_DAYS
+        domain_age = None
+        try:
+            # Safely extract root domain avoiding TLD confusion (e.g. co.uk)
+            ext = tldextract.extract(url)
+            if ext.domain and ext.suffix:
+                root_domain = f"{ext.domain}.{ext.suffix}"
+                domain_age = await _get_domain_age_days(root_domain)
+        except Exception:
+            pass
+        
         lexical = heuristics["lexical_score"]
         gsb = gsb_result["gsb_score"]
         
@@ -250,6 +292,21 @@ class URLEngine(BaseEngine):
             
         flags = heuristics["lexical_flags"] + gsb_result.get("gsb_threats", [])
         evidence = heuristics.get("evidence", [])
+        
+        if domain_age is not None:
+            if domain_age < 14:
+                flags.append("newly_registered_domain")
+                evidence.append(EvidenceItem(
+                    key="DOMAIN_AGE_DAYS",
+                    value=domain_age,
+                    description=f"Root domain is exceedingly new. Registered {domain_age} days ago."
+                ))
+            else:
+                evidence.append(EvidenceItem(
+                    key="DOMAIN_AGE_DAYS",
+                    value=domain_age,
+                    description=f"Root domain registered {domain_age} days ago."
+                ))
         
         status = EngineStatus.SUCCESS
         error_message = None

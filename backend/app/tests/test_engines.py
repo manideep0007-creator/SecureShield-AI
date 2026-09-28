@@ -2,6 +2,8 @@ import sys
 import os
 import unittest
 import asyncio
+from unittest.mock import patch, AsyncMock
+from datetime import datetime, timedelta, timezone
 
 # Add backend directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -101,6 +103,64 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertIn("DIGIT_TO_LETTER_RATIO", ev_keys)
         self.assertIn("SPECIAL_CHAR_COUNT", ev_keys)
         self.assertIn("BASE64_OBFUSCATION", ev_keys)
+
+    @patch("app.engines.url_engine.asyncwhois.aio_whois_domain", new_callable=AsyncMock)
+    async def test_url_engine_domain_age_new(self, mock_whois):
+        class MockWhoisResult:
+            def __init__(self, created):
+                self.parser_dict = {'created': created}
+        
+        # Newly registered (5 days old) & Multi-part TLD test (co.uk)
+        recent_date = datetime.now(timezone.utc) - timedelta(days=5)
+        mock_whois.return_value = MockWhoisResult(recent_date)
+        
+        engine = URLEngine()
+        res = await engine.analyze(ScanInput(url="https://secure.login.bank.co.uk"))
+        
+        # tldextract properly extracts `bank.co.uk`, WHOIS returns 5 days.
+        self.assertIn("newly_registered_domain", res.flags)
+        
+        ev = next((e for e in res.evidence if e.key == "DOMAIN_AGE_DAYS"), None)
+        self.assertIsNotNone(ev)
+        self.assertEqual(ev.value, 5)
+
+    @patch("app.engines.url_engine.asyncwhois.aio_whois_domain", new_callable=AsyncMock)
+    async def test_url_engine_domain_age_old(self, mock_whois):
+        class MockWhoisResult:
+            def __init__(self, created):
+                self.parser_dict = {'created': created}
+        
+        # Old domain (2000 days old)
+        old_date = datetime.now(timezone.utc) - timedelta(days=2000)
+        mock_whois.return_value = MockWhoisResult(old_date)
+        
+        engine = URLEngine()
+        res = await engine.analyze(ScanInput(url="https://google.com"))
+        
+        self.assertNotIn("newly_registered_domain", res.flags)
+        ev = next((e for e in res.evidence if e.key == "DOMAIN_AGE_DAYS"), None)
+        self.assertIsNotNone(ev)
+        self.assertEqual(ev.value, 2000)
+
+    @patch("app.engines.url_engine.asyncwhois.aio_whois_domain", new_callable=AsyncMock)
+    async def test_url_engine_domain_age_missing_or_error(self, mock_whois):
+        class MockWhoisResult:
+            def __init__(self, created):
+                self.parser_dict = {'created': created}
+                
+        # 1. Missing creation date
+        mock_whois.return_value = MockWhoisResult(None)
+        engine = URLEngine()
+        res1 = await engine.analyze(ScanInput(url="https://example.com"))
+        self.assertNotIn("newly_registered_domain", res1.flags)
+        self.assertIsNone(next((e for e in res1.evidence if e.key == "DOMAIN_AGE_DAYS"), None))
+
+        # 2. Timeout / Error
+        mock_whois.side_effect = asyncio.TimeoutError
+        res2 = await engine.analyze(ScanInput(url="https://example.org"))
+        # Must not crash the engine
+        self.assertNotIn("newly_registered_domain", res2.flags)
+        self.assertIsNone(next((e for e in res2.evidence if e.key == "DOMAIN_AGE_DAYS"), None))
 
     async def test_malware_engine_skipped(self):
         engine = MalwareEngine()
