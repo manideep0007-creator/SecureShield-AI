@@ -1,6 +1,7 @@
 import re
+import math
 import httpx
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qsl
 from app.config.config import settings
 from app.engines.base_engine import BaseEngine
 from app.engines.registry import engine_registry
@@ -132,6 +133,65 @@ def lexical_heuristics(url: str) -> dict:
             key="HTTPS_IN_HOSTNAME",
             value=True,
             description="Deceptive 'http/https' string found within the hostname payload."
+        ))
+
+    # 14. Shannon Entropy
+    def shannon_entropy(data: str) -> float:
+        if not data:
+            return 0.0
+        prob = [float(data.count(c)) / len(data) for c in dict.fromkeys(list(data))]
+        return -sum(p * math.log(p, 2) for p in prob)
+
+    entropy = shannon_entropy(hostname)
+    if entropy >= 4.0:
+        flags.append("high_shannon_entropy")
+        evidence.append(EvidenceItem(
+            key="SHANNON_ENTROPY",
+            value=round(entropy, 2),
+            description=f"Hostname strings exhibits high character entropy: {round(entropy, 2)}."
+        ))
+
+    # 15. Digit-to-Letter Ratio
+    letters = sum(c.isalpha() for c in hostname)
+    digits = sum(c.isdigit() for c in hostname)
+    digit_ratio = (digits / letters) if letters > 0 else (1.0 if digits > 0 else 0.0)
+    if digit_ratio >= 0.2:
+        flags.append("high_digit_ratio")
+        ratio_pct = round(digit_ratio * 100, 1)
+        evidence.append(EvidenceItem(
+            key="DIGIT_TO_LETTER_RATIO",
+            value=round(digit_ratio, 3),
+            description=f"Hostname comprises an unusual high density of numerical digits: {ratio_pct}%."
+        ))
+
+    # 16. Special Character Overload
+    special_chars = sum(url.count(c) for c in ['?', '=', '&', '%', '_'])
+    if special_chars >= 5:
+        flags.append("special_char_overload")
+        evidence.append(EvidenceItem(
+            key="SPECIAL_CHAR_COUNT",
+            value=special_chars,
+            description=f"Detected a massive load of query-modifier characters: {special_chars} occurrences."
+        ))
+
+    # 17. Base64 Obfuscation
+    query = parsed.query
+    base64_overload = False
+    if query:
+        params = parse_qsl(query, keep_blank_values=True)
+        # B64 payload > 30 chars
+        b64_pattern = re.compile(r'^[A-Za-z0-9+/\-_]{30,}={0,2}$')
+        for key, val in params:
+            if b64_pattern.match(val):
+                base64_overload = True
+                break
+                
+    if base64_overload:
+        flags.append("base64_obfuscation")
+        evidence.append(EvidenceItem(
+            key="BASE64_OBFUSCATION",
+            value=True,
+            description="Detected Base64-encoded execution string inside the URL query payload."
         ))
 
     return {"lexical_score": min(score, 1.0), "lexical_flags": flags, "evidence": evidence}

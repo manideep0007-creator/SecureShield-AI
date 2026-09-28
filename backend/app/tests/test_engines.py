@@ -76,6 +76,32 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertIn("NON_STANDARD_PORT", ev_keys)
         self.assertIn("HTTPS_IN_HOSTNAME", ev_keys)
 
+    async def test_url_engine_phase2_features_14_to_17(self):
+        engine = URLEngine()
+        # Normal URL below thresholds
+        res_normal = await engine.analyze(ScanInput(url="https://google.com/search"))
+        self.assertNotIn("high_shannon_entropy", res_normal.flags)
+        self.assertNotIn("high_digit_ratio", res_normal.flags)
+        self.assertNotIn("special_char_overload", res_normal.flags)
+        self.assertNotIn("base64_obfuscation", res_normal.flags)
+        
+        # Suspicious URL matching features 14-17 explicitly
+        # Entropy high (>4.0) hostname: '12345678qzwxecrvtbynumiopa.xyz'
+        # Contains Base64 query >= 30 chars, >= 5 special chars
+        bad_url_entropy = "https://12345678qzwxecrvtbynumiopa.xyz/?payload=VGhpcyBpcyBwdXJlIGJhc2U2NCB0ZXN0aW5nIHN0cmluZyBmb3IgZGV0ZWN0aW9u&x=_1&y=2%3"
+        res_bad = await engine.analyze(ScanInput(url=bad_url_entropy))
+        
+        self.assertIn("high_shannon_entropy", res_bad.flags)
+        self.assertIn("high_digit_ratio", res_bad.flags)
+        self.assertIn("special_char_overload", res_bad.flags)
+        self.assertIn("base64_obfuscation", res_bad.flags)
+        
+        ev_keys = [e.key for e in res_bad.evidence]
+        self.assertIn("SHANNON_ENTROPY", ev_keys)
+        self.assertIn("DIGIT_TO_LETTER_RATIO", ev_keys)
+        self.assertIn("SPECIAL_CHAR_COUNT", ev_keys)
+        self.assertIn("BASE64_OBFUSCATION", ev_keys)
+
     async def test_malware_engine_skipped(self):
         engine = MalwareEngine()
         # No file -> skipped
