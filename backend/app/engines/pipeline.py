@@ -1,0 +1,45 @@
+from app.models.scan_input import ScanInput
+from app.models.engine_result import EngineResult
+from app.engines.registry import engine_registry
+from app.preprocessing.data_prep import resolve_url, check_file_type
+
+class UnifiedScanPipeline:
+    """
+    V2 Unified Scan Pipeline
+    Coordinates preprocessing, engine selection, sequential execution, and result collection.
+    """
+    
+    def __init__(self, registry=engine_registry):
+        self.registry = registry
+
+    async def run(self, input_data: ScanInput) -> list[EngineResult]:
+        # 1. Validate input
+        # Ensure at least one scannable field is present
+        if not any([input_data.text, input_data.url, input_data.file_bytes, input_data.image_bytes, input_data.sender_id]):
+            raise ValueError("ScanInput must contain at least one piece of scannable data.")
+
+        # 2. Preprocess available data
+        if input_data.url:
+            input_data.url = await resolve_url(input_data.url)
+            
+        extension_mismatch = False
+        if input_data.file_bytes and input_data.file_name:
+            type_check = check_file_type(input_data.file_bytes, input_data.file_name)
+            extension_mismatch = type_check.get("extension_mismatch", False)
+
+        # 3. Determine applicable detection engines & 4. Run sequentially
+        # The routing to applicable engines is handled internally: 
+        # Engines receiving irrelevant data return a 'skipped' EngineResult seamlessly.
+        results = await self.registry.run_all(input_data)
+        
+        # Post-process results based on global preprocessing flags
+        if extension_mismatch:
+            for res in results:
+                if res.engine_name == "malware_engine" and res.status != "skipped":
+                    if "extension_mismatch" not in res.flags:
+                        res.flags.append("extension_mismatch")
+                        # Boost the threat score for mismatched file extensions just like V1
+                        res.risk_score = min(res.risk_score + 30.0, 100.0)
+
+        # 5 & 6. Collect & Return all engine results
+        return results
