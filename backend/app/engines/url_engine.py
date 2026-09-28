@@ -96,6 +96,44 @@ def lexical_heuristics(url: str) -> dict:
             description=f"Security-critical keywords detected in URL path/subdomain: {', '.join(matched)}."
         ))
 
+    # 10. Open Redirect Signature (Double Slash)
+    # Start looking just after the scheme designation
+    idx = url.find("//", url.find("://") + 3) if "://" in url else url.find("//")
+    if idx != -1:
+        flags.append("double_slash_redirect")
+        evidence.append(EvidenceItem(
+            key="DOUBLE_SLASH_REDIRECT",
+            value=idx,
+            description=f"Double-slash redirect artifact detected at index {idx}."
+        ))
+
+    # 11. Unencrypted Protocol Check
+    if parsed.scheme.lower() == "http":
+        flags.append("http_without_https")
+        evidence.append(EvidenceItem(
+            key="HTTP_WITHOUT_HTTPS",
+            value=True,
+            description="Protocol defaults to unencrypted HTTP."
+        ))
+
+    # 12. Non-Standard Port Mapping
+    if parsed.port and parsed.port not in [80, 443]:
+        flags.append("non_standard_port")
+        evidence.append(EvidenceItem(
+            key="NON_STANDARD_PORT",
+            value=parsed.port,
+            description=f"URL points to non-standard HTTP port: {parsed.port}."
+        ))
+
+    # 13. HTTPS Spoofing (Domain Context)
+    if "http" in hostname.lower():
+        flags.append("https_in_hostname")
+        evidence.append(EvidenceItem(
+            key="HTTPS_IN_HOSTNAME",
+            value=True,
+            description="Deceptive 'http/https' string found within the hostname payload."
+        ))
+
     return {"lexical_score": min(score, 1.0), "lexical_flags": flags, "evidence": evidence}
 
 async def check_google_safe_browsing(url: str) -> dict:

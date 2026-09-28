@@ -53,6 +53,29 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertIn("SUBDOMAIN_DEPTH", ev_keys)
         self.assertIn("SUSPICIOUS_KEYWORDS", ev_keys)
 
+    async def test_url_engine_phase2_features_10_to_13(self):
+        engine = URLEngine()
+        # Normal URL below thresholds
+        res_normal = await engine.analyze(ScanInput(url="https://google.com/search"))
+        self.assertNotIn("double_slash_redirect", res_normal.flags)
+        self.assertNotIn("http_without_https", res_normal.flags)
+        self.assertNotIn("non_standard_port", res_normal.flags)
+        self.assertNotIn("https_in_hostname", res_normal.flags)
+        
+        # Suspicious URL matching features 10-13 explicitly
+        bad_url = "http://www.https-secure-login.xyz:8080/redirect//malicious"
+        res_bad = await engine.analyze(ScanInput(url=bad_url))
+        self.assertIn("double_slash_redirect", res_bad.flags)
+        self.assertIn("http_without_https", res_bad.flags)
+        self.assertIn("non_standard_port", res_bad.flags)
+        self.assertIn("https_in_hostname", res_bad.flags)
+        
+        ev_keys = [e.key for e in res_bad.evidence]
+        self.assertIn("DOUBLE_SLASH_REDIRECT", ev_keys)
+        self.assertIn("HTTP_WITHOUT_HTTPS", ev_keys)
+        self.assertIn("NON_STANDARD_PORT", ev_keys)
+        self.assertIn("HTTPS_IN_HOSTNAME", ev_keys)
+
     async def test_malware_engine_skipped(self):
         engine = MalwareEngine()
         # No file -> skipped
