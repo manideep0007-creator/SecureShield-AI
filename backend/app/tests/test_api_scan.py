@@ -25,7 +25,8 @@ class TestAPIUnifiedScan(unittest.TestCase):
         
         res = client.post("/api/scan", json={"url": "http://192.168.1.1@suspicious.xyz"})
         self.assertEqual(res.status_code, 200)
-        results = res.json()
+        response_data = res.json()
+        results = response_data["results"]
         
         url_engine = next((r for r in results if r["engine_name"] == "url_engine"), None)
         self.assertIsNotNone(url_engine)
@@ -41,7 +42,8 @@ class TestAPIUnifiedScan(unittest.TestCase):
         """Test API parsing text accurately trips NLP engine while skipping File/URL mechanics."""
         res = client.post("/api/scan", json={"text": "URGENT act now to retrieve your password"})
         self.assertEqual(res.status_code, 200)
-        results = res.json()
+        response_data = res.json()
+        results = response_data["results"]
         
         nlp_engine = next((r for r in results if r["engine_name"] == "nlp_engine"), None)
         self.assertIsNotNone(nlp_engine)
@@ -70,12 +72,31 @@ class TestAPIUnifiedScan(unittest.TestCase):
         
         res = client.post("/api/scan", json=payload)
         self.assertEqual(res.status_code, 200)
-        results = res.json()
+        response_data = res.json()
+        results = response_data["results"]
         
         malware_engine = next((r for r in results if r["engine_name"] == "malware_engine"), None)
         self.assertIsNotNone(malware_engine)
         self.assertEqual(malware_engine["status"], "success")
         self.assertIn("vt_malicious", malware_engine["flags"])
+
+    def test_response_structure_completeness(self):
+        """Test that the API always returns the standardized wrapper object correctly."""
+        res = client.post("/api/scan", json={"text": "Looking strictly at the wrapper object structure here."})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+
+        self.assertIn("scan_id", data)
+        self.assertIsInstance(data["scan_id"], str)
+        self.assertEqual(data["status"], "completed")
+        self.assertIn("results", data)
+        self.assertIsInstance(data["results"], list)
+        
+        self.assertIn("total_engines", data)
+        self.assertIn("completed_engines", data)
+        self.assertIn("skipped_engines", data)
+        
+        self.assertEqual(data["total_engines"], data["completed_engines"] + data["skipped_engines"])
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

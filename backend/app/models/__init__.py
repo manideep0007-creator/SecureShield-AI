@@ -4,5 +4,6 @@
 
 from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
 from app.models.scan_input import ScanInput
+from app.models.scan_response import UnifiedScanResponse
 
-__all__ = ["EngineResult", "EngineStatus", "EvidenceItem", "ScanInput"]
+__all__ = ["EngineResult", "EngineStatus", "EvidenceItem", "ScanInput", "UnifiedScanResponse"]
