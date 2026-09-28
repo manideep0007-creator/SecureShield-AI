@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-dotenv
+pydantic
+pydantic-settings
+httpx
+filetype
+cachetools
+python-multipart

@@ -1,0 +1,36 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Android / Gradle
+.gradle/
+.idea/
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/.kotlin/
+local.properties
+android/local.properties
+*.keystore
+
+# Databases and temporary files
+*.db
+*.sqlite3
+*.log
+.DS_Store
+tmp/
+temp/
