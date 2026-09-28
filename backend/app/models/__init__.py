@@ -3,5 +3,6 @@
 # V1 models were inline in routes.py; V2 centralizes them here.
 
 from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
+from app.models.scan_input import ScanInput
 
-__all__ = ["EngineResult", "EngineStatus", "EvidenceItem"]
+__all__ = ["EngineResult", "EngineStatus", "EvidenceItem", "ScanInput"]
