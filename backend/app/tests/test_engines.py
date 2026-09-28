@@ -30,6 +30,29 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(res.risk_score, 0)
         self.assertIn("ip_based_host", res.flags)
 
+    async def test_url_engine_phase2_features(self):
+        engine = URLEngine()
+        # Normal URL below thresholds
+        res_normal = await engine.analyze(ScanInput(url="https://google.com/search"))
+        self.assertNotIn("url_length_anomaly", res_normal.flags)
+        self.assertNotIn("path_length_anomaly", res_normal.flags)
+        self.assertNotIn("subdomain_depth_anomaly", res_normal.flags)
+        self.assertNotIn("suspicious_keywords", res_normal.flags)
+        
+        # Suspicious URL hitting thresholds
+        bad_url = "https://secure.login.update.banking.xyz/verify/account/details/verylongpaththatgoesforevertomakeitexceedseventyfivecharactersinlength"
+        res_bad = await engine.analyze(ScanInput(url=bad_url))
+        self.assertIn("url_length_anomaly", res_bad.flags)
+        self.assertIn("path_length_anomaly", res_bad.flags)
+        self.assertIn("subdomain_depth_anomaly", res_bad.flags)
+        self.assertIn("suspicious_keywords", res_bad.flags)
+        
+        ev_keys = [e.key for e in res_bad.evidence]
+        self.assertIn("URL_LENGTH", ev_keys)
+        self.assertIn("PATH_LENGTH", ev_keys)
+        self.assertIn("SUBDOMAIN_DEPTH", ev_keys)
+        self.assertIn("SUSPICIOUS_KEYWORDS", ev_keys)
+
     async def test_malware_engine_skipped(self):
         engine = MalwareEngine()
         # No file -> skipped

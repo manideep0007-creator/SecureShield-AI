@@ -1,15 +1,22 @@
 import re
 import httpx
+from urllib.parse import urlparse
 from app.config.config import settings
 from app.engines.base_engine import BaseEngine
 from app.engines.registry import engine_registry
-from app.models.engine_result import EngineResult, EngineStatus
+from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
 from app.models.scan_input import ScanInput
 
 def lexical_heuristics(url: str) -> dict:
     """Analyze URL string for suspicious patterns."""
     score = 0.0
     flags = []
+    evidence = []
+    
+    # Pre-parse URL
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    path = parsed.path or ""
     
     # 1. IP-based host
     if re.search(r'://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', url):
@@ -39,7 +46,57 @@ def lexical_heuristics(url: str) -> dict:
     if any(s in hostname for s in shorteners):
         flags.append("url_shortener") # doesn't necessarily add malice, but noted
         
-    return {"lexical_score": min(score, 1.0), "lexical_flags": flags}
+    # --- PHASE 2: Core Lexical & Host Features (6-9) ---
+    # Scoring is unchanged intentionally. We only flag and build evidence.
+
+    # 6. URL Length Deviation
+    url_length = len(url)
+    if url_length >= 75:
+        flags.append("url_length_anomaly")
+        evidence.append(EvidenceItem(
+            key="URL_LENGTH", 
+            value=url_length, 
+            description=f"Total URL length is {url_length} characters, exceeding normal limits."
+        ))
+
+    # 7. Path Length Deviation
+    path_length = len(path)
+    if path_length >= 20:
+        flags.append("path_length_anomaly")
+        evidence.append(EvidenceItem(
+            key="PATH_LENGTH",
+            value=path_length,
+            description=f"URL path depth is {path_length} characters."
+        ))
+
+    # 8. Subdomain Depth Count
+    # Example approximation (without external TLD database):
+    parts = hostname.split('.')
+    subdomains = max(0, len(parts) - 2)
+    if len(parts) > 0 and parts[0] == "www":
+        subdomains = max(0, subdomains - 1)
+        
+    if subdomains >= 2:
+        flags.append("subdomain_depth_anomaly")
+        evidence.append(EvidenceItem(
+            key="SUBDOMAIN_DEPTH",
+            value=subdomains,
+            description=f"Hostname exhibits excessive subdomain nesting: {subdomains} layers."
+        ))
+
+    # 9. Suspicious Keyword Matches
+    target_text = (hostname + path).lower()
+    keywords = ["login", "verify", "secure", "account", "banking", "update"]
+    matched = [k for k in keywords if k in target_text]
+    if matched:
+        flags.append("suspicious_keywords")
+        evidence.append(EvidenceItem(
+            key="SUSPICIOUS_KEYWORDS",
+            value=matched,
+            description=f"Security-critical keywords detected in URL path/subdomain: {', '.join(matched)}."
+        ))
+
+    return {"lexical_score": min(score, 1.0), "lexical_flags": flags, "evidence": evidence}
 
 async def check_google_safe_browsing(url: str) -> dict:
     """Call the Google Safe Browsing API."""
@@ -94,6 +151,7 @@ class URLEngine(BaseEngine):
             combined_score = lexical * 0.7 + gsb * 0.3
             
         flags = heuristics["lexical_flags"] + gsb_result.get("gsb_threats", [])
+        evidence = heuristics.get("evidence", [])
         
         status = EngineStatus.SUCCESS
         error_message = None
@@ -106,7 +164,7 @@ class URLEngine(BaseEngine):
             risk_score=combined_score * 100.0,
             confidence=0.8,
             flags=flags,
-            evidence=[],
+            evidence=evidence,
             status=status,
             error_message=error_message,
             metadata={**heuristics, **gsb_result}
