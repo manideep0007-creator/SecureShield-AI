@@ -8,8 +8,12 @@ from app.engines.nlp_engine import analyze_text
 from app.engines.sender_engine import analyze_sender
 from app.fusion.fusion import generate_fusion_score
 from app.database.feedback import save_feedback
+from app.models.scan_input import ScanInput
+from app.models.engine_result import EngineResult
+from app.engines.pipeline import UnifiedScanPipeline
 
 router = APIRouter()
+unified_pipeline = UnifiedScanPipeline()
 
 class MessageScanRequest(BaseModel):
     message_text: Optional[str] = None
@@ -112,3 +116,14 @@ async def api_analyze_file(file: UploadFile = File(...), sender_id: Optional[str
         fusion["errors"] = errors
     
     return fusion
+
+@router.post("/scan", response_model=list[EngineResult])
+async def api_scan(payload: ScanInput):
+    """V2 Unified Scan Endpoint: Parses ScanInput and returns all EngineResults."""
+    try:
+        results = await unified_pipeline.run(payload)
+        return results
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal scanning error: {str(e)}")
