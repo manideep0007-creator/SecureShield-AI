@@ -24,10 +24,10 @@
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       DETECTION ENGINES                                 │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐ │
-│  │   URL    │ │ Malware  │ │   NLP    │ │  Sender  │ │  (Future)    │ │
-│  │  Engine  │ │  Engine  │ │  Engine  │ │  Engine  │ │  Engines     │ │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └──────┬───── │ │
-│       │             │            │             │              │       │ │
+│  │   URL    │ │ Malware  │ │   NLP    │ │  Sender  │ │   Visual     │ │
+│  │  Engine  │ │  Engine  │ │  Engine  │ │  Engine  │ │   Engine     │ │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └──────┬───────┘ │
+│       │             │            │             │              │       │
 │       └─────────────┴────────────┴─────────────┴──────────────┘       │
 │                          EngineResult                                   │
 └──────────────────────────────┬──────────────────────────────────────────┘
@@ -216,6 +216,15 @@ Future engine to analyze email headers (SPF, DKIM, DMARC, reply-to mismatch, rou
 
 Future engine for deep file behavioral analysis beyond hash lookup (macro detection, embedded scripts, archive inspection).
 
+### 3.9 Visual Engine (Phase 4) — `IMPLEMENTED`
+
+> **Location**: `app/engines/visual_engine.py`
+
+Advanced QR + OCR Intelligence engine capable of interpreting image payloads:
+- Decodes QR payloads extracting URLs or freeform text.
+- Extracts OCR textual artifacts via `easyocr` across multiple lines.
+- Feeds extracted data downstream seamlessly into the `ScanInput` for subsequent URL/NLP analysis.
+
 ---
 
 ## 4. Risk Fusion
@@ -373,6 +382,7 @@ V2 will centralize database connections, replace per-module SQLite init with uni
 | | Malware Engine | `PARTIAL` |
 | | NLP Engine | `PARTIAL` |
 | | Sender Behavior Engine | `PARTIAL` |
+| | Visual Engine (QR/OCR) | `IMPLEMENTED` |
 | | Header Analysis Engine | `NOT IMPLEMENTED` |
 | | Attachment Behavior Engine | `NOT IMPLEMENTED` |
 | **Risk Fusion** | V1 Weighted Average | `IMPLEMENTED` |

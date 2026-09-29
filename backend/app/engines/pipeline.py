@@ -18,7 +18,29 @@ class UnifiedScanPipeline:
         if not any([input_data.text, input_data.url, input_data.file_bytes, input_data.image_bytes, input_data.sender_id]):
             raise ValueError("ScanInput must contain at least one piece of scannable data.")
 
-        # 2. Preprocess available data
+        results = []
+
+        # 2. Extract Visual Context (QR/OCR)
+        if input_data.image_bytes:
+            import app.engines.visual_engine # Ensure it's imported
+            from app.engines.registry import engine_registry
+            vis_engine = engine_registry.get("visual_engine")
+            
+            if vis_engine:
+                vis_res = await vis_engine.safe_analyze(input_data)
+                results.append(vis_res)
+                
+                # Feed extracted text/urls downstream
+                if vis_res.status == "success":
+                    ext_text = vis_res.metadata.get("extracted_text")
+                    ext_url = vis_res.metadata.get("extracted_url")
+                    
+                    if ext_text and not input_data.text:
+                        input_data.text = ext_text
+                    if ext_url and not input_data.url:
+                        input_data.url = ext_url
+
+        # 3. Preprocess available data
         if input_data.url:
             input_data.url = await resolve_url(input_data.url)
             
@@ -27,19 +49,24 @@ class UnifiedScanPipeline:
             type_check = check_file_type(input_data.file_bytes, input_data.file_name)
             extension_mismatch = type_check.get("extension_mismatch", False)
 
-        # 3. Determine applicable detection engines & 4. Run sequentially
+        # 4. Determine applicable detection engines & 5. Run sequentially
         # The routing to applicable engines is handled internally: 
         # Engines receiving irrelevant data return a 'skipped' EngineResult seamlessly.
-        results = await self.registry.run_all(input_data)
+        registry_results = await self.registry.run_all(input_data)
         
         # Post-process results based on global preprocessing flags
         if extension_mismatch:
-            for res in results:
+            for res in registry_results:
                 if res.engine_name == "malware_engine" and res.status != "skipped":
                     if "extension_mismatch" not in res.flags:
                         res.flags.append("extension_mismatch")
                         # Boost the threat score for mismatched file extensions just like V1
                         res.risk_score = min(res.risk_score + 30.0, 100.0)
 
-        # 5 & 6. Collect & Return all engine results
+        # 6. Collect & Return all engine results
+        # Prevent appending visual_engine twice if it was collected during preprocessing
+        for res in registry_results:
+            if res.engine_name != "visual_engine":
+                results.append(res)
+                
         return results
