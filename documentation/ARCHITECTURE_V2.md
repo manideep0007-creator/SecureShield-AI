@@ -143,7 +143,7 @@ Abstract `BaseEngine` class defining the contract all V2 engines must follow. Ev
 | Field | Type | Description |
 |---|---|---|
 | `engine_name` | `str` | Unique engine identifier |
-| `risk_score` | `float` 0.0–1.0 | Threat level |
+| `risk_score` | `float` 0.0–100.0 | Threat level |
 | `confidence` | `float` 0.0–1.0 | Self-reported confidence |
 | `flags` | `list[str]` | Machine-readable threat indicators |
 | `evidence` | `list[EvidenceItem]` | Supporting data (key, value, description) |
