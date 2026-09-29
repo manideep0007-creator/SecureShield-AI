@@ -51,6 +51,20 @@ class TestAPIUnifiedScan(unittest.TestCase):
         self.assertIn("nlp_urgency", nlp_engine["flags"])
         self.assertIn("nlp_credential_request", nlp_engine["flags"])
         
+        # Verify evidence serialization
+        evidence = nlp_engine.get("evidence", [])
+        self.assertGreater(len(evidence), 0)
+        
+        urgency_evidence = next((e for e in evidence if e["key"] == "urgency"), None)
+        self.assertIsNotNone(urgency_evidence)
+        self.assertEqual(urgency_evidence["description"], "urgency language was detected.")
+        self.assertIn("act now", urgency_evidence["value"])
+        
+        cred_evidence = next((e for e in evidence if e["key"] == "credential_request"), None)
+        self.assertIsNotNone(cred_evidence)
+        self.assertEqual(cred_evidence["description"], "credential-request language was detected.")
+        self.assertIn("password", cred_evidence["value"])
+        
         malware_engine = next((r for r in results if r["engine_name"] == "malware_engine"), None)
         self.assertIsNotNone(malware_engine)
         self.assertEqual(malware_engine["status"], "skipped")

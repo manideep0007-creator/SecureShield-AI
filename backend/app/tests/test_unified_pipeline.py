@@ -34,6 +34,12 @@ class TestUnifiedPipeline(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(nlp_result.risk_score, 0)
         self.assertIn("nlp_urgency", nlp_result.flags)
         
+        # Verify evidence generation in pipeline output
+        self.assertGreater(len(nlp_result.evidence), 0)
+        urgency_evidence = next((e for e in nlp_result.evidence if e.key == "urgency"), None)
+        self.assertIsNotNone(urgency_evidence)
+        self.assertEqual(urgency_evidence.description, "urgency language was detected.")
+        
         self.assertEqual(url_result.status, "skipped")
 
     @patch("app.engines.url_engine.check_google_safe_browsing", new_callable=AsyncMock)

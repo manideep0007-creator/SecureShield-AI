@@ -174,6 +174,20 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res.status, "success")
         self.assertGreater(res.risk_score, 0)
         self.assertIn("nlp_urgency", res.flags)
+        self.assertIn("nlp_credential_request", res.flags)
+        
+        # Verify evidence generation
+        self.assertGreater(len(res.evidence), 0)
+        urgency_evidence = next((e for e in res.evidence if e.key == "urgency"), None)
+        self.assertIsNotNone(urgency_evidence)
+        self.assertIn("urgent", urgency_evidence.value)
+        self.assertIn("immediately", urgency_evidence.value)
+        self.assertEqual(urgency_evidence.description, "urgency language was detected.")
+        
+        cred_evidence = next((e for e in res.evidence if e.key == "credential_request"), None)
+        self.assertIsNotNone(cred_evidence)
+        self.assertIn("password", cred_evidence.value)
+        self.assertEqual(cred_evidence.description, "credential-request language was detected.")
         
     async def test_nlp_engine_skipped(self):
         engine = NLPEngine()

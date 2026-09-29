@@ -1,7 +1,7 @@
 import re
 from app.engines.base_engine import BaseEngine
 from app.engines.registry import engine_registry
-from app.models.engine_result import EngineResult, EngineStatus
+from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
 from app.models.scan_input import ScanInput
 
 CATEGORIES = {
@@ -20,6 +20,7 @@ def _analyze_text_internal(text: str) -> dict:
     text_lower = text.lower()
     triggered = []
     flags = []
+    evidence_dicts = []
     score = 0.0
     
     for category, patterns in CATEGORIES.items():
@@ -30,12 +31,20 @@ def _analyze_text_internal(text: str) -> dict:
                 triggered.extend(matches)
                 score += 0.35 # Increase score per category hit
                 
+                unique_matches = sorted(list(set(matches)))
+                evidence_dicts.append({
+                    "key": category,
+                    "value": unique_matches,
+                    "description": f"{category.replace('_', '-')} language was detected."
+                })
+                
     if not flags:
         return {}
         
     return {
         "score": min(score, 1.0),
         "flags": list(set(flags)),
+        "evidence": evidence_dicts,
         "triggered_phrases": list(set(triggered))
     }
 
@@ -53,11 +62,20 @@ class NLPEngine(BaseEngine):
         if not nlp_res:
             return self._build_result(risk_score=0.0, confidence=0.65, flags=[])
             
+        evidence_items = [
+            EvidenceItem(
+                key=e["key"],
+                value=e["value"],
+                description=e["description"]
+            )
+            for e in nlp_res.get("evidence", [])
+        ]
+            
         return self._build_result(
             risk_score=nlp_res.get("score", 0.0) * 100.0,
             confidence=0.65,
             flags=nlp_res.get("flags", []),
-            evidence=[],
+            evidence=evidence_items,
             status=EngineStatus.SUCCESS,
             metadata={"triggered_phrases": nlp_res.get("triggered_phrases", [])}
         )
