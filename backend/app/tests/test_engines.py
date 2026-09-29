@@ -194,6 +194,77 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         res = await engine.analyze(ScanInput(url="https://example.com"))
         self.assertEqual(res.status, "skipped")
 
+    async def test_nlp_engine_remaining_categories(self):
+        engine = NLPEngine()
+        
+        # 1. account_suspension
+        res_susp = await engine.analyze(ScanInput(text="We will suspend your unauthorized access."))
+        self.assertIn("nlp_account_suspension", res_susp.flags)
+        susp_ev = next((e for e in res_susp.evidence if e.key == "account_suspension"), None)
+        self.assertIsNotNone(susp_ev)
+        self.assertIn("suspend", susp_ev.value)
+        self.assertIn("unauthorized access", susp_ev.value)
+
+        # 2. prize_lottery
+        res_prize = await engine.analyze(ScanInput(text="You are selected to win a free gift giveaway!"))
+        self.assertIn("nlp_prize_lottery", res_prize.flags)
+        prize_ev = next((e for e in res_prize.evidence if e.key == "prize_lottery"), None)
+        self.assertIsNotNone(prize_ev)
+        self.assertIn("giveaway", prize_ev.value)
+        
+        # 3. unusual_payment
+        res_pay = await engine.analyze(ScanInput(text="Send bitcoin or western union gift card now."))
+        self.assertIn("nlp_unusual_payment", res_pay.flags)
+        pay_ev = next((e for e in res_pay.evidence if e.key == "unusual_payment"), None)
+        self.assertIsNotNone(pay_ev)
+        self.assertIn("bitcoin", pay_ev.value)
+
+    async def test_nlp_benign_text(self):
+        engine = NLPEngine()
+        res = await engine.analyze(ScanInput(text="Hey team, just wanted to check if we are still on for lunch tomorrow?"))
+        self.assertEqual(res.status, "success")
+        self.assertEqual(res.risk_score, 0.0)
+        self.assertEqual(res.flags, [])
+        self.assertEqual(res.evidence, [])
+
+    async def test_nlp_score_capping(self):
+        engine = NLPEngine()
+        # Triggering 4 out of 5 categories: 
+        # urgency: "act now"
+        # credential_request: "password"
+        # prize_lottery: "winner"
+        # unusual_payment: "bitcoin"
+        malicious_text = "act now! You are a winner! Send your password to claim bitcoin."
+        res = await engine.analyze(ScanInput(text=malicious_text))
+        
+        # Expecting exactly 100.0 (since 0.35 * 4 = 1.4 -> capped to 1.0 * 100 = 100.0)
+        self.assertEqual(res.risk_score, 100.0)
+        
+        self.assertIn("nlp_urgency", res.flags)
+        self.assertIn("nlp_credential_request", res.flags)
+        self.assertIn("nlp_prize_lottery", res.flags)
+        self.assertIn("nlp_unusual_payment", res.flags)
+        self.assertEqual(len(res.evidence), 4)
+
+    def test_nlp_v1_legacy_wrapper(self):
+        from app.engines.nlp_engine import analyze_text
+        res = analyze_text("URGENT update password")
+        self.assertIn("score", res)
+        self.assertGreater(res["score"], 0.0)
+        self.assertLessEqual(res["score"], 1.0)
+        
+        self.assertIn("flags", res)
+        self.assertIn("nlp_urgency", res["flags"])
+        self.assertIn("nlp_credential_request", res["flags"])
+        
+        self.assertIn("triggered_phrases", res)
+        # Check that both categories of phrases got triggered
+        self.assertTrue(any("urgent" in phrase for phrase in res["triggered_phrases"]))
+        
+        # Test clean test in legacy
+        res_clean = analyze_text("Hello nice day")
+        self.assertEqual(res_clean, {})
+
     async def test_sender_engine_analysis(self):
         engine = SenderEngine()
         import uuid
