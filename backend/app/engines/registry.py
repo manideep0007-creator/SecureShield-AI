@@ -55,18 +55,40 @@ class EngineRegistry:
         """List all registered engine instances."""
         return list(self._engines.values())
 
-    async def run_all(self, input_data: ScanInput) -> list[EngineResult]:
+    async def run_all(self, input_data: ScanInput, exclude: list[str] | None = None) -> list[EngineResult]:
         """
-        Execute every registered engine against the input and collect results.
+        Execute registered engines concurrently against the input and collect results
+        in parallel.
 
-        Each engine runs through `safe_analyze` so failures are isolated —
-        a broken engine returns an ERROR result instead of crashing the pipeline.
+        Each engine runs through `safe_analyze` so failures are isolated. A timeout
+        further prevents a hanging engine from blocking the entire pipeline.
         """
-        results: list[EngineResult] = []
-        for engine in self._engines.values():
-            result = await engine.safe_analyze(input_data)
-            results.append(result)
-        return results
+        import asyncio
+        if exclude is None:
+            exclude = []
+            
+        async def run_with_timeout(engine: BaseEngine) -> EngineResult:
+            try:
+                # 30-second bounded execution safety limit per engine
+                return await asyncio.wait_for(engine.safe_analyze(input_data), timeout=30.0)
+            except asyncio.TimeoutError:
+                return EngineResult.error(engine.name, "Engine timed out after 30 seconds")
+            except Exception as e:
+                return EngineResult.error(engine.name, f"Unexpected fatal error: {str(e)}")
+
+        tasks = [
+            run_with_timeout(engine)
+            for name, engine in self._engines.items()
+            if name not in exclude
+        ]
+        
+        if not tasks:
+            return []
+            
+        results = await asyncio.gather(*tasks)
+        
+        # Ensure deterministic result aggregation regardless of asynchronous return order
+        return sorted(list(results), key=lambda x: x.engine_name)
 
     def __len__(self) -> int:
         return len(self._engines)
