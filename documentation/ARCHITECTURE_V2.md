@@ -23,6 +23,7 @@
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       DETECTION ENGINES                                 │
+│                   (Concurrent Execution via Registry)                   │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐ │
 │  │   URL    │ │ Malware  │ │   NLP    │ │  Sender  │ │   Visual     │ │
 │  │  Engine  │ │  Engine  │ │  Engine  │ │  Engine  │ │   Engine     │ │
@@ -151,11 +152,14 @@ Abstract `BaseEngine` class defining the contract all V2 engines must follow. Ev
 
 Includes `safe_analyze()` fault-tolerance wrapper — one broken engine can never crash the pipeline.
 
-### 3.2 Engine Registry — `IMPLEMENTED`
+### 3.2 Engine Registry (Phase 6 Parallelism) — `IMPLEMENTED`
 
 > **Location**: `app/engines/registry.py`
 
-Dynamic engine catalog. Engines self-register at startup; the pipeline calls `engine_registry.run_all(input_data)` to execute all active engines and collect `EngineResult` objects.
+Dynamic engine catalog. Engines self-register at startup.
+- The pipeline calls `engine_registry.run_all(input_data)` to execute active engines concurrently.
+- Utilizes `asyncio.gather` wrapped with `asyncio.wait_for` (30-second bounded safety limit) per engine to guarantee parallel execution isolated from cascading timeout failures.
+- Always aggregates and returns sorted, deterministic arrays of `EngineResult` objects seamlessly resolving backwards compatibility.
 
 ### 3.3 URL Engine — `PARTIAL`
 
