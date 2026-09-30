@@ -245,12 +245,32 @@ Calculates a confidence-weighted average from all active engine results:
 - Formula: `score = round((Σ engine_score × confidence) / (Σ confidence) × 100)`
 - Outputs 0–100 integer score
 
-### 4.2 V2 Fusion Module — `NOT IMPLEMENTED`
+### 4.2 Risk Fusion & Classification (Phase 7) — `IMPLEMENTED`
 
-> **Target**: `app/fusion/`  
-> **Current state**: Empty `__init__.py` placeholder only
+> **Location**: `app/fusion/risk_fusion.py`, `app/models/risk_assessment.py`
 
-V2 fusion will consume standardized `EngineResult` objects from the registry, use self-reported confidence values (instead of hardcoded weights), and support pluggable aggregation strategies.
+The V2 response preserves every engine-level `EngineResult` and adds one unified
+`RiskAssessment`. Fusion is deterministic and runs after the Phase 6 registry
+has completed:
+
+- Only `SUCCESS` and `PARTIAL` results with positive confidence contribute to
+    the aggregate. `SKIPPED`, `ERROR`, and zero-confidence results are recorded
+    as ignored and do not lower the score.
+- Each result is weighted by `confidence * engine reliability`. Reliability
+    defaults are URL `0.90`, malware `1.00`, NLP `0.80`, visual `0.90`, sender
+    `0.60`, and `0.75` for future engines. Partial results receive half weight.
+- The final score is the weighted mean, rounded to two decimals and constrained
+    to `0.0–100.0`. Engine flags and evidence are retained in deterministic order
+    in the assessment as well as in the original results.
+- Classification boundaries are: `Safe` (`<20`), `Suspicious` (`20–44.99`),
+    `Deceptive` (`45–69.99`), `Phishing` (`70–89.99`), and `Phishing` at `90+`
+    unless a malware signal is present. A malware engine score of `90+` or a
+    malware flag (`MALWARE`, `vt_malicious`, `vt_suspicious`, or
+    `malware_detected`) produces `Malware`.
+
+The `/api/scan` response exposes `risk_score` and `classification` at the top
+level, with the complete `risk_assessment` details and unchanged per-engine
+`results` alongside them.
 
 ---
 
