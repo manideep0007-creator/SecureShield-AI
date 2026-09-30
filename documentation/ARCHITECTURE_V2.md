@@ -216,14 +216,15 @@ Future engine to analyze email headers (SPF, DKIM, DMARC, reply-to mismatch, rou
 
 Future engine for deep file behavioral analysis beyond hash lookup (macro detection, embedded scripts, archive inspection).
 
-### 3.9 Visual Engine (Phase 4) — `IMPLEMENTED`
+### 3.9 Visual Engine (Phases 4 & 5) — `IMPLEMENTED`
 
 > **Location**: `app/engines/visual_engine.py`
 
-Advanced QR + OCR Intelligence engine capable of interpreting image payloads:
-- Decodes QR payloads extracting URLs or freeform text.
-- Extracts OCR textual artifacts via `easyocr` across multiple lines.
-- Feeds extracted data downstream seamlessly into the `ScanInput` for subsequent URL/NLP analysis.
+Advanced Visual Intelligence engine capable of interpreting image payloads and classifying spatial arrangements:
+- **QR + OCR (Phase 4):** Decodes QR payloads extracting URLs or freeform text, and extracts OCR textual artifacts via `easyocr`.
+- **Visual Phishing Detection (Phase 5):** Conducts bounding-box and geometric layout checks via `OpenCV` contour detection (aspect-ratio parsing) combined with OCR language hits (e.g., "password", "sign in"). 
+- Predictively flags `visual_credential_prompt` and high-confidence fake login overlays (`visual_phishing_detected`) designed to emulate captive portals or email-hosted web credential frames.
+- Feeds extracted textual and URL elements downstream into the unified `ScanInput` for subsequent URL/NLP analysis natively without duplication.
 
 ---
 
@@ -382,7 +383,7 @@ V2 will centralize database connections, replace per-module SQLite init with uni
 | | Malware Engine | `PARTIAL` |
 | | NLP Engine | `PARTIAL` |
 | | Sender Behavior Engine | `PARTIAL` |
-| | Visual Engine (QR/OCR) | `IMPLEMENTED` |
+| | Visual Engine (QR/OCR/Phishing) | `IMPLEMENTED` |
 | | Header Analysis Engine | `NOT IMPLEMENTED` |
 | | Attachment Behavior Engine | `NOT IMPLEMENTED` |
 | **Risk Fusion** | V1 Weighted Average | `IMPLEMENTED` |
