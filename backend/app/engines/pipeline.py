@@ -6,8 +6,19 @@ import app.engines.visual_engine # Ensure it's registered
 
 class UnifiedScanPipeline:
     """
-    V2 Unified Scan Pipeline
-    Coordinates preprocessing, engine selection, sequential execution, and result collection.
+    V2 Unified Scan Pipeline (Phase 6: Concurrent Execution)
+
+    Coordinates preprocessing, visual context extraction (sequential, for
+    downstream dependency propagation), and concurrent parallel execution of
+    all independent detection engines via the EngineRegistry.
+
+    Execution order:
+        1. Validate input
+        2. Visual Engine (sequential — QR/OCR output feeds URL/NLP engines)
+        3. Preprocess (URL resolution, file type check)
+        4. All remaining engines run concurrently via asyncio.gather
+        5. Post-process (extension_mismatch boost)
+        6. Collect & return all EngineResults
     """
     
     def __init__(self, registry=engine_registry):
