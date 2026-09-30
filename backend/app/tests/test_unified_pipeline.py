@@ -95,7 +95,11 @@ class TestUnifiedPipeline(unittest.IsolatedAsyncioTestCase):
         input_data = ScanInput(image_bytes=buffer.tobytes())
         results = await self.pipeline.run(input_data)
 
-        vis_result = next((r for r in results if r.engine_name == "visual_engine"), None)
+        # PR Fix: Prove VisualEngine executes exactly once
+        visual_results = [r for r in results if r.engine_name == "visual_engine"]
+        self.assertEqual(len(visual_results), 1, "Visual Engine should only be executed and attached once.")
+
+        vis_result = visual_results[0]
         nlp_result = next((r for r in results if r.engine_name == "nlp_engine"), None)
 
         self.assertIsNotNone(vis_result)

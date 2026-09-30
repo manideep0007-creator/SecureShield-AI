@@ -2,6 +2,7 @@ from app.models.scan_input import ScanInput
 from app.models.engine_result import EngineResult
 from app.engines.registry import engine_registry
 from app.preprocessing.data_prep import resolve_url, check_file_type
+import app.engines.visual_engine # Ensure it's registered
 
 class UnifiedScanPipeline:
     """
@@ -21,9 +22,7 @@ class UnifiedScanPipeline:
         results = []
 
         # 2. Extract Visual Context (QR/OCR)
-        import app.engines.visual_engine # Ensure it's imported
-        from app.engines.registry import engine_registry
-        vis_engine = engine_registry.get("visual_engine")
+        vis_engine = self.registry.get("visual_engine")
         
         if vis_engine:
             vis_res = await vis_engine.safe_analyze(input_data)
