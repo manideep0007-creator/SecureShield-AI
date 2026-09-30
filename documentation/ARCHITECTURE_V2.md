@@ -161,7 +161,91 @@ Dynamic engine catalog. Engines self-register at startup.
 - Utilizes `asyncio.gather` wrapped with `asyncio.wait_for` (30-second bounded safety limit) per engine to guarantee parallel execution isolated from cascading timeout failures.
 - Always aggregates and returns sorted, deterministic arrays of `EngineResult` objects seamlessly resolving backwards compatibility.
 
-### 3.3 Risk Fusion & Classification (Phase 7) — `IMPLEMENTED`
+### 3.3 URL Engine — `PARTIAL`
+
+> **V1 (working)**: `engines/url_engine.py` — returns ad-hoc dict  
+> **V2 (pending)**: No V2 subclass of `BaseEngine` yet
+
+V1 implementation is fully functional:
+- Lexical heuristics: IP-based host (+0.3), `@` injection (+0.2), hyphen count (+0.2), suspicious TLDs (+0.4), URL shortener detection
+- Google Safe Browsing API v4 integration with 5s timeout
+- Combined scoring with GSB-confirmation boosting
+
+**V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
+
+### 3.4 Malware Engine — `PARTIAL`
+
+> **V1 (working)**: `engines/malware_engine.py` — returns ad-hoc dict  
+> **V2 (pending)**: No V2 subclass of `BaseEngine` yet
+
+V1 implementation is fully functional:
+- SHA-256 hash computation + VirusTotal API v3 lookup
+- TTLCache (1000 items, 10-minute TTL) to avoid rate-limit bursts
+- Handles VT 404 (file unknown) as `vt_not_found` flag
+
+**V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
+
+### 3.5 NLP Engine — `PARTIAL`
+
+> **V1 (working)**: `engines/nlp_engine.py` — returns ad-hoc dict  
+> **V2 (pending)**: No V2 subclass of `BaseEngine` yet
+
+V1 implementation is fully functional:
+- Regex pattern matching across 5 social-engineering categories
+- Categories: urgency, credential harvesting, account suspension, prize/lottery, unusual payment
+- Score: +0.35 per category hit, capped at 1.0
+
+**V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
+
+### 3.6 Sender Behavior Engine — `PARTIAL`
+
+> **V1 (working)**: `engines/sender_engine.py` — returns ad-hoc dict  
+> **V2 (pending)**: No V2 subclass of `BaseEngine` yet
+
+V1 implementation is fully functional:
+- SQLite-backed per-sender history (message count, link count, file count)
+- Flags: `first_time_sender` (0.4), `out_of_character_link` (+0.6), `out_of_character_file` (+0.6)
+
+**V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
+
+### 3.7 Header Analysis Engine — `NOT IMPLEMENTED`
+
+> **Target**: `app/engines/`
+
+Future engine to analyze email headers (SPF, DKIM, DMARC, reply-to mismatch, routing anomalies).
+
+### 3.8 Attachment Behavior Engine — `NOT IMPLEMENTED`
+
+> **Target**: `app/engines/`
+
+Future engine for deep file behavioral analysis beyond hash lookup (macro detection, embedded scripts, archive inspection).
+
+### 3.9 Visual Engine (Phases 4 & 5) — `IMPLEMENTED`
+
+> **Location**: `app/engines/visual_engine.py`
+
+Advanced Visual Intelligence engine capable of interpreting image payloads and classifying spatial arrangements:
+- **QR + OCR (Phase 4):** Decodes QR payloads extracting URLs or freeform text, and extracts OCR textual artifacts via `easyocr`.
+- **Visual Phishing Detection (Phase 5):** Conducts bounding-box and geometric layout checks via `OpenCV` contour detection (aspect-ratio parsing) combined with OCR language hits (e.g., "password", "sign in"). 
+- Predictively flags `visual_credential_prompt` and high-confidence fake login overlays (`visual_phishing_detected`) designed to emulate captive portals or email-hosted web credential frames.
+- Feeds extracted textual and URL elements downstream into the unified `ScanInput` for subsequent URL/NLP analysis natively without duplication.
+
+---
+
+## 4. Risk Fusion
+
+Aggregation of individual engine results into a single unified threat score.
+
+### 4.1 V1 Fusion (Confidence-Weighted Average) — `IMPLEMENTED`
+
+> **Location**: V1 `engines/fusion.py` → `generate_fusion_score()`
+
+Calculates a confidence-weighted average from all active engine results:
+- Engine confidence weights: URL (0.8), File (0.9), NLP (0.65), Sender (0.5)
+- Formula: `score = round((Σ engine_score × confidence) / (Σ confidence) × 100)`
+- Outputs 0–100 integer score
+
+### 4.2 Risk Fusion & Classification (Phase 7) — `IMPLEMENTED`
 
 > **Location**: `app/fusion/risk_fusion.py`, `app/models/risk_assessment.py`
 
@@ -187,97 +271,6 @@ has completed:
 The `/api/scan` response exposes `risk_score` and `classification` at the top
 level, with the complete `risk_assessment` details and unchanged per-engine
 `results` alongside them.
-
-### 3.4 URL Engine — `PARTIAL`
-
-> **V1 (working)**: `engines/url_engine.py` — returns ad-hoc dict  
-> **V2 (pending)**: No V2 subclass of `BaseEngine` yet
-
-V1 implementation is fully functional:
-- Lexical heuristics: IP-based host (+0.3), `@` injection (+0.2), hyphen count (+0.2), suspicious TLDs (+0.4), URL shortener detection
-- Google Safe Browsing API v4 integration with 5s timeout
-- Combined scoring with GSB-confirmation boosting
-
-**V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
-
-### 3.5 Malware Engine — `PARTIAL`
-
-> **V1 (working)**: `engines/malware_engine.py` — returns ad-hoc dict  
-> **V2 (pending)**: No V2 subclass of `BaseEngine` yet
-
-V1 implementation is fully functional:
-- SHA-256 hash computation + VirusTotal API v3 lookup
-- TTLCache (1000 items, 10-minute TTL) to avoid rate-limit bursts
-- Handles VT 404 (file unknown) as `vt_not_found` flag
-
-**V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
-
-### 3.6 NLP Engine — `PARTIAL`
-
-> **V1 (working)**: `engines/nlp_engine.py` — returns ad-hoc dict  
-> **V2 (pending)**: No V2 subclass of `BaseEngine` yet
-
-V1 implementation is fully functional:
-- Regex pattern matching across 5 social-engineering categories
-- Categories: urgency, credential harvesting, account suspension, prize/lottery, unusual payment
-- Score: +0.35 per category hit, capped at 1.0
-
-**V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
-
-### 3.7 Sender Behavior Engine — `PARTIAL`
-
-> **V1 (working)**: `engines/sender_engine.py` — returns ad-hoc dict  
-> **V2 (pending)**: No V2 subclass of `BaseEngine` yet
-
-V1 implementation is fully functional:
-- SQLite-backed per-sender history (message count, link count, file count)
-- Flags: `first_time_sender` (0.4), `out_of_character_link` (+0.6), `out_of_character_file` (+0.6)
-
-**V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
-
-### 3.8 Header Analysis Engine — `NOT IMPLEMENTED`
-
-> **Target**: `app/engines/`
-
-Future engine to analyze email headers (SPF, DKIM, DMARC, reply-to mismatch, routing anomalies).
-
-### 3.9 Attachment Behavior Engine — `NOT IMPLEMENTED`
-
-> **Target**: `app/engines/`
-
-Future engine for deep file behavioral analysis beyond hash lookup (macro detection, embedded scripts, archive inspection).
-
-### 3.10 Visual Engine (Phases 4 & 5) — `IMPLEMENTED`
-
-> **Location**: `app/engines/visual_engine.py`
-
-Advanced Visual Intelligence engine capable of interpreting image payloads and classifying spatial arrangements:
-- **QR + OCR (Phase 4):** Decodes QR payloads extracting URLs or freeform text, and extracts OCR textual artifacts via `easyocr`.
-- **Visual Phishing Detection (Phase 5):** Conducts bounding-box and geometric layout checks via `OpenCV` contour detection (aspect-ratio parsing) combined with OCR language hits (e.g., "password", "sign in"). 
-- Predictively flags `visual_credential_prompt` and high-confidence fake login overlays (`visual_phishing_detected`) designed to emulate captive portals or email-hosted web credential frames.
-- Feeds extracted textual and URL elements downstream into the unified `ScanInput` for subsequent URL/NLP analysis natively without duplication.
-
----
-
-## 4. Risk Fusion
-
-Aggregation of individual engine results into a single unified threat score.
-
-### 4.1 V1 Fusion (Confidence-Weighted Average) — `IMPLEMENTED`
-
-> **Location**: V1 `engines/fusion.py` → `generate_fusion_score()`
-
-Calculates a confidence-weighted average from all active engine results:
-- Engine confidence weights: URL (0.8), File (0.9), NLP (0.65), Sender (0.5)
-- Formula: `score = round((Σ engine_score × confidence) / (Σ confidence) × 100)`
-- Outputs 0–100 integer score
-
-### 4.2 V2 Fusion Module — `NOT IMPLEMENTED`
-
-> **Target**: `app/fusion/`  
-> **Current state**: Empty `__init__.py` placeholder only
-
-V2 fusion will consume standardized `EngineResult` objects from the registry, use self-reported confidence values (instead of hardcoded weights), and support pluggable aggregation strategies.
 
 ---
 
