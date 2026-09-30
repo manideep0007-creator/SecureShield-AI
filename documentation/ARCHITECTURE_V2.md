@@ -161,7 +161,34 @@ Dynamic engine catalog. Engines self-register at startup.
 - Utilizes `asyncio.gather` wrapped with `asyncio.wait_for` (30-second bounded safety limit) per engine to guarantee parallel execution isolated from cascading timeout failures.
 - Always aggregates and returns sorted, deterministic arrays of `EngineResult` objects seamlessly resolving backwards compatibility.
 
-### 3.3 URL Engine — `PARTIAL`
+### 3.3 Risk Fusion & Classification (Phase 7) — `IMPLEMENTED`
+
+> **Location**: `app/fusion/risk_fusion.py`, `app/models/risk_assessment.py`
+
+The V2 response preserves every engine-level `EngineResult` and adds one unified
+`RiskAssessment`. Fusion is deterministic and runs after the Phase 6 registry
+has completed:
+
+- Only `SUCCESS` and `PARTIAL` results with positive confidence contribute to
+    the aggregate. `SKIPPED`, `ERROR`, and zero-confidence results are recorded
+    as ignored and do not lower the score.
+- Each result is weighted by `confidence * engine reliability`. Reliability
+    defaults are URL `0.90`, malware `1.00`, NLP `0.80`, visual `0.90`, sender
+    `0.60`, and `0.75` for future engines. Partial results receive half weight.
+- The final score is the weighted mean, rounded to two decimals and constrained
+    to `0.0–100.0`. Engine flags and evidence are retained in deterministic order
+    in the assessment as well as in the original results.
+- Classification boundaries are: `Safe` (`<20`), `Suspicious` (`20–44.99`),
+    `Deceptive` (`45–69.99`), `Phishing` (`70–89.99`), and `Phishing` at `90+`
+    unless a malware signal is present. A malware engine score of `90+` or a
+    malware flag (`MALWARE`, `vt_malicious`, `vt_suspicious`, or
+    `malware_detected`) produces `Malware`.
+
+The `/api/scan` response exposes `risk_score` and `classification` at the top
+level, with the complete `risk_assessment` details and unchanged per-engine
+`results` alongside them.
+
+### 3.4 URL Engine — `PARTIAL`
 
 > **V1 (working)**: `engines/url_engine.py` — returns ad-hoc dict  
 > **V2 (pending)**: No V2 subclass of `BaseEngine` yet
@@ -173,7 +200,7 @@ V1 implementation is fully functional:
 
 **V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
 
-### 3.4 Malware Engine — `PARTIAL`
+### 3.5 Malware Engine — `PARTIAL`
 
 > **V1 (working)**: `engines/malware_engine.py` — returns ad-hoc dict  
 > **V2 (pending)**: No V2 subclass of `BaseEngine` yet
@@ -185,7 +212,7 @@ V1 implementation is fully functional:
 
 **V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
 
-### 3.5 NLP Engine — `PARTIAL`
+### 3.6 NLP Engine — `PARTIAL`
 
 > **V1 (working)**: `engines/nlp_engine.py` — returns ad-hoc dict  
 > **V2 (pending)**: No V2 subclass of `BaseEngine` yet
@@ -197,7 +224,7 @@ V1 implementation is fully functional:
 
 **V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
 
-### 3.6 Sender Behavior Engine — `PARTIAL`
+### 3.7 Sender Behavior Engine — `PARTIAL`
 
 > **V1 (working)**: `engines/sender_engine.py` — returns ad-hoc dict  
 > **V2 (pending)**: No V2 subclass of `BaseEngine` yet
@@ -208,19 +235,19 @@ V1 implementation is fully functional:
 
 **V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
 
-### 3.7 Header Analysis Engine — `NOT IMPLEMENTED`
+### 3.8 Header Analysis Engine — `NOT IMPLEMENTED`
 
 > **Target**: `app/engines/`
 
 Future engine to analyze email headers (SPF, DKIM, DMARC, reply-to mismatch, routing anomalies).
 
-### 3.8 Attachment Behavior Engine — `NOT IMPLEMENTED`
+### 3.9 Attachment Behavior Engine — `NOT IMPLEMENTED`
 
 > **Target**: `app/engines/`
 
 Future engine for deep file behavioral analysis beyond hash lookup (macro detection, embedded scripts, archive inspection).
 
-### 3.9 Visual Engine (Phases 4 & 5) — `IMPLEMENTED`
+### 3.10 Visual Engine (Phases 4 & 5) — `IMPLEMENTED`
 
 > **Location**: `app/engines/visual_engine.py`
 
