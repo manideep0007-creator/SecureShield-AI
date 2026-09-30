@@ -73,6 +73,45 @@ class VisualEngine(BaseEngine):
                     if urls:
                         extracted_url = urls[0]
 
+                # Phase 5: Visual Phishing / Fake Login Detection
+                # 1. OCR pattern analysis
+                text_lower = joined_text.lower()
+                cred_keywords = ["login", "sign in", "password", "username", "verify account", "enter credentials"]
+                has_cred_text = any(kw in text_lower for kw in cred_keywords)
+
+                # 2. Structural pattern analysis (detect input boxes)
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                blur = cv2.GaussianBlur(gray, (5, 5), 0)
+                edges = cv2.Canny(blur, 50, 150)
+                contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
+                input_field_count = 0
+                for cnt in contours:
+                    approx = cv2.approxPolyDP(cnt, 0.02 * cv2.arcLength(cnt, True), True)
+                    if len(approx) == 4:
+                        x, y, w, h = cv2.boundingRect(approx)
+                        aspect_ratio = float(w)/h
+                        if 2.0 <= aspect_ratio <= 20.0 and w > 40 and h > 10:
+                            input_field_count += 1
+
+                # 3. Assess Visual Phishing Risk
+                if has_cred_text and input_field_count > 0:
+                    flags.append("visual_phishing_detected")
+                    score = min(score + 60.0, 100.0)
+                    evidence.append(EvidenceItem(
+                        key="visual_fake_login",
+                        value={"input_fields_detected": input_field_count},
+                        description="Image structurally resembles a credential-harvesting or fake login form."
+                    ))
+                elif has_cred_text:
+                    flags.append("visual_credential_prompt")
+                    score = min(score + 30.0, 100.0)
+                    evidence.append(EvidenceItem(
+                        key="visual_credential_prompt",
+                        value=True,
+                        description="Credential request language visually embedded in image payload."
+                    ))
+
             if not flags:
                 return self._build_result(
                     risk_score=0.0,

@@ -52,5 +52,35 @@ class TestVisualEngine(unittest.IsolatedAsyncioTestCase):
         
         self.assertEqual(res.metadata.get("extracted_url"), "https://malicious-scam.com/login")
 
+    async def test_visual_phishing_fake_login(self):
+        import cv2
+        import numpy as np
+        img = np.zeros((300, 400, 3), dtype=np.uint8)
+        img[:] = (255, 255, 255)
+        # Create a fake login prompt
+        cv2.putText(img, 'Sign in to your account', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+        cv2.rectangle(img, (50, 100), (350, 140), (0, 0, 0), 2)
+        cv2.rectangle(img, (50, 160), (350, 200), (0, 0, 0), 2)
+        cv2.putText(img, 'Password', (50, 155), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+
+        _, buffer = cv2.imencode('.png', img)
+        
+        res = await self.engine.analyze(ScanInput(image_bytes=buffer.tobytes()))
+        self.assertEqual(res.status, "success")
+        self.assertIn("visual_phishing_detected", res.flags)
+        self.assertIn("visual_fake_login", [e.key for e in res.evidence])
+        self.assertGreaterEqual(res.risk_score, 60.0)
+
+    async def test_visual_credential_prompt_only(self):
+        import cv2
+        import numpy as np
+        img = np.zeros((100, 400, 3), dtype=np.uint8)
+        cv2.putText(img, 'Send your password', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        _, buffer = cv2.imencode('.png', img)
+
+        res = await self.engine.analyze(ScanInput(image_bytes=buffer.tobytes()))
+        self.assertEqual(res.status, "success")
+        self.assertIn("visual_credential_prompt", res.flags)
+        
 if __name__ == '__main__':
     unittest.main()
