@@ -1,5 +1,4 @@
 from app.models.risk_assessment import RiskAssessment, RiskClassification
-import re
 
 class ExplainabilityEngine:
     FLAG_EXPLANATIONS = {
@@ -54,6 +53,13 @@ class ExplainabilityEngine:
                 explanation = cls.FLAG_EXPLANATIONS.get(flag)
                 if explanation:
                     reasons.append(explanation)
+
+        for ev in assessment.evidence:
+            if ev.description:
+                reasons.append(ev.description)
+            else:
+                key_readable = ev.key.replace('_', ' ').capitalize()
+                reasons.append(f"Evidence found - {key_readable}: {ev.value}.")
 
         unique_reasons = []
         for r in reasons:

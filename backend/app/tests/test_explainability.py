@@ -109,3 +109,20 @@ def test_explain_no_flags_not_safe():
     )
     explained = ExplainabilityEngine.explain(assessment)
     assert explained.reasons == ["Assessed based on aggregate engine analysis without specific discrete flags."]
+
+def test_explain_with_evidence():
+    assessment = RiskAssessment(
+        risk_score=50.0,
+        classification=RiskClassification.SUSPICIOUS,
+        confidence=0.8,
+        contributing_engines=["url_engine"],
+        flags=["suspicious_tld"],
+        evidence=[
+            EvidenceItem(key="url_length", value=150, description="The URL is very long (150 chars)."),
+            EvidenceItem(key="unknown_indicator", value="xyz")
+        ]
+    )
+    explained = ExplainabilityEngine.explain(assessment)
+    assert "The URL uses a Top-Level Domain (TLD) commonly associated with spam or malicious activity." in explained.reasons
+    assert "The URL is very long (150 chars)." in explained.reasons
+    assert "Evidence found - Unknown indicator: xyz." in explained.reasons
