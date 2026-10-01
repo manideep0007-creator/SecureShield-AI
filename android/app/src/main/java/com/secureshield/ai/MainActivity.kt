@@ -1,4 +1,4 @@
-package com.secureshield.ai
+﻿package com.secureshield.ai
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.util.Base64
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
@@ -25,15 +26,14 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.Scope
 import com.google.api.services.gmail.GmailScopes
 import com.secureshield.ai.network.ApiClient
-import com.secureshield.ai.network.MessageScanRequest
-import com.secureshield.ai.network.ScanResponse
+import com.secureshield.ai.network.ScanInput
+import com.secureshield.ai.network.UnifiedScanResponse
 import com.secureshield.ai.network.FeedbackRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 
 class MainActivity : AppCompatActivity() {
 
@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnThumbUp: Button
     private lateinit var btnThumbDown: Button
     
-    private var currentResult: ScanResponse? = null
+    private var currentResult: UnifiedScanResponse? = null
 
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
@@ -59,7 +59,6 @@ class MainActivity : AppCompatActivity() {
                 processLatestEmail(account)
             }
         } catch (e: Exception) {
-            // Automatically fall back to demo mode since the developer's SHA-1 keystore isn't registered in Google Cloud Console
             badgeCategory.text = "OAuth Unregistered. Simulating Demo Email..."
             simulateGmailFetch()
         }
@@ -94,15 +93,14 @@ class MainActivity : AppCompatActivity() {
         btnBackgroundMonitor.setOnClickListener {
             Toast.makeText(this, "Monitoring background... (Wait 5s)", Toast.LENGTH_LONG).show()
             
-            // Go to home screen to simulate background
             val intent = Intent(Intent.ACTION_MAIN)
             intent.addCategory(Intent.CATEGORY_HOME)
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             startActivity(intent)
 
             lifecycleScope.launch {
-                kotlinx.coroutines.delay(5000) // Wait 5 seconds
-                simulateGmailFetch() // Trigger the silent simulated fetch that pops the notification
+                kotlinx.coroutines.delay(5000) 
+                simulateGmailFetch()
             }
         }
 
@@ -125,7 +123,7 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
-                        ApiClient.api.sendFeedback(FeedbackRequest(res.analyzed_target, res.final_score, res.category, value))
+                        ApiClient.api.sendFeedback(FeedbackRequest(res.scan_id, res.risk_score.toInt(), res.classification, value))
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -157,37 +155,7 @@ class MainActivity : AppCompatActivity() {
             badgeCategory.text = "Scanning Email..."
             textTarget.text = "Sender: ${msgData.sender}\nExtracted Link: ${msgData.extractedUrl ?: "None"}"
 
-            try {
-                val response = withContext(Dispatchers.IO) {
-                    ApiClient.api.analyzeMessage(
-                        MessageScanRequest(
-                            message_text = msgData.bodyText,
-                            url = msgData.extractedUrl,
-                            sender_id = msgData.sender
-                        )
-                    )
-                }
-                
-                progressBar.visibility = View.GONE
-                if (response.isSuccessful) {
-                    val result = response.body()
-                    result?.let {
-                        currentResult = it
-                        layoutFeedback.visibility = View.VISIBLE
-                        badgeCategory.text = it.category + " (Email)"
-                        textScore.text = "Risk Score: ${it.final_score} / 100"
-                        textReasons.text = if (it.reasons.isNotEmpty()) it.reasons.joinToString("\n• ", prefix = "• ") else "None"
-                        textAction.text = it.recommended_action
-                        
-                        sendPushNotification("Gmail Source Scanned", "Risk: ${it.category} for ${it.analyzed_target}")
-                    }
-                } else {
-                    badgeCategory.text = "Error: ${response.code()}"
-                }
-            } catch (e: Exception) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = "Network Error: ${e.message}"
-            }
+            executeScan(ScanInput(text = msgData.bodyText, url = msgData.extractedUrl, sender_id = msgData.sender, source_channel = "gmail"), "Gmail Source Scanned", "Email")
         }
     }
 
@@ -196,39 +164,13 @@ class MainActivity : AppCompatActivity() {
         badgeCategory.text = "Scanning Demo Email..."
         textTarget.text = "Sender: support@amazon-refunds.com\nExtracted Link: http://192.168.1.1@secure-login-verify.xyz/account"
 
-        lifecycleScope.launch {
-            try {
-                val response = withContext(Dispatchers.IO) {
-                    ApiClient.api.analyzeMessage(
-                        MessageScanRequest(
-                            message_text = "URGENT! Your account is locked! Please verify your password and send a gift card immediately.",
-                            url = "http://192.168.1.1@secure-login-verify.xyz/account",
-                            sender_id = "support@amazon-refunds.com"
-                        )
-                    )
-                }
-                
-                progressBar.visibility = View.GONE
-                if (response.isSuccessful) {
-                    val result = response.body()
-                    result?.let {
-                        currentResult = it
-                        layoutFeedback.visibility = View.VISIBLE
-                        badgeCategory.text = it.category + " (Email)"
-                        textScore.text = "Risk Score: ${it.final_score} / 100"
-                        textReasons.text = if (it.reasons.isNotEmpty()) it.reasons.joinToString("\n• ", prefix = "• ") else "None"
-                        textAction.text = it.recommended_action
-                        
-                        sendPushNotification("Gmail Demo Scanned", "Risk: ${it.category} for ${it.analyzed_target}")
-                    }
-                } else {
-                    badgeCategory.text = "Error: ${response.code()}"
-                }
-            } catch (e: Exception) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = "Network Error: ${e.message}"
-            }
-        }
+        val input = ScanInput(
+            text = "URGENT! Your account is locked! Please verify your password and send a gift card immediately.",
+            url = "http://192.168.1.1@secure-login-verify.xyz/account",
+            sender_id = "support@amazon-refunds.com",
+            source_channel = "demo_email"
+        )
+        executeScan(input, "Gmail Demo Scanned", "Email")
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -255,59 +197,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun sendPushNotification(title: String, message: String) {
-        try {
-            val intent = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
-            val builder = NotificationCompat.Builder(this, "SS_ALERTS")
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setContentIntent(pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true)
-            
-            NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), builder.build())
-        } catch (e: SecurityException) {
-            // Re-prompt for POST_NOTIFICATIONS on Android 13+ if missing
-            e.printStackTrace()
-        }
-    }
-
     private fun scanUrl(url: String) {
         badgeCategory.text = "Scanning..."
         layoutFeedback.visibility = View.GONE
         textTarget.text = "URL:\n$url"
         progressBar.visibility = View.VISIBLE
 
-        lifecycleScope.launch {
-            try {
-                val response = withContext(Dispatchers.IO) {
-                    ApiClient.api.analyzeMessage(MessageScanRequest(message_text = null, url = url, sender_id = null))
-                }
-                
-                progressBar.visibility = View.GONE
-                if (response.isSuccessful) {
-                    val result = response.body()
-                    result?.let {
-                        currentResult = it
-                        layoutFeedback.visibility = View.VISIBLE
-                        badgeCategory.text = it.category
-                        textScore.text = "Risk Score: ${it.final_score} / 100"
-                        textReasons.text = if (it.reasons.isNotEmpty()) it.reasons.joinToString("\n• ", prefix = "• ") else "None"
-                        textAction.text = it.recommended_action
-                    }
-                } else {
-                    badgeCategory.text = "Error: ${response.code()}"
-                }
-            } catch (e: Exception) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = "Network Error: ${e.message}"
-            }
-        }
+        executeScan(ScanInput(url = url, source_channel = "android_share"), "URL Scanned", "URL")
     }
 
     private fun scanFile(uri: Uri) {
@@ -340,28 +236,8 @@ class MainActivity : AppCompatActivity() {
                 
                 if (resultBytes != null) {
                     textTarget.text = "File: $fileName"
-
-                    val requestBody = resultBytes.toRequestBody("application/octet-stream".toMediaTypeOrNull())
-                    val part = MultipartBody.Part.createFormData("file", fileName, requestBody)
-
-                    val response = withContext(Dispatchers.IO) {
-                        ApiClient.api.analyzeFile(part)
-                    }
-
-                    progressBar.visibility = View.GONE
-                    if (response.isSuccessful) {
-                        val result = response.body()
-                        result?.let {
-                            currentResult = it
-                            layoutFeedback.visibility = View.VISIBLE
-                            badgeCategory.text = it.category
-                            textScore.text = "Risk Score: ${it.final_score} / 100"
-                            textReasons.text = if (it.reasons.isNotEmpty()) it.reasons.joinToString("\n• ", prefix = "• ") else "None"
-                            textAction.text = it.recommended_action
-                        }
-                    } else {
-                        badgeCategory.text = "Server Error: ${response.code()}"
-                    }
+                    val base64Bytes = Base64.encodeToString(resultBytes, Base64.NO_WRAP)
+                    executeScan(ScanInput(file_bytes = base64Bytes, file_name = fileName, source_channel = "android_file_share"), "File Scanned", "File")
                 } else {
                     progressBar.visibility = View.GONE
                     badgeCategory.text = "Could not read file."
@@ -373,6 +249,66 @@ class MainActivity : AppCompatActivity() {
                 progressBar.visibility = View.GONE
                 badgeCategory.text = "Error: ${e.message}"
             }
+        }
+    }
+
+    private fun executeScan(input: ScanInput, notifyTitle: String, categorySuffix: String) {
+        lifecycleScope.launch {
+            try {
+                val response = withTimeout(35000L) {
+                    withContext(Dispatchers.IO) {
+                        ApiClient.api.scan(input)
+                    }
+                }
+                
+                progressBar.visibility = View.GONE
+                if (response.isSuccessful) {
+                    val result = response.body()
+                    if (result != null) {
+                        currentResult = result
+                        layoutFeedback.visibility = View.VISIBLE
+                        badgeCategory.text = "${result.classification} ($categorySuffix)"
+                        val confidencePct = (result.risk_assessment.confidence * 100).toInt()
+                        textScore.text = "Risk Score: ${result.risk_score} / 100 (Conf: ${confidencePct}%)"
+                        textReasons.text = if (result.risk_assessment.reasons.isNotEmpty()) result.risk_assessment.reasons.joinToString("\nâ€¢ ", prefix = "â€¢ ") else "None"
+                        textAction.text = result.risk_assessment.recommended_action
+                        
+                        sendPushNotification(notifyTitle, "Risk: ${result.classification}")
+                    } else {
+                        badgeCategory.text = "Malformed Response (Empty Body)"
+                    }
+                } else {
+                    val sc = response.code()
+                    badgeCategory.text = "HTTP Error: $sc"
+                }
+            } catch (e: TimeoutCancellationException) {
+                progressBar.visibility = View.GONE
+                badgeCategory.text = "Network Timeout: Scan took too long."
+            } catch (e: Exception) {
+                progressBar.visibility = View.GONE
+                badgeCategory.text = "Network Error: ${e.message}"
+            }
+        }
+    }
+
+    private fun sendPushNotification(title: String, message: String) {
+        try {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+            val builder = NotificationCompat.Builder(this, "SS_ALERTS")
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+            
+            NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), builder.build())
+        } catch (e: SecurityException) {
+            e.printStackTrace()
         }
     }
 }
