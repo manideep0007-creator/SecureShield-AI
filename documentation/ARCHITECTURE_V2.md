@@ -290,12 +290,12 @@ Maps 18+ machine-readable flags to plain-language explanations:
 
 Includes per-category recommended actions (Safe → "Proceed normally" through Malware → "Quarantine immediately").
 
-### 5.2 V2 Explainability Module — `NOT IMPLEMENTED`
+### 5.2 V2 Explainability Module — `IMPLEMENTED`
 
-> **Target**: `app/explainability/`  
-> **Current state**: Empty `__init__.py` placeholder only
+> **Location**: `app/explainability/`  
+> **State**: Completed in Phase 8
 
-V2 will separate explainability into its own module (extracted from fusion.py). Will consume `EngineResult.evidence` items to generate structured reasoning chains, support localization, and produce both short summaries and detailed breakdowns.
+V2 separates explainability into its own module (`ExplainabilityEngine`). It consumes `RiskAssessment.flags` to generate structured reasoning strings and determine the `recommended_action` based on `RiskClassification`. It preserves the exact outputs of fusion/risk-scoring thresholds but translates them into plain language for end-users, handling missing or failed engine analysis gracefully.
 
 ---
 

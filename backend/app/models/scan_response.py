@@ -26,6 +26,10 @@ class UnifiedScanResponse(BaseModel):
         completed = total - skipped
         
         assessment = fuse_engine_results(results)
+        
+        from app.explainability.explainability_engine import ExplainabilityEngine
+        assessment = ExplainabilityEngine.explain(assessment)
+
         return cls(
             scan_id=str(uuid.uuid4()),
             status="completed",
