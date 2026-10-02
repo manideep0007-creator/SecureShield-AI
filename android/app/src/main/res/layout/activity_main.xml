@@ -35,6 +35,13 @@
             android:layout_marginBottom="24dp"
             android:backgroundTint="#1976D2" />
 
+        <Button
+            android:id="@+id/btn_scan_history"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scan History"
+            android:layout_marginBottom="16dp" />
+
         <ProgressBar
             android:id="@+id/progress_bar"
             android:layout_width="wrap_content"

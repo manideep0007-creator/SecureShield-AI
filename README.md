@@ -12,6 +12,7 @@ SecureShield AI is an end-to-end mobile security platform consisting of an Andro
     *   **Sender Behavior Engine**: A stateful anomaly tracker (via SQLite) identifying unusual sending patterns.
 *   **Fusion & Explainability Layer**: Calculates confidence-weighted averages to assign scores (0-100) and distinct categories: Safe, Suspicious, Deceptive, Phishing, Malware. Translates flags into human-readable actions.
 *   **Feedback Evaluation**: Scan-bound positive/negative feedback is stored locally in SQLite and summarized through read-only evaluation metrics. Metrics are measurement data, not a model-accuracy claim or automatic retuning signal.
+*   **Secure Scan History**: Completed scan result metadata is stored locally for paginated browsing, details, and local deletion; scans still use the existing backend pipeline.
 
 ## Project Structure
 ```text
@@ -88,6 +89,13 @@ Feedback extends the existing `backend/data/feedback.db` table with normalized s
 `POST /api/feedback` validates and stores a record, returning HTTP 409 for duplicate scan IDs. `GET /api/evaluation/metrics` returns aggregate counts/rates, counts by classification and source, per-classification positive/negative summaries, and average risk scores split by feedback value. It returns zero counts and rates for an empty database. The endpoint does not expose scan IDs or content. Feedback metrics measure user responses and do not establish detection accuracy or modify risk scoring/classification.
 
 Run backend tests from `backend/` with `python -m pytest app/tests`. Android feedback tests use local fake responses and can be run from `android/` with `gradlew test`; no Gmail account or live backend is required.
+
+## Phase 13 Scan History
+History is a local Android `SQLiteOpenHelper` database (`secure_scan_history.db`) written asynchronously after a valid `/api/scan` response. It stores only scan ID, timestamp, source type, classification, risk score, confidence, recommended action, sanitized reasons, machine flags/evidence keys, and an optional local feedback state. It does not store input text, Gmail content, URLs, file/attachment bytes, evidence values, credentials, or tokens. History remains available when the backend is offline.
+
+The history screen loads 25 newest records at a time, with additional pages on request. Classification/source filters and scan-ID lookup are supported by the local repository. Deleting one or all history rows affects only `secure_scan_history.db`; Phase 12 feedback remains independently stored in the backend feedback database and evaluation metrics. A feedback marker in history is only a local display association and is removed with its history row; deleting history never deletes or changes the backend feedback record.
+
+SQLite schema upgrades are additive and preserve existing local tables/rows. Scan IDs are unique, timestamp/classification/source indexes support retrieval, and malformed summary JSON is ignored safely. JVM tests use a fake store for repository behavior and SQLite JDBC to execute the production schema/migration SQL against a local test file; no accounts or external services are used. Run them with `cd android && gradlew clean test assembleDebug`; run backend regressions separately with `cd backend && python -m pytest app/tests`.
 
 ## Environment Variables Required
 To run the backend engines with full functionality, create a `.env` file in the root or `backend/` directory by copying `.env.example`:

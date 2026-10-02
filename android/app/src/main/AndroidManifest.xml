@@ -39,5 +39,8 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ScanHistoryActivity"
+            android:exported="false" />
     </application>
 </manifest>
