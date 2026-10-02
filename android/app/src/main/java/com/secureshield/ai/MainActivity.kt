@@ -35,6 +35,9 @@ import com.secureshield.ai.network.FeedbackRequest
 import com.secureshield.ai.network.MalformedScanResponseException
 import com.secureshield.ai.network.UnifiedScanResponseParser
 import com.secureshield.ai.network.fileBytesAsBackendJsonValue
+import com.secureshield.ai.feedback.FeedbackSubmissionManager
+import com.secureshield.ai.feedback.FeedbackSubmissionResult
+import com.secureshield.ai.feedback.FeedbackSubmissionUiPolicy
 import com.secureshield.ai.share.ShareDispatchResult
 import com.secureshield.ai.share.SharedFileReadResult
 import com.secureshield.ai.share.SharedIntentPayload
@@ -66,8 +69,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnThumbDown: Button
     
     private var currentResult: UnifiedScanResponse? = null
+    private var currentResultSourceType = "unknown"
     private var gmailScanInProgress = false
     private var gmailSessionInvalid = false
+    private val feedbackSubmissionManager by lazy {
+        FeedbackSubmissionManager { request -> ApiClient.api.sendFeedback(request) }
+    }
 
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         var account: GoogleSignInAccount? = null
@@ -126,17 +133,43 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun submitFeedback(value: String) {
-        currentResult?.let { res ->
-            layoutFeedback.visibility = View.GONE
-            Toast.makeText(this, "Feedback saved!", Toast.LENGTH_SHORT).show()
-            lifecycleScope.launch {
-                try {
-                    withContext(Dispatchers.IO) {
-                        ApiClient.api.sendFeedback(FeedbackRequest(res.scan_id, res.risk_score.toInt(), res.classification, value))
+        val result = currentResult ?: return
+        val request = FeedbackRequest(
+            scan_id = result.scan_id,
+            user_feedback = if (value == "up") "positive" else "negative",
+            classification_at_scan_time = result.classification,
+            risk_score_at_scan_time = result.risk_score,
+            confidence_at_scan_time = result.risk_assessment.confidence,
+            source_type = currentResultSourceType
+        )
+        btnThumbUp.isEnabled = false
+        btnThumbDown.isEnabled = false
+        lifecycleScope.launch {
+            when (val submission = feedbackSubmissionManager.submit(request)) {
+                FeedbackSubmissionResult.Submitted -> {
+                    if (FeedbackSubmissionUiPolicy.shouldDismissFeedback(submission) && currentResult?.scan_id == request.scan_id) {
+                        layoutFeedback.visibility = View.GONE
+                        Toast.makeText(this@MainActivity, "Feedback saved.", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
                 }
+                FeedbackSubmissionResult.AlreadySubmitted -> {
+                    if (FeedbackSubmissionUiPolicy.shouldDismissFeedback(submission) && currentResult?.scan_id == request.scan_id) {
+                        layoutFeedback.visibility = View.GONE
+                        Toast.makeText(this@MainActivity, "Feedback was already recorded for this scan.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                FeedbackSubmissionResult.InProgress ->
+                    Toast.makeText(this@MainActivity, "Feedback submission is already in progress.", Toast.LENGTH_SHORT).show()
+                is FeedbackSubmissionResult.HttpFailure ->
+                    Toast.makeText(this@MainActivity, "Feedback could not be sent (HTTP ${submission.statusCode}). The scan result is still available; retry later.", Toast.LENGTH_LONG).show()
+                FeedbackSubmissionResult.NetworkFailure ->
+                    Toast.makeText(this@MainActivity, "Feedback could not be sent. The scan result is still available; retry later.", Toast.LENGTH_LONG).show()
+                FeedbackSubmissionResult.MalformedResponse ->
+                    Toast.makeText(this@MainActivity, "Feedback response was invalid. The scan result is still available; retry later.", Toast.LENGTH_LONG).show()
+            }
+            if (currentResult?.scan_id == request.scan_id && layoutFeedback.visibility == View.VISIBLE) {
+                btnThumbUp.isEnabled = true
+                btnThumbDown.isEnabled = true
             }
         }
     }
@@ -186,7 +219,7 @@ class MainActivity : AppCompatActivity() {
                                 append("Message: ${email.messageId}")
                             }
                             progressBar.visibility = View.VISIBLE
-                            executeScan(email.toScanInput(), "Gmail message scanned", "Email").join()
+                            executeScan(email.toScanInput(), "Gmail message scanned", "Email", "gmail").join()
                         }
                         finishGmailFlow()
                     }
@@ -260,7 +293,12 @@ class MainActivity : AppCompatActivity() {
                 com.secureshield.ai.share.SharedScanKind.URL -> "URL:\n${input.url}"
                 com.secureshield.ai.share.SharedScanKind.TEXT -> input.text.orEmpty()
             }
-            executeScan(input, "Shared content scanned", kind.label)
+            val sourceType = when (kind) {
+                com.secureshield.ai.share.SharedScanKind.FILE -> "file"
+                com.secureshield.ai.share.SharedScanKind.URL -> "url"
+                com.secureshield.ai.share.SharedScanKind.TEXT -> "share"
+            }
+            executeScan(input, "Shared content scanned", kind.label, sourceType)
         }
         if (result is ShareDispatchResult.Rejected) {
             progressBar.visibility = View.GONE
@@ -334,8 +372,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun executeScan(input: ScanInput, notifyTitle: String, categorySuffix: String): Job =
-        lifecycleScope.launch {
+    private fun executeScan(input: ScanInput, notifyTitle: String, categorySuffix: String, sourceType: String = "unknown"): Job {
+        currentResult = null
+        layoutFeedback.visibility = View.GONE
+        btnThumbUp.isEnabled = true
+        btnThumbDown.isEnabled = true
+        return lifecycleScope.launch {
             try {
                 val response = withTimeout(35000L) {
                     withContext(Dispatchers.IO) {
@@ -349,6 +391,7 @@ class MainActivity : AppCompatActivity() {
                     if (responseJson != null) {
                         val result = UnifiedScanResponseParser.parse(responseJson)
                         currentResult = result
+                        currentResultSourceType = sourceType
                         layoutFeedback.visibility = View.VISIBLE
                         badgeCategory.text = "${result.classification} ($categorySuffix)"
                         val confidencePct = (result.risk_assessment.confidence * 100).toInt()
@@ -395,6 +438,7 @@ class MainActivity : AppCompatActivity() {
                 badgeCategory.text = "Network Error: ${e.message}"
             }
         }
+    }
 
     private fun sendPushNotification(title: String, message: String) {
         try {

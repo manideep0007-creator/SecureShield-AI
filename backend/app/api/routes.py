@@ -11,7 +11,10 @@ from app.database.feedback import save_feedback
 from app.models.scan_input import ScanInput
 from app.models.engine_result import EngineResult
 from app.models.scan_response import UnifiedScanResponse
+from app.models.feedback import EvaluationMetrics, FeedbackRequest, FeedbackSubmissionResponse
+from app.evaluation.feedback_metrics import get_feedback_metrics
 from app.engines.pipeline import UnifiedScanPipeline
+import sqlite3
 
 router = APIRouter()
 unified_pipeline = UnifiedScanPipeline()
@@ -21,16 +24,32 @@ class MessageScanRequest(BaseModel):
     url: Optional[HttpUrl] = None
     sender_id: Optional[str] = None
 
-class FeedbackRequest(BaseModel):
-    analyzed_target: str
-    score: int
-    category: str
-    feedback_value: str
-
-@router.post("/feedback")
+@router.post("/feedback", response_model=FeedbackSubmissionResponse)
 def api_feedback(payload: FeedbackRequest):
-    save_feedback(payload.analyzed_target, payload.score, payload.category, payload.feedback_value)
-    return {"status": "success"}
+    try:
+        inserted, timestamp = save_feedback(payload)
+    except (sqlite3.Error, OSError) as error:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "feedback_storage_unavailable", "message": "Feedback could not be stored."},
+        ) from error
+    if not inserted:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "duplicate_feedback", "message": "Feedback has already been recorded for this scan."},
+        )
+    return FeedbackSubmissionResponse(status="success", scan_id=payload.scan_id, timestamp=timestamp)
+
+
+@router.get("/evaluation/metrics", response_model=EvaluationMetrics)
+def api_evaluation_metrics():
+    try:
+        return get_feedback_metrics()
+    except (sqlite3.Error, OSError) as error:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "feedback_storage_unavailable", "message": "Evaluation metrics are unavailable."},
+        ) from error
 
 @router.post("/analyze/message")
 async def api_analyze_message(payload: MessageScanRequest):

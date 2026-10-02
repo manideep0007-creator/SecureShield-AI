@@ -45,5 +45,5 @@
 ## Scene 5: Feedback & Model Retuning Loop (2:40 - 3:00)
 *Action: At the bottom of the Email screen, click the '👎 Inaccurate' button.*
 
-**Presenter**: "No AI is perfect. Users can submit thumbs up/down feedback directly on the results. This doesn't vanish—it syncs directly back to our backend `feedback.db` SQLite table, attaching the target, category, and score."
-**Presenter**: "In future phases, our retraining pipeline will automatically comb this database to organically alter the fusion confidence weights! Thank you for watching."
+**Presenter**: "Users can submit positive or negative feedback for this exact scan. The app sends only the scan ID, classification, risk score, confidence, and source type to the local SQLite feedback store, not the message body or attachment."
+**Presenter**: "The read-only evaluation endpoint summarizes feedback counts and score distributions. These are user-response measurements, not proof of production detection accuracy, and they do not change the fusion weights. Thank you for watching."
