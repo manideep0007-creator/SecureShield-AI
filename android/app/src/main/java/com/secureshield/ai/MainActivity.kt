@@ -3,11 +3,13 @@
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.BadParcelableException
 import android.provider.OpenableColumns
 import android.view.View
 import android.widget.Button
@@ -31,6 +33,10 @@ import com.secureshield.ai.network.FeedbackRequest
 import com.secureshield.ai.network.MalformedScanResponseException
 import com.secureshield.ai.network.UnifiedScanResponseParser
 import com.secureshield.ai.network.fileBytesAsBackendJsonValue
+import com.secureshield.ai.share.ShareDispatchResult
+import com.secureshield.ai.share.SharedFileReadResult
+import com.secureshield.ai.share.SharedIntentPayload
+import com.secureshield.ai.share.SharedIntentRouter
 import com.google.gson.JsonParseException
 import com.google.gson.stream.MalformedJsonException
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +44,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.SocketTimeoutException
 
@@ -181,83 +188,123 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        intent?.let { handleIntent(it) }
-    }
-
-    private fun handleIntent(intent: Intent) {
-        val action = intent.action
-        val type = intent.type
-
-        if (Intent.ACTION_SEND == action && type != null) {
-            if ("text/plain" == type) {
-                val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-                if (sharedText != null) {
-                    scanUrl(sharedText)
-                }
-            } else {
-                val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
-                if (uri != null) {
-                    scanFile(uri)
-                }
-            }
+        intent?.let {
+            setIntent(it)
+            handleIntent(it)
         }
     }
 
-    private fun scanUrl(url: String) {
-        badgeCategory.text = "Scanning..."
-        layoutFeedback.visibility = View.GONE
-        textTarget.text = "URL:\n$url"
-        progressBar.visibility = View.VISIBLE
+    private fun handleIntent(intent: Intent) {
+        if (intent.action != Intent.ACTION_SEND) return
 
-        executeScan(ScanInput(url = url, source_channel = "android_share"), "URL Scanned", "URL")
+        val streamUri = getSharedStreamUri(intent)
+        val sharedText = try {
+            (intent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+                ?: intent.getCharSequenceExtra(Intent.EXTRA_HTML_TEXT))?.toString()
+        } catch (_: RuntimeException) {
+            null
+        }
+        val intentData = intent.data
+        val dataUri = intentData?.toString()?.takeIf {
+            it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true)
+        }
+        val contentUri = streamUri ?: intentData?.takeIf {
+            it.scheme == ContentResolver.SCHEME_CONTENT || it.scheme == ContentResolver.SCHEME_FILE
+        }
+        val mimeType = intent.type ?: contentUri?.let { uri ->
+            try {
+                contentResolver.getType(uri)
+            } catch (_: SecurityException) {
+                null
+            }
+        }
+        val payload = SharedIntentPayload(
+            action = intent.action,
+            mimeType = mimeType,
+            text = sharedText,
+            streamUri = contentUri?.toString(),
+            dataUri = dataUri
+        )
+
+        val result = SharedIntentRouter.dispatch(payload, ::readSharedFile) { input, kind ->
+            progressBar.visibility = View.VISIBLE
+            layoutFeedback.visibility = View.GONE
+            textTarget.text = when (kind) {
+                com.secureshield.ai.share.SharedScanKind.FILE -> "File: ${input.file_name}"
+                com.secureshield.ai.share.SharedScanKind.URL -> "URL:\n${input.url}"
+                com.secureshield.ai.share.SharedScanKind.TEXT -> input.text.orEmpty()
+            }
+            executeScan(input, "Shared content scanned", kind.label)
+        }
+        if (result is ShareDispatchResult.Rejected) {
+            progressBar.visibility = View.GONE
+            layoutFeedback.visibility = View.GONE
+            badgeCategory.text = result.message
+        }
     }
 
-    private fun scanFile(uri: Uri) {
-        badgeCategory.text = "Scanning File..."
-        layoutFeedback.visibility = View.GONE
-        progressBar.visibility = View.VISIBLE
+    private fun getSharedStreamUri(intent: Intent): Uri? = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            (intent.getParcelableExtra<android.os.Parcelable>(Intent.EXTRA_STREAM) as? Uri)
+        }
+    } catch (_: BadParcelableException) {
+        null
+    } catch (_: SecurityException) {
+        null
+    }
 
-        lifecycleScope.launch {
-            try {
-                var fileName = "shared_file"
-                var fileSize = 0L
-                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                        if (nameIndex >= 0) fileName = cursor.getString(nameIndex)
-                        if (sizeIndex >= 0) fileSize = cursor.getLong(sizeIndex)
-                    }
+    private fun readSharedFile(uriString: String): SharedFileReadResult {
+        val uri = Uri.parse(uriString)
+        var fileName = uri.lastPathSegment ?: "shared_file"
+        var reportedSize = -1L
+        try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (nameIndex >= 0) fileName = cursor.getString(nameIndex) ?: fileName
+                    if (sizeIndex >= 0) reportedSize = cursor.getLong(sizeIndex)
                 }
-                
-                if (fileSize > 10L * 1024L * 1024L) {
-                    progressBar.visibility = View.GONE
-                    badgeCategory.text = "File too large (Max 10MB)"
-                    return@launch
-                }
-
-                val resultBytes = withContext(Dispatchers.IO) {
-                    contentResolver.openInputStream(uri)?.readBytes()
-                }
-                
-                if (resultBytes != null) {
-                    textTarget.text = "File: $fileName"
-                    val backendBytes = fileBytesAsBackendJsonValue(resultBytes)
-                    executeScan(ScanInput(file_bytes = backendBytes, file_name = fileName, source_channel = "android_file_share"), "File Scanned", "File")
-                } else {
-                    progressBar.visibility = View.GONE
-                    badgeCategory.text = "Could not read file."
-                }
-            } catch (e: IllegalArgumentException) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = e.message ?: "Unsupported file encoding."
-            } catch (e: OutOfMemoryError) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = "File is too large for memory."
-            } catch (e: Exception) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = "Error: ${e.message}"
             }
+        } catch (_: SecurityException) {
+            return SharedFileReadResult.Failure("Shared file permission was denied.")
+        } catch (_: Exception) {
+            return SharedFileReadResult.Failure("Shared file details could not be read.")
+        }
+
+        val maximumBytes = 10 * 1024 * 1024
+        if (reportedSize > maximumBytes) {
+            return SharedFileReadResult.Failure("Shared file is too large (maximum 10 MB).")
+        }
+
+        return try {
+            val content = contentResolver.openInputStream(uri)?.use { input ->
+                val output = ByteArrayOutputStream(minOf(maximumBytes, reportedSize.coerceAtLeast(0).toInt()))
+                val buffer = ByteArray(8192)
+                var totalBytes = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    totalBytes += count
+                    if (totalBytes > maximumBytes) {
+                        return SharedFileReadResult.Failure("Shared file is too large (maximum 10 MB).")
+                    }
+                    output.write(buffer, 0, count)
+                }
+                fileBytesAsBackendJsonValue(output.toByteArray())
+            } ?: return SharedFileReadResult.Failure("Shared file could not be opened.")
+            SharedFileReadResult.Success(fileName, content)
+        } catch (_: SecurityException) {
+            SharedFileReadResult.Failure("Shared file permission was denied.")
+        } catch (error: IllegalArgumentException) {
+            SharedFileReadResult.Failure(error.message ?: "Unsupported shared file encoding.")
+        } catch (_: OutOfMemoryError) {
+            SharedFileReadResult.Failure("Shared file is too large to process.")
+        } catch (_: Exception) {
+            SharedFileReadResult.Failure("Shared file could not be read.")
         }
     }
 
@@ -280,7 +327,15 @@ class MainActivity : AppCompatActivity() {
                         badgeCategory.text = "${result.classification} ($categorySuffix)"
                         val confidencePct = (result.risk_assessment.confidence * 100).toInt()
                         textScore.text = "Risk Score: ${result.risk_score} / 100 (Conf: ${confidencePct}%)"
-                        textReasons.text = if (result.risk_assessment.reasons.isNotEmpty()) result.risk_assessment.reasons.joinToString("\n• ", prefix = "• ") else "None"
+                        val assessment = result.risk_assessment
+                        val explanationLines = buildList {
+                            addAll(assessment.reasons)
+                            if (assessment.flags.isNotEmpty()) add("Indicators: ${assessment.flags.joinToString()}")
+                            assessment.evidence.forEach { item ->
+                                add(item.description?.takeIf(String::isNotBlank) ?: "${item.key}: ${item.value}")
+                            }
+                        }.distinct()
+                        textReasons.text = if (explanationLines.isNotEmpty()) explanationLines.joinToString("\n• ", prefix = "• ") else "None"
                         textAction.text = result.risk_assessment.recommended_action
                         
                         sendPushNotification(notifyTitle, "Risk: ${result.classification}")
