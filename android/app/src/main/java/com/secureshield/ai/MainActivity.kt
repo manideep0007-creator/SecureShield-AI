@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
-import android.util.Base64
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
@@ -29,11 +28,18 @@ import com.secureshield.ai.network.ApiClient
 import com.secureshield.ai.network.ScanInput
 import com.secureshield.ai.network.UnifiedScanResponse
 import com.secureshield.ai.network.FeedbackRequest
+import com.secureshield.ai.network.MalformedScanResponseException
+import com.secureshield.ai.network.UnifiedScanResponseParser
+import com.secureshield.ai.network.fileBytesAsBackendJsonValue
+import com.google.gson.JsonParseException
+import com.google.gson.stream.MalformedJsonException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+import java.io.IOException
+import java.net.SocketTimeoutException
 
 class MainActivity : AppCompatActivity() {
 
@@ -236,12 +242,15 @@ class MainActivity : AppCompatActivity() {
                 
                 if (resultBytes != null) {
                     textTarget.text = "File: $fileName"
-                    val base64Bytes = Base64.encodeToString(resultBytes, Base64.NO_WRAP)
-                    executeScan(ScanInput(file_bytes = base64Bytes, file_name = fileName, source_channel = "android_file_share"), "File Scanned", "File")
+                    val backendBytes = fileBytesAsBackendJsonValue(resultBytes)
+                    executeScan(ScanInput(file_bytes = backendBytes, file_name = fileName, source_channel = "android_file_share"), "File Scanned", "File")
                 } else {
                     progressBar.visibility = View.GONE
                     badgeCategory.text = "Could not read file."
                 }
+            } catch (e: IllegalArgumentException) {
+                progressBar.visibility = View.GONE
+                badgeCategory.text = e.message ?: "Unsupported file encoding."
             } catch (e: OutOfMemoryError) {
                 progressBar.visibility = View.GONE
                 badgeCategory.text = "File is too large for memory."
@@ -263,8 +272,9 @@ class MainActivity : AppCompatActivity() {
                 
                 progressBar.visibility = View.GONE
                 if (response.isSuccessful) {
-                    val result = response.body()
-                    if (result != null) {
+                    val responseJson = response.body()
+                    if (responseJson != null) {
+                        val result = UnifiedScanResponseParser.parse(responseJson)
                         currentResult = result
                         layoutFeedback.visibility = View.VISIBLE
                         badgeCategory.text = "${result.classification} ($categorySuffix)"
@@ -284,6 +294,21 @@ class MainActivity : AppCompatActivity() {
             } catch (e: TimeoutCancellationException) {
                 progressBar.visibility = View.GONE
                 badgeCategory.text = "Network Timeout: Scan took too long."
+            } catch (e: SocketTimeoutException) {
+                progressBar.visibility = View.GONE
+                badgeCategory.text = "Network Timeout: Scan took too long."
+            } catch (e: MalformedScanResponseException) {
+                progressBar.visibility = View.GONE
+                badgeCategory.text = "Malformed Response: ${e.message}"
+            } catch (e: JsonParseException) {
+                progressBar.visibility = View.GONE
+                badgeCategory.text = "Malformed Response: Invalid JSON."
+            } catch (e: MalformedJsonException) {
+                progressBar.visibility = View.GONE
+                badgeCategory.text = "Malformed Response: Invalid JSON."
+            } catch (e: IOException) {
+                progressBar.visibility = View.GONE
+                badgeCategory.text = "Network Error: ${e.message}"
             } catch (e: Exception) {
                 progressBar.visibility = View.GONE
                 badgeCategory.text = "Network Error: ${e.message}"
