@@ -1,10 +1,10 @@
 # SecureShield AI
 
-SecureShield AI is an end-to-end mobile security platform consisting of an Android client application and a modular Python (FastAPI) intelligence backend. It intercepts user communications (shared URLs, files, and background Gmail sweeps) and pushes them through a highly modular threat-detection pipeline.
+SecureShield AI is an end-to-end mobile security platform consisting of an Android client application and a modular Python (FastAPI) intelligence backend. It scans shared URLs/files and user-authorized unread Gmail messages through a highly modular threat-detection pipeline.
 
 ## Current Features
 *   **Android Share Protocol Integration**: The Android app acts as a global implicit intent receiver for text and files, scanning inputs seamlessly.
-*   **Gmail API Polling**: Users can authenticate via Google OAuth to scan unread emails, extracting headers, body content, and embedded URLs safely.
+*   **Gmail Intelligence**: Users can authorize Google OAuth to scan unread messages on demand, extracting headers, MIME text, and embedded URLs safely.
 *   **Modular Detection Pipeline**: 
     *   **Lexical & URL Engine**: Applies offline heuristic checks and queries Google Safe Browsing API.
     *   **Malware Engine**: Identifies file type spoofing via Magic Bytes and hashes payloads against VirusTotal API v3.
@@ -63,6 +63,22 @@ SecureShield AI/
 4. Set up an emulator or connect a physical device (min SDK 24).
 5. Ensure your backend is running. If running the emulator, the app defaults to `http://10.0.2.2:8000/`. If running on a physical device, define your backend's local network IP in `android/local.properties` (e.g., `BASE_URL="http://192.168.x.x:8000/"`).
 6. Click **Run** in Android Studio to build and deploy the APK.
+
+## Gmail Intelligence Setup
+1. In Google Cloud Console, create or select a project and enable the Gmail API.
+2. Configure the OAuth consent screen for the intended test or production audience. Add only the Gmail read-only scope: `https://www.googleapis.com/auth/gmail.readonly`.
+3. Create an Android OAuth client for package `com.secureshield.ai`. Register the SHA-1 signing certificate used by the installation; for local debug builds, obtain it with `cd android` then `gradlew signingReport`.
+4. Install the app and choose **Connect Gmail & Scan Inbox**. Google Sign-In requests the Gmail read-only permission, fetches up to 20 unread messages, and passes each supported message through the existing `/api/scan` client.
+
+The app does not store OAuth tokens or client secrets itself. Google Play Services and `GoogleAccountCredential` manage the signed-in account and refreshable authorization. SecureShield requests full message text and headers only; it does not mark messages as read, download attachments, or request send/modify Gmail scopes. Messages without a supported readable body are skipped and reported.
+
+Gmail parsing, OAuth outcome mapping, unread-fetch behavior, and one-scan-per-message dispatch have local JVM tests with fake Gmail API responses. They do not require a Google account or credentials:
+
+```bash
+cd android
+gradlew test
+gradlew clean test assembleDebug
+```
 
 ## Environment Variables Required
 To run the backend engines with full functionality, create a `.env` file in the root or `backend/` directory by copying `.env.example`:
