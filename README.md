@@ -97,6 +97,15 @@ The history screen loads 25 newest records at a time, with additional pages on r
 
 SQLite schema upgrades are additive and preserve existing local tables/rows. Scan IDs are unique, timestamp/classification/source indexes support retrieval, and malformed summary JSON is ignored safely. JVM tests use a fake store for repository behavior and SQLite JDBC to execute the production schema/migration SQL against a local test file; no accounts or external services are used. Run them with `cd android && gradlew clean test assembleDebug`; run backend regressions separately with `cd backend && python -m pytest app/tests`.
 
+## Phase 14 Background Protection and Threat Alerts
+The app provides a privacy-conscious Background Protection toggle that enables periodic, automated scanning of newly received, unread Gmail messages using Android's `WorkManager`. The application utilizes the existing read-only Google OAuth scope without requesting new permissions or persisting OAuth secrets. The background task executes a scan exactly once per message by retaining a bounded subset of scanned `messageIds` inside isolated SharedPreferences. Duplicate notification flooding is avoided because subsequent scans strictly filter processed IDs. Scans resulting in `Phishing` or `Malware` classifications fire an actionable Android notification that directly opens the result. 
+
+Run Android background logic tests with:
+```bash
+cd android
+gradlew test --tests "*background*"
+```
+
 ## Environment Variables Required
 To run the backend engines with full functionality, create a `.env` file in the root or `backend/` directory by copying `.env.example`:
 

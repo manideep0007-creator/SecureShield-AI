@@ -86,11 +86,11 @@ Users authenticate via Google Sign-In with `gmail.readonly` scope. The app fetch
 - **Demo fallback**: Auto-activates when OAuth SHA-1 is unregistered
 - **Background simulation**: "Simulate Background Email Monitor" sends user to home, waits 5s, scans, fires push notification
 
-### 1.3 Background Gmail Worker — `NOT IMPLEMENTED`
+### 1.3 Background Gmail Worker — `IMPLEMENTED`
 
-> **Target**: `app/preprocessing/` (V2) + Android `WorkManager`
+> **Target**: `android/app/src/main/java/com/secureshield/ai/background/ThreatAlertWorker.kt` + `WorkManager`
 
-Continuous background email scanning via `WorkManager` with background OAuth token refresh. Currently stubbed — scans only run on button press.
+Continuous background email scanning via `WorkManager`. Validates OAuth permissions without prompting the user. Retrieves up to 20 unread emails, skips previously scanned `messageIds` tracked in `SharedPreferences`, and scans them via the unified `executeScan` flow. Fires notifications only for `Phishing` or `Malware` threat outcomes. Uses a battery-conscious default of 15-minute intervals. Backs off on connectivity or API failures. Use the in-app toggle to enable or disable it.
 
 ### 1.4 Direct API Access — `NOT IMPLEMENTED`
 
@@ -418,7 +418,7 @@ The dedicated `secure_scan_history.db` schema uses additive versioned upgrades; 
 |---|---|---|
 | **Input Channels** | Android Share Intent | `IMPLEMENTED` |
 | | Gmail OAuth Polling | `IMPLEMENTED` |
-| | Background Gmail Worker | `NOT IMPLEMENTED` |
+| | Background Gmail Worker | `IMPLEMENTED` |
 | | Direct API Access | `NOT IMPLEMENTED` |
 | **Preprocessing** | URL Redirect Resolution | `IMPLEMENTED` |
 | | File Magic-Byte Validation | `IMPLEMENTED` |

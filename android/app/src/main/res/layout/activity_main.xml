@@ -27,13 +27,20 @@
             android:layout_marginBottom="8dp"
             android:backgroundTint="#D32F2F" />
 
-        <Button
-            android:id="@+id/btn_background_monitor"
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_background_protection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Simulate Background Email Monitor"
-            android:layout_marginBottom="24dp"
-            android:backgroundTint="#1976D2" />
+            android:text="Background Protection"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:id="@+id/text_background_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Protection inactive"
+            android:textSize="12sp"
+            android:layout_marginBottom="24dp" />
 
         <Button
             android:id="@+id/btn_scan_history"
