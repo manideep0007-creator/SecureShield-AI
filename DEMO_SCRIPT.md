@@ -5,7 +5,7 @@
 ## Scene 1: Introduction (0:00 - 0:30)
 **Presenter**: "Welcome to SecureShield AI, an intelligent mobile platform designed to protect users from modern phishing, malware, and social engineering attacks across SMS, Social Media, and Email."
 *Show the architecture diagram*
-**Presenter**: "Today, we'll demonstrate our unified threat engine analyzing live data using three input flows: a shared link, a shared file, and an automated background Gmail sweep."
+**Presenter**: "Today, we'll demonstrate our unified threat engine analyzing live data using three input flows: a shared link, a shared file, and a user-authorized Gmail unread-message scan."
 
 ---
 
@@ -35,7 +35,7 @@
 ## Scene 4: Seamless Gmail integration (2:00 - 2:40)
 *Action: Open the SecureShield app natively. Tap "Connect Gmail & Scan Inbox".*
 
-**Presenter**: "Users don't always manually share things. Here, SecureShield securely requests `gmail.readonly` OAuth access. Once approved, the device fetches the latest unread email containing urgent refund language."
+**Presenter**: "Users don't always manually share things. Here, SecureShield securely requests only `gmail.readonly` OAuth access. Once approved, the device retrieves up to 20 unread messages, extracts MIME text and embedded URLs without downloading attachments, and scans each message once through `/api/scan`. The messages are not marked as read."
 
 *Action: UI pops a 'Phishing (Email)' badge with the Sender's email address labeled 'Target'.*
 **Presenter**: "Not only did our NLP spot the phishing template, our SQLite 'Sender Behavior' engine realized this contact had never sent a link before, giving it an 'Out-of-character' anomaly flag—even if the sender is completely unknown."

@@ -24,6 +24,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.Scope
 import com.google.api.services.gmail.GmailScopes
 import com.secureshield.ai.network.ApiClient
@@ -41,6 +43,7 @@ import com.google.gson.JsonParseException
 import com.google.gson.stream.MalformedJsonException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -63,17 +66,25 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnThumbDown: Button
     
     private var currentResult: UnifiedScanResponse? = null
+    private var gmailScanInProgress = false
+    private var gmailSessionInvalid = false
 
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        var account: GoogleSignInAccount? = null
+        var statusCode: Int? = null
         try {
-            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-            if (account != null) {
-                processLatestEmail(account)
-            }
-        } catch (e: Exception) {
-            badgeCategory.text = "OAuth Unregistered. Simulating Demo Email..."
-            simulateGmailFetch()
+            account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                .getResult(com.google.android.gms.common.api.ApiException::class.java)
+        } catch (error: com.google.android.gms.common.api.ApiException) {
+            statusCode = error.statusCode
+        } catch (_: Exception) {
+            statusCode = if (result.resultCode != RESULT_OK) GoogleSignInStatusCodes.SIGN_IN_CANCELLED else null
+        }
+
+        when (GmailOAuthOutcomeMapper.classify(account != null, statusCode, GoogleSignInStatusCodes.SIGN_IN_CANCELLED)) {
+            GmailOAuthOutcome.AUTHORIZED -> processUnreadMessages(account!!)
+            GmailOAuthOutcome.CANCELLED -> finishGmailFlow("Gmail sign-in was cancelled.")
+            GmailOAuthOutcome.FAILED -> finishGmailFlow("Gmail authorization failed. Please try again.")
         }
     }
 
@@ -104,26 +115,11 @@ class MainActivity : AppCompatActivity() {
 
         val btnBackgroundMonitor = findViewById<Button>(R.id.btn_background_monitor)
         btnBackgroundMonitor.setOnClickListener {
-            Toast.makeText(this, "Monitoring background... (Wait 5s)", Toast.LENGTH_LONG).show()
-            
-            val intent = Intent(Intent.ACTION_MAIN)
-            intent.addCategory(Intent.CATEGORY_HOME)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            startActivity(intent)
-
-            lifecycleScope.launch {
-                kotlinx.coroutines.delay(5000) 
-                simulateGmailFetch()
-            }
+            Toast.makeText(this, "Background Gmail monitoring is not configured. Use Connect Gmail to scan unread messages.", Toast.LENGTH_LONG).show()
         }
 
         btnScanGmail.setOnClickListener {
-            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestEmail()
-                .requestScopes(Scope(GmailScopes.GMAIL_READONLY))
-                .build()
-            val mGoogleSignInClient = GoogleSignIn.getClient(this, gso)
-            googleSignInLauncher.launch(mGoogleSignInClient.signInIntent)
+            beginGmailScan()
         }
 
         handleIntent(intent)
@@ -145,45 +141,76 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun processLatestEmail(account: com.google.android.gms.auth.api.signin.GoogleSignInAccount) {
-        badgeCategory.text = "Fetching Gmail..."
-        progressBar.visibility = View.VISIBLE
+    private fun beginGmailScan() {
+        if (gmailScanInProgress) return
+        gmailScanInProgress = true
+        btnScanGmail.isEnabled = false
+        val gmailScope = Scope(GmailScopes.GMAIL_READONLY)
+        val account = GoogleSignIn.getLastSignedInAccount(this)
+        if (!gmailSessionInvalid && account != null && GoogleSignIn.hasPermissions(account, gmailScope)) {
+            processUnreadMessages(account)
+            return
+        }
 
-        lifecycleScope.launch {
-            val scanner = GmailScanner(this@MainActivity, account)
-            val msgData = scanner.getLatestMessageData()
-
-            if (msgData == null) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = "No Unread Emails Found."
-                return@launch
-            }
-
-            if (msgData.bodyText.isBlank() && msgData.extractedUrl == null) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = "Email contains no parseable text or links."
-                return@launch
-            }
-
-            badgeCategory.text = "Scanning Email..."
-            textTarget.text = "Sender: ${msgData.sender}\nExtracted Link: ${msgData.extractedUrl ?: "None"}"
-
-            executeScan(ScanInput(text = msgData.bodyText, url = msgData.extractedUrl, sender_id = msgData.sender, source_channel = "gmail"), "Gmail Source Scanned", "Email")
+        val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestScopes(gmailScope)
+            .build()
+        try {
+            googleSignInLauncher.launch(GoogleSignIn.getClient(this, options).signInIntent)
+        } catch (_: Exception) {
+            finishGmailFlow("Could not start Google sign-in. Please try again.")
         }
     }
 
-    private fun simulateGmailFetch() {
+    private fun processUnreadMessages(account: GoogleSignInAccount) {
+        gmailSessionInvalid = false
+        badgeCategory.text = "Loading unread Gmail messages..."
         progressBar.visibility = View.VISIBLE
-        badgeCategory.text = "Scanning Demo Email..."
-        textTarget.text = "Sender: support@amazon-refunds.com\nExtracted Link: http://192.168.1.1@secure-login-verify.xyz/account"
 
-        val input = ScanInput(
-            text = "URGENT! Your account is locked! Please verify your password and send a gift card immediately.",
-            url = "http://192.168.1.1@secure-login-verify.xyz/account",
-            sender_id = "support@amazon-refunds.com",
-            source_channel = "demo_email"
-        )
-        executeScan(input, "Gmail Demo Scanned", "Email")
+        lifecycleScope.launch {
+            try {
+                when (val fetch = GmailScanner(this@MainActivity, account).fetchUnreadMessages()) {
+                    GmailFetchResult.NoUnreadMessages -> finishGmailFlow("No unread Gmail messages found.")
+                    is GmailFetchResult.NoReadableMessages -> finishGmailFlow("Unread messages had no supported text body.")
+                    is GmailFetchResult.Failure -> {
+                        if (fetch.kind == GmailFailureKind.AUTHENTICATION_REQUIRED) gmailSessionInvalid = true
+                        finishGmailFlow(gmailFailureMessage(fetch.kind))
+                    }
+                    is GmailFetchResult.Messages -> {
+                        GmailEmailScanDispatcher.dispatch(fetch.emails) { email ->
+                            textTarget.text = buildString {
+                                appendLine("From: ${email.sender ?: "Unknown sender"}")
+                                email.recipient?.let { appendLine("To: $it") }
+                                email.subject?.let { appendLine("Subject: $it") }
+                                append("Message: ${email.messageId}")
+                            }
+                            progressBar.visibility = View.VISIBLE
+                            executeScan(email.toScanInput(), "Gmail message scanned", "Email").join()
+                        }
+                        finishGmailFlow()
+                    }
+                }
+            } catch (_: Exception) {
+                finishGmailFlow("Could not retrieve Gmail messages. Please try again.")
+            }
+        }
+    }
+
+    private fun gmailFailureMessage(kind: GmailFailureKind): String = when (kind) {
+        GmailFailureKind.AUTHENTICATION_REQUIRED -> "Gmail authorization expired. Reconnect Gmail to continue."
+        GmailFailureKind.PERMISSION_DENIED -> "Gmail read access was denied. Reconnect and grant Gmail read permission."
+        GmailFailureKind.TIMEOUT -> "Gmail request timed out. Check your network and try again."
+        GmailFailureKind.NETWORK -> "Network error while retrieving Gmail messages."
+        GmailFailureKind.API -> "Gmail API request failed. Please try again."
+        GmailFailureKind.MALFORMED_RESPONSE -> "Gmail returned an unreadable message response."
+    }
+
+    private fun finishGmailFlow(message: String? = null) {
+        progressBar.visibility = View.GONE
+        message?.let { badgeCategory.text = it }
+        gmailScanInProgress = false
+        btnScanGmail.isEnabled = true
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -307,7 +334,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun executeScan(input: ScanInput, notifyTitle: String, categorySuffix: String) {
+    private fun executeScan(input: ScanInput, notifyTitle: String, categorySuffix: String): Job =
         lifecycleScope.launch {
             try {
                 val response = withTimeout(35000L) {
@@ -368,7 +395,6 @@ class MainActivity : AppCompatActivity() {
                 badgeCategory.text = "Network Error: ${e.message}"
             }
         }
-    }
 
     private fun sendPushNotification(title: String, message: String) {
         try {
