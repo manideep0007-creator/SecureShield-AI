@@ -90,7 +90,7 @@ Users authenticate via Google Sign-In with `gmail.readonly` scope. The app fetch
 
 > **Target**: `android/app/src/main/java/com/secureshield/ai/background/ThreatAlertWorker.kt` + `WorkManager`
 
-Continuous background email scanning via `WorkManager`. Validates OAuth permissions without prompting the user. Retrieves up to 20 unread emails, skips previously scanned `messageIds` tracked in `SharedPreferences`, and scans them via the unified `executeScan` flow. Fires notifications only for `Phishing` or `Malware` threat outcomes. Uses a battery-conscious default of 15-minute intervals. Backs off on connectivity or API failures. Use the in-app toggle to enable or disable it.
+Periodic background threat checks via `WorkManager`. Validates OAuth permissions without prompting the user. Retrieves up to 20 unread emails, skips previously scanned `messageIds` tracked in `SharedPreferences`, and scans them via the unified `executeScan` flow. Fires notifications only for `Phishing` or `Malware` threat outcomes. Uses a battery-conscious default of 15-minute intervals. Execution timing is controlled by Android/WorkManager. Backs off on connectivity or API failures. Use the in-app toggle to enable or disable it.
 
 ### 1.4 Direct API Access — `NOT IMPLEMENTED`
 

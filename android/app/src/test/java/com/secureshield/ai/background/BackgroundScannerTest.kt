@@ -103,6 +103,63 @@ class BackgroundScannerTest {
         
         assertTrue(BackgroundScanner.execute(deps))
         assertEquals(0, deps.historySaved.size)
+        assertEquals(0, deps.notified.size)
+    }
+
+    @Test
+    fun `authentication failure completes successfully without retrying`() = runTest {
+        val deps = FakeDependencies()
+        deps.active = false
+        assertTrue(BackgroundScanner.execute(deps))
+        assertTrue(deps.processed.isEmpty())
+    }
+
+    @Test
+    fun `network API failure on scan ignores the message and continues`() = runTest {
+        var notifiedCount = 0
+        val deps = object : BackgroundDependencies {
+            override val isEnabled = true
+            override val accountActive = true
+            override fun updateLastCheck() {}
+            override suspend fun fetchUnreadMessages() = GmailFetchResult.Messages(listOf(
+                GmailEmail("msg1", null, null, null, "Phishing", emptyList()),
+                GmailEmail("msg2", null, null, null, "Malware", emptyList())
+            ), 0)
+            override fun isProcessed(messageId: String) = false
+            override fun markProcessed(messageId: String) {}
+            override suspend fun scan(input: ScanInput): UnifiedScanResponse? {
+                if (input.text?.contains("Phishing") == true) throw Exception("Network Error")
+                return UnifiedScanResponse("id123", "completed", emptyList(), 0, 0, 0,
+                    RiskAssessment(90f, "Malware", 0.9f, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), "act"),
+                    90f, "Malware")
+            }
+            override suspend fun saveHistory(result: UnifiedScanResponse, source: String) {}
+            override fun notifyThreat(classification: String, score: Float, action: String) { notifiedCount++ }
+        }
+        assertTrue(BackgroundScanner.execute(deps))
+        assertEquals(1, notifiedCount)
+    }
+
+    @Test
+    fun `cancellation throws cancellation exception`() = runTest {
+        val deps = object : BackgroundDependencies {
+            override val isEnabled = true
+            override val accountActive = true
+            override fun updateLastCheck() {}
+            override suspend fun fetchUnreadMessages() = throw kotlinx.coroutines.CancellationException()
+            override fun isProcessed(messageId: String) = false
+            override fun markProcessed(messageId: String) {}
+            override suspend fun scan(input: ScanInput) = null
+            override suspend fun saveHistory(result: UnifiedScanResponse, source: String) {}
+            override fun notifyThreat(c: String, s: Float, action: String) {}
+        }
+        var threw = false
+        try {
+            BackgroundScanner.execute(deps)
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            threw = true
+        }
+        assertTrue(threw)
     }
 
     @Test

@@ -26,6 +26,8 @@ object BackgroundScanner {
         
         val fetchResult = try {
             deps.fetchUnreadMessages()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (_: Exception) {
             return false // Retry
         }
@@ -46,6 +48,8 @@ object BackgroundScanner {
                         deps.notifyThreat(result.classification, result.risk_score, result.risk_assessment.recommended_action)
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (_: Exception) {
                 // Ignore individual message failure
             } finally {
