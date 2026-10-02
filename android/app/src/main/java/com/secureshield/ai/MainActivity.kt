@@ -280,7 +280,7 @@ class MainActivity : AppCompatActivity() {
                         badgeCategory.text = "${result.classification} ($categorySuffix)"
                         val confidencePct = (result.risk_assessment.confidence * 100).toInt()
                         textScore.text = "Risk Score: ${result.risk_score} / 100 (Conf: ${confidencePct}%)"
-                        textReasons.text = if (result.risk_assessment.reasons.isNotEmpty()) result.risk_assessment.reasons.joinToString("\nâ€¢ ", prefix = "â€¢ ") else "None"
+                        textReasons.text = if (result.risk_assessment.reasons.isNotEmpty()) result.risk_assessment.reasons.joinToString("\n• ", prefix = "• ") else "None"
                         textAction.text = result.risk_assessment.recommended_action
                         
                         sendPushNotification(notifyTitle, "Risk: ${result.classification}")
