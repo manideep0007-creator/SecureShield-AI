@@ -365,27 +365,32 @@ Closed-loop system for collecting user accuracy reports.
 
 ### 8.1 Feedback Collection — `IMPLEMENTED`
 
-> **Location**: V1 `engines/feedback.py` (backend), `MainActivity.kt` (Android)
+> **Location**: `android/app/src/main/java/com/secureshield/ai/MainActivity.kt`, `backend/app/api/routes.py`, `backend/app/database/feedback.py`
 
-**Android**: Thumbs up (👍 Accurate) / Thumbs down (👎 Inaccurate) buttons appear after every scan verdict. Sends `FeedbackRequest` to backend.
+**Android**: Thumbs up/down submits the current `scan_id`, positive/negative value, scan-time classification, score, confidence, and source type (`url`, `file`, `share`, `gmail`, or `unknown`). In-flight and completed scan IDs cannot be submitted twice from the same client. Failed requests preserve the displayed scan result and allow retry. The older Phase 9 request shape remains accepted only when its `analyzed_target` is a UUID scan ID.
 
-**Backend**: `POST /api/feedback` persists to SQLite `feedback.db`:
+**Backend**: `POST /api/feedback` validates the record and writes it to the existing SQLite `feedback.db`. A unique partial index on `scan_id` rejects duplicates. Legacy Phase 9 request fields are accepted only when `analyzed_target` is a scan UUID; newly stored `target` values contain only that UUID.
 ```
-feedback(id, target, score, category, feedback_value, timestamp)
+feedback(id, target, score, category, feedback_value, timestamp, scan_id,
+         user_feedback, classification_at_scan_time, risk_score_at_scan_time,
+         confidence_at_scan_time, source_type)
 ```
 
-### 8.2 Feedback-Driven Model Retuning — `NOT IMPLEMENTED`
+### 8.2 Detection Evaluation Metrics — `IMPLEMENTED`
 
-> **Target**: `app/database/` + `app/fusion/`
+> **Location**: `backend/app/evaluation/feedback_metrics.py`, `GET /api/evaluation/metrics`
 
-Pipeline to iterate over accumulated `feedback.db` data and adjust engine confidence weights or detection thresholds. Designed for logistic regression over feedback labels. No implementation exists.
+Read-only, deterministic aggregates report positive/negative counts and rates, counts by classification/source, per-classification response breakdowns, and average scan-time risk scores for each feedback value. Empty storage yields zero counts/rates and null averages. The API returns no scan IDs or content. These are user-response measurements, not ground-truth labels, production accuracy, or an automated retraining signal. Legacy rows without normalized scan IDs are excluded from metrics.
 
-### 8.3 V2 Database Layer — `NOT IMPLEMENTED`
+**Endpoints**: `POST /api/feedback` validates requests, returns a structured success response, and rejects duplicate scan IDs with HTTP 409. `GET /api/evaluation/metrics` is read-only and returns aggregate JSON.
 
-> **Target**: `app/database/`  
-> **Current state**: Empty `__init__.py` placeholder only
+### 8.3 Feedback Privacy and Compatibility — `IMPLEMENTED`
 
-V2 will centralize database connections, replace per-module SQLite init with unified session management, and support schema migrations.
+Feedback requests contain only scan metadata and never include message bodies, URLs, attachment bytes, credentials, OAuth tokens, or comments. Existing database rows are preserved during additive column migration. Storage failures return a structured service error; duplicate scan IDs return HTTP 409.
+
+### 8.4 Feedback-Driven Model Retuning — `NOT IMPLEMENTED`
+
+Metrics are not used to alter fusion weights, detection behavior, explainability, or classification. Any future retuning requires a separately designed evaluation methodology and validation data.
 
 ---
 
@@ -421,8 +426,9 @@ V2 will centralize database connections, replace per-module SQLite init with uni
 | | Android 13+ Permission Handling | `PARTIAL` |
 | | Real-Time Alert Dashboard | `NOT IMPLEMENTED` |
 | **User Feedback** | Feedback Collection (UI + DB) | `IMPLEMENTED` |
+| | Detection Evaluation Metrics | `IMPLEMENTED` |
 | | Feedback-Driven Retuning | `NOT IMPLEMENTED` |
-| | V2 Database Layer | `NOT IMPLEMENTED` |
+| | V2 Centralized Database Layer | `NOT IMPLEMENTED` |
 
 ### Counts
 

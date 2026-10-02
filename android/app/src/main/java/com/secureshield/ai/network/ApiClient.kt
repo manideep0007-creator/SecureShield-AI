@@ -68,10 +68,18 @@ data class UnifiedScanResponse(
 )
 
 data class FeedbackRequest(
-    val analyzed_target: String,
-    val score: Int,
-    val category: String,
-    val feedback_value: String
+    val scan_id: String,
+    val user_feedback: String,
+    val classification_at_scan_time: String,
+    val risk_score_at_scan_time: Float,
+    val confidence_at_scan_time: Float,
+    val source_type: String
+)
+
+data class FeedbackSubmissionResponse(
+    val status: String?,
+    val scan_id: String?,
+    val timestamp: String?
 )
 
 interface SecureShieldApi {
@@ -79,7 +87,7 @@ interface SecureShieldApi {
     suspend fun scan(@Body request: ScanInput): Response<JsonObject>
     
     @POST("/api/feedback")
-    suspend fun sendFeedback(@Body request: FeedbackRequest): Response<Unit>
+    suspend fun sendFeedback(@Body request: FeedbackRequest): Response<FeedbackSubmissionResponse>
 }
 
 class MalformedScanResponseException(message: String) : RuntimeException(message)

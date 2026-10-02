@@ -11,7 +11,7 @@ SecureShield AI is an end-to-end mobile security platform consisting of an Andro
     *   **NLP Engine**: Classifies raw message text using category patterns focusing on Social Engineering constraints.
     *   **Sender Behavior Engine**: A stateful anomaly tracker (via SQLite) identifying unusual sending patterns.
 *   **Fusion & Explainability Layer**: Calculates confidence-weighted averages to assign scores (0-100) and distinct categories: Safe, Suspicious, Deceptive, Phishing, Malware. Translates flags into human-readable actions.
-*   **Feedback System**: In-app Thumbs Up / Thumbs Down mechanism fed into a local SQLite database for future metric evaluation.
+*   **Feedback Evaluation**: Scan-bound positive/negative feedback is stored locally in SQLite and summarized through read-only evaluation metrics. Metrics are measurement data, not a model-accuracy claim or automatic retuning signal.
 
 ## Project Structure
 ```text
@@ -79,6 +79,15 @@ cd android
 gradlew test
 gradlew clean test assembleDebug
 ```
+
+## Phase 12 Feedback and Evaluation
+After a scan completes, the existing thumbs controls submit only the scan UUID, positive/negative choice, classification, risk score, confidence, and source type (`url`, `file`, `share`, `gmail`, or `unknown`). The feedback is tied to that exact scan; duplicate submissions are blocked in the app and rejected by a unique SQLite scan-ID index. A failed submission leaves the scan result and feedback controls available for retry. The API accepts the earlier Phase 9 feedback request shape only when its `analyzed_target` is a scan UUID.
+
+Feedback extends the existing `backend/data/feedback.db` table with normalized scan-time fields. The legacy `target` column receives only the scan UUID for new records. Email bodies, URLs, file contents, attachments, OAuth data, credentials, and tokens are not included in feedback requests. Existing legacy rows are preserved and are not returned by metrics.
+
+`POST /api/feedback` validates and stores a record, returning HTTP 409 for duplicate scan IDs. `GET /api/evaluation/metrics` returns aggregate counts/rates, counts by classification and source, per-classification positive/negative summaries, and average risk scores split by feedback value. It returns zero counts and rates for an empty database. The endpoint does not expose scan IDs or content. Feedback metrics measure user responses and do not establish detection accuracy or modify risk scoring/classification.
+
+Run backend tests from `backend/` with `python -m pytest app/tests`. Android feedback tests use local fake responses and can be run from `android/` with `gradlew test`; no Gmail account or live backend is required.
 
 ## Environment Variables Required
 To run the backend engines with full functionality, create a `.env` file in the root or `backend/` directory by copying `.env.example`:
