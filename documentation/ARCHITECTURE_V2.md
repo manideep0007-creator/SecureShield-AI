@@ -392,6 +392,24 @@ Feedback requests contain only scan metadata and never include message bodies, U
 
 Metrics are not used to alter fusion weights, detection behavior, explainability, or classification. Any future retuning requires a separately designed evaluation methodology and validation data.
 
+## 9. Secure Scan History
+
+### 9.1 Local Metadata Store — `IMPLEMENTED`
+
+> **Location**: `android/app/src/main/java/com/secureshield/ai/history/`
+
+After a valid unified scan response, Android asynchronously writes one local `scan_history` row keyed by the backend `scan_id`. The history layer does not call the network or rerun detection. A SQLite primary key/unique index prevents duplicate records; indexes support newest-first listing and classification/source filtering. Queries are parameterized, paged (25 by default, maximum 100), and run on `Dispatchers.IO`.
+
+Stored fields are scan ID, timestamp, source type, classification, score, confidence, recommendation, sanitized human-readable reasons, flags, evidence keys, and an optional local feedback state. Raw body text, URLs, attachment bytes, Gmail content, evidence values, credentials, API keys, and OAuth tokens are not stored. URL/email/phone/secret-like substrings are redacted from display strings.
+
+### 9.2 History UI and Deletion — `IMPLEMENTED`
+
+The small history Activity lists source, time, classification, risk score, and confidence. Selecting a row shows stored details without a backend request. Individual and delete-all actions are confirmation-gated and affect only local scan history. Phase 12 feedback rows remain in the independent backend database. The optional feedback marker is only a local copy for display; clearing history removes that marker but never changes the backend feedback or metrics.
+
+### 9.3 Database Migration and Testing — `IMPLEMENTED`
+
+The dedicated `secure_scan_history.db` schema uses additive versioned upgrades; it does not share or migrate the Phase 12 backend feedback database. Migration tests execute the same production DDL with SQLite JDBC against a local temporary file, seed a legacy history schema plus an unrelated feedback table, and verify both existing rows survive. Repository tests use a fake store for inserts, duplicate IDs, ordered/filterable/paged retrieval, lookups, deletes, empty/corrupt data, privacy redaction, feedback markers, and persistence failure isolation.
+
 ---
 
 ## Implementation Status Summary

@@ -38,6 +38,7 @@ import com.secureshield.ai.network.fileBytesAsBackendJsonValue
 import com.secureshield.ai.feedback.FeedbackSubmissionManager
 import com.secureshield.ai.feedback.FeedbackSubmissionResult
 import com.secureshield.ai.feedback.FeedbackSubmissionUiPolicy
+import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.share.ShareDispatchResult
 import com.secureshield.ai.share.SharedFileReadResult
 import com.secureshield.ai.share.SharedIntentPayload
@@ -75,6 +76,8 @@ class MainActivity : AppCompatActivity() {
     private val feedbackSubmissionManager by lazy {
         FeedbackSubmissionManager { request -> ApiClient.api.sendFeedback(request) }
     }
+    private val scanHistoryRepositoryDelegate = lazy { ScanHistoryRepository(applicationContext) }
+    private val scanHistoryRepository by scanHistoryRepositoryDelegate
 
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         var account: GoogleSignInAccount? = null
@@ -129,6 +132,10 @@ class MainActivity : AppCompatActivity() {
             beginGmailScan()
         }
 
+        findViewById<Button>(R.id.btn_scan_history).setOnClickListener {
+            startActivity(Intent(this, ScanHistoryActivity::class.java))
+        }
+
         handleIntent(intent)
     }
 
@@ -149,6 +156,9 @@ class MainActivity : AppCompatActivity() {
                 FeedbackSubmissionResult.Submitted -> {
                     if (FeedbackSubmissionUiPolicy.shouldDismissFeedback(submission) && currentResult?.scan_id == request.scan_id) {
                         layoutFeedback.visibility = View.GONE
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            scanHistoryRepository.updateFeedbackState(request.scan_id, request.user_feedback)
+                        }
                         Toast.makeText(this@MainActivity, "Feedback saved.", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -251,6 +261,11 @@ class MainActivity : AppCompatActivity() {
         if (intent == null) return
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    override fun onDestroy() {
+        if (scanHistoryRepositoryDelegate.isInitialized()) scanHistoryRepository.close()
+        super.onDestroy()
     }
 
     private fun handleIntent(intent: Intent) {
@@ -392,6 +407,9 @@ class MainActivity : AppCompatActivity() {
                         val result = UnifiedScanResponseParser.parse(responseJson)
                         currentResult = result
                         currentResultSourceType = sourceType
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            scanHistoryRepository.saveCompletedScan(result, sourceType)
+                        }
                         layoutFeedback.visibility = View.VISIBLE
                         badgeCategory.text = "${result.classification} ($categorySuffix)"
                         val confidencePct = (result.risk_assessment.confidence * 100).toInt()
