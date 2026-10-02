@@ -188,10 +188,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        intent?.let {
-            setIntent(it)
-            handleIntent(it)
-        }
+        if (intent == null) return
+        setIntent(intent)
+        handleIntent(intent)
     }
 
     private fun handleIntent(intent: Intent) {

@@ -70,6 +70,25 @@ class SharedIntentRouterTest {
     }
 
     @Test
+    fun `multiple share extras trigger execute scan exactly once`() {
+        var scanCount = 0
+        val result = SharedIntentRouter.dispatch(
+            SharedIntentPayload(
+                action = actionSend,
+                mimeType = "text/plain",
+                text = "Review https://example.test",
+                streamUri = "content://provider/note",
+                dataUri = "https://example.test"
+            ),
+            readFile = { SharedFileReadResult.Success("note.txt", "shared file body") },
+            executeScan = { _, _ -> scanCount++ }
+        )
+
+        assertTrue(result is ShareDispatchResult.Dispatched)
+        assertEquals(1, scanCount)
+    }
+
+    @Test
     fun `missing or empty share data is rejected without scanning`() {
         val scans = mutableListOf<Pair<ScanInput, SharedScanKind>>()
         val missingResult = dispatch(SharedIntentPayload(actionSend, "text/plain"), scans)
