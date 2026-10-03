@@ -14,7 +14,7 @@ interface BackgroundDependencies {
     fun markProcessed(messageId: String)
     suspend fun scan(input: ScanInput): UnifiedScanResponse?
     suspend fun saveHistory(result: UnifiedScanResponse, source: String)
-    fun notifyThreat(classification: String, score: Float, action: String)
+    fun notifyThreat(classification: String, score: Float, action: String, scanId: String)
 }
 
 object BackgroundScanner {
@@ -45,15 +45,15 @@ object BackgroundScanner {
                 if (result != null) {
                     deps.saveHistory(result, "gmail")
                     if (result.classification == "Phishing" || result.classification == "Malware") {
-                        deps.notifyThreat(result.classification, result.risk_score, result.risk_assessment.recommended_action)
+                        deps.notifyThreat(result.classification, result.risk_score, result.risk_assessment.recommended_action, result.scan_id)
                     }
+                    deps.markProcessed(email.messageId)
                 }
+                // null result: do NOT mark processed — eligible for retry
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // Ignore individual message failure
-            } finally {
-                deps.markProcessed(email.messageId)
+                // Scan/network failure: do NOT mark processed — eligible for retry
             }
         }
         return true

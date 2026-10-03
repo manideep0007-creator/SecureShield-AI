@@ -69,22 +69,22 @@ class ThreatAlertWorker(
                 repo.close()
             }
 
-            override fun notifyThreat(classification: String, score: Float, action: String) {
-                sendThreatNotification(classification, score, action)
+            override fun notifyThreat(classification: String, score: Float, action: String, scanId: String) {
+                sendThreatNotification(classification, score, action, scanId)
             }
         })
 
         if (success) Result.success() else Result.retry()
     }
 
-    private fun sendThreatNotification(classification: String, riskScore: Float, recommendedAction: String) {
+    private fun sendThreatNotification(classification: String, riskScore: Float, recommendedAction: String, scanId: String) {
         try {
-            val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            val intent = Intent(applicationContext, com.secureshield.ai.ScanHistoryActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("scan_id", scanId)
             }
-            // Tap opens existing scan/history result - MainActivity will open (which can lead to ScanHistoryActivity)
             val pendingIntent = PendingIntent.getActivity(
-                applicationContext, 0, intent,
+                applicationContext, scanId.hashCode(), intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
@@ -99,7 +99,7 @@ class ThreatAlertWorker(
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
             
-            val notificationId = System.currentTimeMillis().toInt()
+            val notificationId = scanId.hashCode()
             NotificationManagerCompat.from(applicationContext).notify(notificationId, builder.build())
         } catch (e: SecurityException) {
             // Missing notification permission, fail gracefully
