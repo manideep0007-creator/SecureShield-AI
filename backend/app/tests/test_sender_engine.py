@@ -1,17 +1,24 @@
 import pytest
 import os
 import time
+import sqlite3
 from app.engines.sender_engine import SenderEngine, init_db, DB_PATH
 from app.models.scan_input import ScanInput
 
 @pytest.fixture(autouse=True)
 def setup_db():
     if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
+        try:
+            os.remove(DB_PATH)
+        except OSError:
+            pass
     init_db()
     yield
     if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
+        try:
+            os.remove(DB_PATH)
+        except OSError:
+            pass
 
 @pytest.mark.asyncio
 async def test_sender_skipped_when_no_sender_id():
@@ -118,3 +125,107 @@ async def test_sender_change_with_name():
 
     ev_keys = [e.key for e in result.evidence]
     assert "sender_domain_change" in ev_keys
+
+@pytest.mark.asyncio
+async def test_normal_sender_profiling_keyed_by_email():
+    """Prove that normal sender behavioral profiling is keyed by normalized email."""
+    engine = SenderEngine()
+    now = time.time()
+
+    # Message 1 with display name "Alice Engineering" <alice@company.com>
+    r1 = await engine.analyze(ScanInput(
+        sender_id='"Alice Engineering" <alice@company.com>',
+        metadata={"timestamp": now}
+    ))
+    assert "new_sender" in r1.flags
+    assert r1.status == "success"
+
+    # Message 2 with different display name "Alice Dev Lead" <alice@company.com>
+    # Should update the existing profile keyed by alice@company.com
+    r2 = await engine.analyze(ScanInput(
+        sender_id='"Alice Dev Lead" <alice@company.com>',
+        metadata={"timestamp": now + 120}
+    ))
+    assert "new_sender" not in r2.flags
+    assert r2.confidence == 0.8
+    assert r2.metadata.get("previous_history_found") is True
+
+    # Verify directly in SQLite: senders table has exactly 1 row keyed by normalized email
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT sender_id, message_count FROM senders")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        sender_id, msg_count = rows[0]
+        assert sender_id == "alice@company.com"
+        assert msg_count == 2
+    finally:
+        conn.close()
+
+@pytest.mark.asyncio
+async def test_same_display_name_different_senders_does_not_merge_behavioral_profiles():
+    """Prove that two different senders sharing the same display name maintain separate profiles."""
+    engine = SenderEngine()
+    now = time.time()
+
+    # Sender 1: "IT Support" <support@internal-hq.com> sends 3 messages
+    for i in range(3):
+        await engine.analyze(ScanInput(
+            sender_id='"IT Support" <support@internal-hq.com>',
+            metadata={"timestamp": now - 3600 * (3 - i)}
+        ))
+
+    # Sender 2: "IT Support" <support@external-phish.com> sends a message shortly after
+    r_sender2 = await engine.analyze(ScanInput(
+        sender_id='"IT Support" <support@external-phish.com>',
+        metadata={"timestamp": now + 10}
+    ))
+
+    # Sender 2 is a new sender and must NOT inherit Sender 1's behavioral history
+    assert "new_sender" in r_sender2.flags
+    # Rapid sender activity must NOT trigger on Sender 2 since Sender 2 has no previous message
+    assert "rapid_sender_activity" not in r_sender2.flags
+
+    # Verify SQLite state: each sender has an independent row and unmerged message count
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT sender_id, message_count FROM senders ORDER BY sender_id")
+        rows = dict(cursor.fetchall())
+        assert rows["support@internal-hq.com"] == 3
+        assert rows["support@external-phish.com"] == 1
+    finally:
+        conn.close()
+
+@pytest.mark.asyncio
+async def test_genuine_sender_domain_change_detected():
+    """Prove that a genuine sender/domain change is detected via display name + domain history."""
+    engine = SenderEngine()
+    now = time.time()
+
+    # Legitimate sender establishes display name history
+    r_legit = await engine.analyze(ScanInput(
+        sender_id='"PayPal Billing" <service@paypal.com>',
+        metadata={"timestamp": now - 7200}
+    ))
+    assert "new_sender" in r_legit.flags
+    assert "sender_change" not in r_legit.flags
+
+    # Impersonation / domain change: attacker uses same display name with a different domain
+    r_attack = await engine.analyze(ScanInput(
+        sender_id='"PayPal Billing" <receipt@paypal-security-update.com>',
+        metadata={"timestamp": now}
+    ))
+
+    assert "sender_change" in r_attack.flags
+    ev_keys = [e.key for e in r_attack.evidence]
+    assert "sender_domain_change" in ev_keys
+
+    # Verify evidence description mentions previous and new domain
+    domain_ev = next(e for e in r_attack.evidence if e.key == "sender_domain_change")
+    assert domain_ev.value == "paypal-security-update.com"
+    assert "paypal.com" in domain_ev.description
+    assert "paypal-security-update.com" in domain_ev.description
+    assert r_attack.risk_score >= 40.0
+

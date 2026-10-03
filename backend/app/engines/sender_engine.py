@@ -38,13 +38,35 @@ def init_db():
             cursor.execute("ALTER TABLE senders ADD COLUMN recent_window_start REAL DEFAULT 0.0")
             
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_last_seen ON senders(last_seen)")
+
+        conn.execute('''CREATE TABLE IF NOT EXISTS sender_name_history (
+                        display_name TEXT PRIMARY KEY,
+                        last_domain TEXT DEFAULT '',
+                        last_email TEXT DEFAULT '',
+                        last_seen REAL DEFAULT 0.0,
+                        count INTEGER DEFAULT 0
+                      )''')
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_name_last_seen ON sender_name_history(last_seen)")
     conn.close()
 
 init_db()
 
+MAX_RECORDS = 5000
+
+def _prune_tables(cursor):
+    cursor.execute("SELECT count(*) FROM senders")
+    count = cursor.fetchone()[0] or 0
+    if count > MAX_RECORDS:
+        cursor.execute("DELETE FROM senders WHERE sender_id IN (SELECT sender_id FROM senders ORDER BY last_seen ASC LIMIT 500)")
+        
+    cursor.execute("SELECT count(*) FROM sender_name_history")
+    name_count = cursor.fetchone()[0] or 0
+    if name_count > MAX_RECORDS:
+        cursor.execute("DELETE FROM sender_name_history WHERE display_name IN (SELECT display_name FROM sender_name_history ORDER BY last_seen ASC LIMIT 500)")
+
 def _normalize_sender(raw_sender: str, metadata: dict):
     if not raw_sender:
-        return "", "", ""
+        return "", "", "", ""
     match = re.search(r'(.*?)<([^>]+)>', raw_sender)
     if match:
         name = match.group(1).strip(' \t"\'').lower()
@@ -57,8 +79,8 @@ def _normalize_sender(raw_sender: str, metadata: dict):
     if not domain and "@" in email:
         domain = email.split("@")[-1]
         
-    profile_key = name if name else email
-    return profile_key, email, domain or ""
+    profile_key = email if email else raw_sender.strip().lower()
+    return profile_key, email, domain or "", name
 
 def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: bool = False, metadata: dict = None) -> dict:
     if not sender_id:
@@ -66,7 +88,7 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
         
     metadata = metadata or {}
     now = metadata.get("timestamp", time.time())
-    profile_key, email, domain = _normalize_sender(sender_id, metadata)
+    profile_key, email, domain, display_name = _normalize_sender(sender_id, metadata)
     
     if not profile_key:
         profile_key = sender_id
@@ -142,8 +164,6 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
                 flags.append("out_of_character_file")
                 score += 0.3
                 
-            score = min(score, 1.0)
-            
             time_buckets[current_hour] = time_buckets.get(current_hour, 0) + 1
             new_links = link_count + (1 if has_link else 0)
             new_files = file_count + (1 if has_file else 0)
@@ -159,7 +179,41 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
                               recent_window_start=?
                               WHERE sender_id=?''',
                            (new_links, new_files, max(last_seen, now), json.dumps(time_buckets), domain, recent_count, recent_window_start, profile_key))
-                           
+
+        # Check separate lightweight display-name/domain history mechanism for sender_change detection
+        if display_name:
+            cursor.execute('''SELECT last_domain, last_email, last_seen, count 
+                              FROM sender_name_history WHERE display_name=?''', (display_name,))
+            name_row = cursor.fetchone()
+            if name_row:
+                prev_name_domain, prev_name_email, prev_name_last_seen, prev_name_count = name_row
+                if prev_name_domain and domain and prev_name_domain != domain:
+                    if "sender_change" not in flags:
+                        flags.append("sender_change")
+                        score += 0.4
+                        evidence.append(EvidenceItem(
+                            key="sender_domain_change", 
+                            value=domain, 
+                            description=f"Sender domain changed from {prev_name_domain} to {domain}"
+                        ))
+                
+                # Keep established domain if discrepancy detected to preserve security against cache poisoning
+                target_domain = prev_name_domain if (prev_name_domain and domain and prev_name_domain != domain) else (domain or prev_name_domain)
+                cursor.execute('''UPDATE sender_name_history SET 
+                                  last_domain=?, 
+                                  last_email=?, 
+                                  last_seen=?, 
+                                  count=count+1 
+                                  WHERE display_name=?''',
+                               (target_domain, email, max(prev_name_last_seen, now), display_name))
+            else:
+                cursor.execute('''INSERT INTO sender_name_history (
+                                  display_name, last_domain, last_email, last_seen, count
+                                  ) VALUES (?, ?, ?, ?, 1)''',
+                               (display_name, domain, email, now))
+                               
+        score = min(score, 1.0)
+        _prune_tables(cursor)
         conn.commit()
         
     finally:
