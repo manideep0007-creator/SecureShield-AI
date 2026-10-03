@@ -26,6 +26,8 @@ class ScanHistoryActivity : AppCompatActivity() {
     private var loading = false
     private var hasMore = true
 
+    private var pendingScanId: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_scan_history)
@@ -36,11 +38,37 @@ class ScanHistoryActivity : AppCompatActivity() {
         findViewById<Button>(R.id.scan_history_back).setOnClickListener { finish() }
         findViewById<Button>(R.id.scan_history_clear_all).setOnClickListener { confirmDeleteAll() }
         loadMoreButton.setOnClickListener { loadNextPage() }
+        
+        pendingScanId = intent?.getStringExtra("scan_id")
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingScanId = intent?.getStringExtra("scan_id")
+        checkPendingScanAndReload()
     }
 
     override fun onResume() {
         super.onResume()
-        reloadHistory()
+        checkPendingScanAndReload()
+    }
+
+    private fun checkPendingScanAndReload() {
+        val scanId = pendingScanId
+        pendingScanId = null
+        
+        if (scanId != null) {
+            lifecycleScope.launch {
+                val record = repository.getById(scanId)
+                reloadHistory()
+                if (record != null) {
+                    showDetails(record)
+                }
+            }
+        } else {
+            reloadHistory()
+        }
     }
 
     private fun reloadHistory() {

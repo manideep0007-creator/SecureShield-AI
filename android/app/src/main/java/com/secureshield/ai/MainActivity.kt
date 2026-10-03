@@ -18,6 +18,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -39,6 +40,7 @@ import com.secureshield.ai.feedback.FeedbackSubmissionManager
 import com.secureshield.ai.feedback.FeedbackSubmissionResult
 import com.secureshield.ai.feedback.FeedbackSubmissionUiPolicy
 import com.secureshield.ai.history.ScanHistoryRepository
+import com.secureshield.ai.background.BackgroundProtectionManager
 import com.secureshield.ai.share.ShareDispatchResult
 import com.secureshield.ai.share.SharedFileReadResult
 import com.secureshield.ai.share.SharedIntentPayload
@@ -123,9 +125,18 @@ class MainActivity : AppCompatActivity() {
         btnThumbUp.setOnClickListener { submitFeedback("up") }
         btnThumbDown.setOnClickListener { submitFeedback("down") }
 
-        val btnBackgroundMonitor = findViewById<Button>(R.id.btn_background_monitor)
-        btnBackgroundMonitor.setOnClickListener {
-            Toast.makeText(this, "Background Gmail monitoring is not configured. Use Connect Gmail to scan unread messages.", Toast.LENGTH_LONG).show()
+        val switchBackgroundProtection = findViewById<SwitchCompat>(R.id.switch_background_protection)
+        val textBackgroundStatus = findViewById<TextView>(R.id.text_background_status)
+
+        switchBackgroundProtection.isChecked = BackgroundProtectionManager.isEnabled(this)
+        updateBackgroundStatusText(textBackgroundStatus)
+
+        switchBackgroundProtection.setOnCheckedChangeListener { _, isChecked ->
+            BackgroundProtectionManager.setEnabled(this, isChecked)
+            updateBackgroundStatusText(textBackgroundStatus)
+            if (isChecked) {
+                Toast.makeText(this, "Periodic background checks enabled.", Toast.LENGTH_SHORT).show()
+            }
         }
 
         btnScanGmail.setOnClickListener {
@@ -181,6 +192,17 @@ class MainActivity : AppCompatActivity() {
                 btnThumbUp.isEnabled = true
                 btnThumbDown.isEnabled = true
             }
+        }
+    }
+
+    private fun updateBackgroundStatusText(textView: TextView) {
+        val isEnabled = BackgroundProtectionManager.isEnabled(this)
+        val lastCheck = BackgroundProtectionManager.getLastCheck(this)
+        if (!isEnabled) {
+            textView.text = "Protection inactive"
+        } else {
+            val lastStr = if (lastCheck > 0) java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(lastCheck)) else "Never"
+            textView.text = "Protection active (Last check: $lastStr)"
         }
     }
 
