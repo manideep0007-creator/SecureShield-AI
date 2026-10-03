@@ -34,7 +34,7 @@ async def test_first_time_sender_cold_start():
     assert "new_sender" in ev_keys
 
 @pytest.mark.asyncio
-async def test_repeated_sender_rapid_repeat():
+async def test_repeated_sender_rapid_sender_activity():
     engine = SenderEngine()
     now = time.time()
     
@@ -42,12 +42,12 @@ async def test_repeated_sender_rapid_repeat():
     
     result = await engine.analyze(ScanInput(sender_id="alice@test.com", metadata={"timestamp": now + 10}))
     
-    assert "rapid_repeat" in result.flags
+    assert "rapid_sender_activity" in result.flags
     assert result.risk_score > 0
     assert result.confidence == 0.8
     
     ev_keys = [e.key for e in result.evidence]
-    assert "rapid_repeat" in ev_keys
+    assert "rapid_sender_activity" in ev_keys
 
 @pytest.mark.asyncio
 async def test_unusual_time():
@@ -81,15 +81,15 @@ async def test_unusual_frequency():
     assert "unusual_sender_frequency" in ev_keys
 
 @pytest.mark.asyncio
-async def test_sender_domain_change():
+async def test_sender_change():
     engine = SenderEngine()
     now = time.time()
     
-    # Key is sender_id. So we use the same sender_id but simulate domain change via metadata
+    # Key is now normalized email. Since "internal_id_123" doesn't have an email format, the key is "internal_id_123"
     await engine.analyze(ScanInput(sender_id="internal_id_123", metadata={"sender_domain": "old.com", "timestamp": now - 3600}))
     
     result = await engine.analyze(ScanInput(sender_id="internal_id_123", metadata={"sender_domain": "new.com", "timestamp": now}))
-    assert "sender_domain_change" in result.flags
+    assert "sender_change" in result.flags
     
     ev_keys = [e.key for e in result.evidence]
     assert "sender_domain_change" in ev_keys

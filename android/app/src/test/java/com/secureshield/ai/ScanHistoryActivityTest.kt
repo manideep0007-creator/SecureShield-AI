@@ -62,12 +62,11 @@ class ScanHistoryActivityTest {
         ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
             scenario.onActivity { activity ->
                 var dialog = ShadowAlertDialog.getLatestAlertDialog()
-                var retries = 0
-                while (dialog == null && retries < 100) {
-                    Thread.sleep(50)
+                val endTime = System.currentTimeMillis() + 5000
+                while (dialog == null && System.currentTimeMillis() < endTime) {
                     org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                    Thread.yield()
                     dialog = ShadowAlertDialog.getLatestAlertDialog()
-                    retries++
                 }
                 assertNotNull("AlertDialog should be shown automatically", dialog)
                 
@@ -82,8 +81,11 @@ class ScanHistoryActivityTest {
 
         ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
             scenario.onActivity { activity ->
-                Thread.sleep(200)
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                val endTime = System.currentTimeMillis() + 1000
+                while (System.currentTimeMillis() < endTime) {
+                    org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                    Thread.yield()
+                }
                 val dialog = ShadowAlertDialog.getLatestAlertDialog()
                 assertNull("No AlertDialog should be shown", dialog)
             }
@@ -98,8 +100,11 @@ class ScanHistoryActivityTest {
 
         ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
             scenario.onActivity { activity ->
-                Thread.sleep(200)
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                val endTime = System.currentTimeMillis() + 1000
+                while (System.currentTimeMillis() < endTime) {
+                    org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                    Thread.yield()
+                }
                 val dialog = ShadowAlertDialog.getLatestAlertDialog()
                 assertNull("No AlertDialog should be shown for unknown scan_id", dialog)
             }
@@ -138,12 +143,11 @@ class ScanHistoryActivityTest {
         // Trigger onNewIntent via Android lifecycle
         controller.newIntent(newIntent)
         var dialogAfter = ShadowAlertDialog.getLatestAlertDialog()
-        var retries = 0
-        while (dialogAfter == null && retries < 100) {
-            Thread.sleep(50)
+        val endTimeAfter = System.currentTimeMillis() + 5000
+        while (dialogAfter == null && System.currentTimeMillis() < endTimeAfter) {
             org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            Thread.yield()
             dialogAfter = ShadowAlertDialog.getLatestAlertDialog()
-            retries++
         }
         assertNotNull("AlertDialog should be shown after onNewIntent", dialogAfter)
         

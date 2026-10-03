@@ -61,6 +61,7 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
     metadata = metadata or {}
     now = metadata.get("timestamp", time.time())
     email, domain = _normalize_sender(sender_id, metadata)
+    profile_key = email if email else sender_id
     
     conn = sqlite3.connect(DB_PATH, timeout=5.0)
     try:
@@ -68,7 +69,7 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
         cursor.execute('''SELECT message_count, link_count, file_count, 
                           first_seen, last_seen, time_buckets, last_domain, 
                           recent_count, recent_window_start 
-                          FROM senders WHERE sender_id=?''', (sender_id,))
+                          FROM senders WHERE sender_id=?''', (profile_key,))
         row = cursor.fetchone()
         
         flags = []
@@ -89,7 +90,7 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
                               first_seen, last_seen, time_buckets, last_domain,
                               recent_count, recent_window_start
                               ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, 1, ?)''',
-                           (sender_id, 1 if has_link else 0, 1 if has_file else 0,
+                           (profile_key, 1 if has_link else 0, 1 if has_file else 0,
                             now, now, json.dumps(new_buckets), domain, now))
         else:
             (msg_count, link_count, file_count, first_seen, last_seen, 
@@ -102,9 +103,9 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
                 pass
                 
             if last_seen > 0 and (now - last_seen) < 60:
-                flags.append("rapid_repeat")
+                flags.append("rapid_sender_activity")
                 score += 0.3
-                evidence.append(EvidenceItem(key="rapid_repeat", value=now-last_seen, description=f"Message received {now-last_seen:.1f}s after previous"))
+                evidence.append(EvidenceItem(key="rapid_sender_activity", value=now-last_seen, description=f"Message received {now-last_seen:.1f}s after previous"))
                 
             if now - recent_window_start > 3600:
                 recent_count = 0
@@ -122,7 +123,7 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
                 evidence.append(EvidenceItem(key="unusual_sender_time", value=current_hour, description="Message arrived at an unusual hour for this sender"))
                 
             if msg_count > 0 and last_domain and domain and last_domain != domain:
-                flags.append("sender_domain_change")
+                flags.append("sender_change")
                 score += 0.4
                 evidence.append(EvidenceItem(key="sender_domain_change", value=domain, description=f"Sender domain changed from {last_domain} to {domain}"))
                 
@@ -149,7 +150,7 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
                               recent_count=?,
                               recent_window_start=?
                               WHERE sender_id=?''',
-                           (new_links, new_files, max(last_seen, now), json.dumps(time_buckets), domain, recent_count, recent_window_start, sender_id))
+                           (new_links, new_files, max(last_seen, now), json.dumps(time_buckets), domain, recent_count, recent_window_start, profile_key))
                            
         conn.commit()
         
