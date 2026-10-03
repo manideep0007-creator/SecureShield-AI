@@ -44,15 +44,21 @@ init_db()
 
 def _normalize_sender(raw_sender: str, metadata: dict):
     if not raw_sender:
-        return "", ""
-    match = re.search(r'<([^>]+)>', raw_sender)
-    email = match.group(1) if match else raw_sender
-    email = email.strip().lower()
+        return "", "", ""
+    match = re.search(r'(.*?)<([^>]+)>', raw_sender)
+    if match:
+        name = match.group(1).strip(' \t"\'').lower()
+        email = match.group(2).strip().lower()
+    else:
+        name = ""
+        email = raw_sender.strip().lower()
     
     domain = metadata.get("sender_domain")
     if not domain and "@" in email:
         domain = email.split("@")[-1]
-    return email, domain or ""
+        
+    profile_key = name if name else email
+    return profile_key, email, domain or ""
 
 def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: bool = False, metadata: dict = None) -> dict:
     if not sender_id:
@@ -60,8 +66,10 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
         
     metadata = metadata or {}
     now = metadata.get("timestamp", time.time())
-    email, domain = _normalize_sender(sender_id, metadata)
-    profile_key = email if email else sender_id
+    profile_key, email, domain = _normalize_sender(sender_id, metadata)
+    
+    if not profile_key:
+        profile_key = sender_id
     
     conn = sqlite3.connect(DB_PATH, timeout=5.0)
     try:

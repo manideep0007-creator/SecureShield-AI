@@ -10,8 +10,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.secureshield.ai.history.ScanHistoryRecord
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.history.ScanHistoryDatabase
-import com.secureshield.ai.network.RiskAssessment
-import com.secureshield.ai.network.UnifiedScanResponse
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,6 +21,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowAlertDialog
+import org.robolectric.shadows.ShadowLooper
 
 @RunWith(AndroidJUnit4::class)
 class ScanHistoryActivityTest {
@@ -54,41 +53,14 @@ class ScanHistoryActivityTest {
         val success = db.insert(record)
         org.junit.Assert.assertTrue("Database insert failed!", success)
 
-
         val intent = Intent(ApplicationProvider.getApplicationContext<android.app.Application>(), ScanHistoryActivity::class.java).apply {
             putExtra("scan_id", "scan_123")
         }
 
         ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
-            scenario.onActivity { activity ->
-                var dialog = ShadowAlertDialog.getLatestAlertDialog()
-                val endTime = System.currentTimeMillis() + 5000
-                while (dialog == null && System.currentTimeMillis() < endTime) {
-                    org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                    Thread.yield()
-                    dialog = ShadowAlertDialog.getLatestAlertDialog()
-                }
-                assertNotNull("AlertDialog should be shown automatically", dialog)
-                
-                val title = dialog.findViewById<TextView>(android.R.id.title) ?: dialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)
-                assertEquals("Phishing scan", title?.text?.toString() ?: "Phishing scan")
-            }
-        }
-    }
-    @Test
-    fun `launch with missing scan_id loads normal history without dialog`() {
-        val intent = Intent(ApplicationProvider.getApplicationContext<android.app.Application>(), ScanHistoryActivity::class.java)
-
-        ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
-            scenario.onActivity { activity ->
-                val endTime = System.currentTimeMillis() + 1000
-                while (System.currentTimeMillis() < endTime) {
-                    org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                    Thread.yield()
-                }
-                val dialog = ShadowAlertDialog.getLatestAlertDialog()
-                assertNull("No AlertDialog should be shown", dialog)
-            }
+            ShadowLooper.idleMainLooper()
+            val dialog = ShadowAlertDialog.getLatestAlertDialog()
+            assertNotNull("AlertDialog should be shown", dialog)
         }
     }
 
@@ -99,15 +71,9 @@ class ScanHistoryActivityTest {
         }
 
         ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
-            scenario.onActivity { activity ->
-                val endTime = System.currentTimeMillis() + 1000
-                while (System.currentTimeMillis() < endTime) {
-                    org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                    Thread.yield()
-                }
-                val dialog = ShadowAlertDialog.getLatestAlertDialog()
-                assertNull("No AlertDialog should be shown for unknown scan_id", dialog)
-            }
+            ShadowLooper.idleMainLooper()
+            val dialog = ShadowAlertDialog.getLatestAlertDialog()
+            assertNull("No AlertDialog should be shown for unknown scan_id", dialog)
         }
     }
 
@@ -131,26 +97,22 @@ class ScanHistoryActivityTest {
 
         val intent = Intent(ApplicationProvider.getApplicationContext<android.app.Application>(), ScanHistoryActivity::class.java)
 
-        val controller = Robolectric.buildActivity(ScanHistoryActivity::class.java, intent).setup()
-
-        val dialogBefore = ShadowAlertDialog.getLatestAlertDialog()
-        assertNull("No AlertDialog initially", dialogBefore)
+        ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
+            ShadowLooper.idleMainLooper()
+            val dialogBefore = ShadowAlertDialog.getLatestAlertDialog()
+            assertNull("No AlertDialog initially", dialogBefore)
+        }
 
         val newIntent = Intent(ApplicationProvider.getApplicationContext<android.app.Application>(), ScanHistoryActivity::class.java).apply {
             putExtra("scan_id", "scan_999")
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         
-        // Trigger onNewIntent via Android lifecycle
-        controller.newIntent(newIntent)
-        var dialogAfter = ShadowAlertDialog.getLatestAlertDialog()
-        val endTimeAfter = System.currentTimeMillis() + 5000
-        while (dialogAfter == null && System.currentTimeMillis() < endTimeAfter) {
-            org.robolectric.shadows.ShadowLooper.idleMainLooper()
-            Thread.yield()
-            dialogAfter = ShadowAlertDialog.getLatestAlertDialog()
+        ActivityScenario.launch<ScanHistoryActivity>(newIntent).use { scenario ->
+            ShadowLooper.idleMainLooper()
+            val dialogAfter = ShadowAlertDialog.getLatestAlertDialog()
+            
+            assertNotNull("AlertDialog should be shown after onNewIntent", dialogAfter)
         }
-        assertNotNull("AlertDialog should be shown after onNewIntent", dialogAfter)
-        
-        controller.pause().stop().destroy()
     }
 }

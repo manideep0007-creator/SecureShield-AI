@@ -104,3 +104,17 @@ async def test_normalization_and_malformed():
     result = await engine.analyze(ScanInput(sender_id=sender_str))
     assert result.status == "success"
     assert "new_sender" in result.flags
+
+@pytest.mark.asyncio
+async def test_sender_change_with_name():
+    engine = SenderEngine()
+    now = time.time()
+
+    # Use same name but different emails to trigger domain change
+    await engine.analyze(ScanInput(sender_id='"Apple Support" <support@apple.com>', metadata={"timestamp": now - 3600}))
+
+    result = await engine.analyze(ScanInput(sender_id='"Apple Support" <hacker@evil.com>', metadata={"timestamp": now}))
+    assert "sender_change" in result.flags
+
+    ev_keys = [e.key for e in result.evidence]
+    assert "sender_domain_change" in ev_keys
