@@ -197,16 +197,22 @@ V1 implementation is fully functional:
 
 **V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
 
-### 3.6 Sender Behavior Engine — `PARTIAL`
+### 3.6 Sender Behavior Engine (Phase 15) — `IMPLEMENTED`
 
-> **V1 (working)**: `engines/sender_engine.py` — returns ad-hoc dict  
-> **V2 (pending)**: No V2 subclass of `BaseEngine` yet
+> **Location**: `app/engines/sender_engine.py`
 
-V1 implementation is fully functional:
-- SQLite-backed per-sender history (message count, link count, file count)
-- Flags: `first_time_sender` (0.4), `out_of_character_link` (+0.6), `out_of_character_file` (+0.6)
-
-**V2 gap**: Not yet wrapped as a `BaseEngine` subclass returning `EngineResult`.
+V2 implementation is fully functional and wrapped as a `BaseEngine` subclass returning `EngineResult`:
+- SQLite-backed per-sender history with safe additive migrations and privacy protections (no raw email bodies stored).
+- Cold-Start Policy: First time senders do not automatically get a high-risk score, ensuring safe initial encounters.
+- Deterministic anomaly flags:
+  - `new_sender`: First-time observation.
+  - `unusual_frequency`: Anomalous surge in message volume against recent baseline.
+  - `unusual_time`: Message arriving in an unobserved hourly bucket for established senders.
+  - `sender_domain_change`: Domain changes associated with existing identifiers.
+  - `rapid_repeat`: Messages arriving in unusually rapid succession.
+- Legacy V1 compatibility preserved (`first_time_sender`, `out_of_character_link`).
+- Returns bounded `0.0–100.0` score with deterministic evidence generation.
+- **Privacy Boundary**: Sender anomalies are behavioral signals and do not by themselves prove malicious activity. Raw email content, passwords, attachments, or OAuth tokens are NEVER persisted.
 
 ### 3.7 Header Analysis Engine — `NOT IMPLEMENTED`
 
@@ -429,7 +435,7 @@ The dedicated `secure_scan_history.db` schema uses additive versioned upgrades; 
 | | URL Engine | `PARTIAL` |
 | | Malware Engine | `PARTIAL` |
 | | NLP Engine | `PARTIAL` |
-| | Sender Behavior Engine | `PARTIAL` |
+| | Sender Behavior Engine | `IMPLEMENTED` |
 | | Visual Engine (QR/OCR/Phishing) | `IMPLEMENTED` |
 | | Header Analysis Engine | `NOT IMPLEMENTED` |
 | | Attachment Behavior Engine | `NOT IMPLEMENTED` |

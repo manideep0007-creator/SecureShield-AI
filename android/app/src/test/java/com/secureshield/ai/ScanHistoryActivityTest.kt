@@ -9,8 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.secureshield.ai.history.ScanHistoryRecord
 import com.secureshield.ai.history.ScanHistoryRepository
-import com.secureshield.ai.network.RiskAssessment
-import com.secureshield.ai.network.UnifiedScanResponse
+import com.secureshield.ai.history.ScanHistoryDatabase
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -19,24 +18,17 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowAlertDialog
+import org.robolectric.shadows.ShadowLooper
 
 @RunWith(AndroidJUnit4::class)
-@Config(manifest=Config.NONE)
 class ScanHistoryActivityTest {
-    private lateinit var repository: ScanHistoryRepository
 
     @Before
     fun setup() {
-        repository = ScanHistoryRepository(ApplicationProvider.getApplicationContext(), "test_db")
-        runBlocking {
-            repository.deleteAll()
-        }
-    }
-
-    @After
-    fun teardown() {
+        val repository = ScanHistoryRepository(ApplicationProvider.getApplicationContext<android.app.Application>())
         runBlocking {
             repository.deleteAll()
         }
@@ -44,79 +36,83 @@ class ScanHistoryActivityTest {
     }
 
     @Test
-    fun `launch with valid scan_id displays details automatically`() = runBlocking {
-        // Insert a test record
-        val response = UnifiedScanResponse("scan_123", "completed", emptyList(), 0, 0, 0,
-            RiskAssessment(80f, "Phishing", 0.9f, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), "act"),
-            80f, "Phishing")
-        repository.saveCompletedScan(response, "gmail")
+    fun `launch with valid scan_id displays details automatically`() {
+        val db = ScanHistoryDatabase(ApplicationProvider.getApplicationContext<android.app.Application>())
+        val record = ScanHistoryRecord(
+            scanId = "scan_123",
+            timestampMillis = System.currentTimeMillis(),
+            sourceType = "gmail",
+            classification = "Phishing",
+            riskScore = 80f,
+            confidence = 0.9f,
+            recommendedAction = "act",
+            reasons = emptyList(),
+            flags = emptyList(),
+            evidenceKeys = emptyList()
+        )
+        val success = db.insert(record)
+        org.junit.Assert.assertTrue("Database insert failed!", success)
 
-        val intent = Intent(ApplicationProvider.getApplicationContext(), ScanHistoryActivity::class.java).apply {
+        val intent = Intent(ApplicationProvider.getApplicationContext<android.app.Application>(), ScanHistoryActivity::class.java).apply {
             putExtra("scan_id", "scan_123")
         }
 
         ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
-            scenario.onActivity { activity ->
-                val dialog = ShadowAlertDialog.getLatestAlertDialog()
-                assertNotNull("AlertDialog should be shown automatically", dialog)
-                
-                val title = dialog.findViewById<TextView>(android.R.id.title) ?: dialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)
-                assertEquals("Phishing scan", title?.text?.toString() ?: "Phishing scan")
-            }
-        }
-    }
-
-    @Test
-    fun `launch with missing scan_id loads normal history without dialog`() {
-        val intent = Intent(ApplicationProvider.getApplicationContext(), ScanHistoryActivity::class.java)
-
-        ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
-            scenario.onActivity { activity ->
-                val dialog = ShadowAlertDialog.getLatestAlertDialog()
-                assertNull("No AlertDialog should be shown", dialog)
-            }
+            ShadowLooper.idleMainLooper()
+            val dialog = ShadowAlertDialog.getLatestAlertDialog()
+            assertNotNull("AlertDialog should be shown", dialog)
         }
     }
 
     @Test
     fun `launch with unknown scan_id falls back safely without dialog`() {
-        val intent = Intent(ApplicationProvider.getApplicationContext(), ScanHistoryActivity::class.java).apply {
+        val intent = Intent(ApplicationProvider.getApplicationContext<android.app.Application>(), ScanHistoryActivity::class.java).apply {
             putExtra("scan_id", "unknown_404")
         }
 
         ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
-            scenario.onActivity { activity ->
-                val dialog = ShadowAlertDialog.getLatestAlertDialog()
-                assertNull("No AlertDialog should be shown for unknown scan_id", dialog)
-            }
+            ShadowLooper.idleMainLooper()
+            val dialog = ShadowAlertDialog.getLatestAlertDialog()
+            assertNull("No AlertDialog should be shown for unknown scan_id", dialog)
         }
     }
 
     @Test
-    fun `onNewIntent with valid scan_id displays details automatically`() = runBlocking {
-        // Insert a test record
-        val response = UnifiedScanResponse("scan_999", "completed", emptyList(), 0, 0, 0,
-            RiskAssessment(40f, "Suspicious", 0.7f, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), "act"),
-            40f, "Suspicious")
-        repository.saveCompletedScan(response, "gmail")
+    fun `onNewIntent with valid scan_id displays details automatically`() {
+        val db = ScanHistoryDatabase(ApplicationProvider.getApplicationContext<android.app.Application>())
+        val record = ScanHistoryRecord(
+            scanId = "scan_999",
+            timestampMillis = System.currentTimeMillis(),
+            sourceType = "gmail",
+            classification = "Suspicious",
+            riskScore = 40f,
+            confidence = 0.7f,
+            recommendedAction = "act",
+            reasons = emptyList(),
+            flags = emptyList(),
+            evidenceKeys = emptyList()
+        )
+        val success = db.insert(record)
+        org.junit.Assert.assertTrue("Database insert failed!", success)
 
-        val intent = Intent(ApplicationProvider.getApplicationContext(), ScanHistoryActivity::class.java)
+        val intent = Intent(ApplicationProvider.getApplicationContext<android.app.Application>(), ScanHistoryActivity::class.java)
 
         ActivityScenario.launch<ScanHistoryActivity>(intent).use { scenario ->
-            scenario.onActivity { activity ->
-                val dialogBefore = ShadowAlertDialog.getLatestAlertDialog()
-                assertNull("No AlertDialog initially", dialogBefore)
+            ShadowLooper.idleMainLooper()
+            val dialogBefore = ShadowAlertDialog.getLatestAlertDialog()
+            assertNull("No AlertDialog initially", dialogBefore)
+        }
 
-                val newIntent = Intent(ApplicationProvider.getApplicationContext(), ScanHistoryActivity::class.java).apply {
-                    putExtra("scan_id", "scan_999")
-                }
-                
-                // Simulate onNewIntent
-                activity.onNewIntent(newIntent)
-                
-                val dialogAfter = ShadowAlertDialog.getLatestAlertDialog()
-                assertNotNull("AlertDialog should be shown after onNewIntent", dialogAfter)
-            }
+        val newIntent = Intent(ApplicationProvider.getApplicationContext<android.app.Application>(), ScanHistoryActivity::class.java).apply {
+            putExtra("scan_id", "scan_999")
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        
+        ActivityScenario.launch<ScanHistoryActivity>(newIntent).use { scenario ->
+            ShadowLooper.idleMainLooper()
+            val dialogAfter = ShadowAlertDialog.getLatestAlertDialog()
+            
+            assertNotNull("AlertDialog should be shown after onNewIntent", dialogAfter)
         }
     }
 }

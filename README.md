@@ -106,6 +106,11 @@ cd android
 gradlew test --tests "*background*"
 ```
 
+## Phase 15 Sender Behavior Intelligence
+The Sender Behavior Engine applies deterministic anomaly rules against a localized, privacy-preserving profile to track sending patterns. The engine enforces a strict cold-start policy requiring sufficient observed history prior to escalating risk scores for unusual volumes or times. Sender anomalies are behavioral signals and do not by themselves prove malicious activity. Raw email content, passwords, attachments, or OAuth tokens are NEVER persisted; state is managed securely with a parameterized SQLite schema using purely additive migrations. The engine executes concurrently alongside the V2 detection pipeline and contributes its bounded `EngineResult` securely to risk fusion.
+
+Run backend tests from `backend/` with `python -m pytest app/tests`.
+
 ## Environment Variables Required
 To run the backend engines with full functionality, create a `.env` file in the root or `backend/` directory by copying `.env.example`:
 
