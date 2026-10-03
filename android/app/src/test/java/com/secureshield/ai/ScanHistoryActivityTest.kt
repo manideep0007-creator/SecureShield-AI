@@ -44,7 +44,8 @@ class ScanHistoryActivityTest {
     }
 
     @Test
-    fun `launch with valid scan_id displays details automatically`() = runBlocking {
+    fun `launch with valid scan_id displays details automatically`() {
+        runBlocking {
         // Insert a test record
         val response = UnifiedScanResponse("scan_123", "completed", emptyList(), 0, 0, 0,
             RiskAssessment(80f, "Phishing", 0.9f, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), "act"),
@@ -63,6 +64,7 @@ class ScanHistoryActivityTest {
                 val title = dialog.findViewById<TextView>(android.R.id.title) ?: dialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)
                 assertEquals("Phishing scan", title?.text?.toString() ?: "Phishing scan")
             }
+        }
         }
     }
 
@@ -93,7 +95,8 @@ class ScanHistoryActivityTest {
     }
 
     @Test
-    fun `onNewIntent with valid scan_id displays details automatically`() = runBlocking {
+    fun `onNewIntent with valid scan_id displays details automatically`() {
+        runBlocking {
         // Insert a test record
         val response = UnifiedScanResponse("scan_999", "completed", emptyList(), 0, 0, 0,
             RiskAssessment(40f, "Suspicious", 0.7f, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), "act"),
@@ -108,14 +111,16 @@ class ScanHistoryActivityTest {
                 assertNull("No AlertDialog initially", dialogBefore)
 
                 val newIntent = Intent(ApplicationProvider.getApplicationContext(), ScanHistoryActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     putExtra("scan_id", "scan_999")
                 }
                 
-                // Simulate onNewIntent
-                activity.onNewIntent(newIntent)
+                // Trigger onNewIntent via Android lifecycle
+                activity.startActivity(newIntent)
                 
                 val dialogAfter = ShadowAlertDialog.getLatestAlertDialog()
                 assertNotNull("AlertDialog should be shown after onNewIntent", dialogAfter)
+            }
             }
         }
     }

@@ -1,6 +1,4 @@
 @echo off
-if "%~1"=="-Command" (
-    cmd /c %~2
-) else (
-    cmd /c %*
-)
+set "args=%*"
+set "args=%args:-Command =%"
+cmd /c %args%
