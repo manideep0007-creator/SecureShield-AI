@@ -521,7 +521,131 @@ def inspect_archive(file_bytes: bytes, declared_ext: str, detected_type: str) ->
                 description="Unable to safely parse full archive structure."
             ))
 
+    # TAR Archive Inspection (bounded safe static metadata inspection)
+    is_tar = (
+        detected_type in ("archive/tar", "archive/gzip", "archive/bzip2")
+        or (len(file_bytes) >= 512 and file_bytes[257:262] == b"ustar")
+        or declared_ext.lower().strip(".") in ("tar", "tgz", "tbz2")
+        or (not is_zip and tarfile.is_tarfile(io.BytesIO(file_bytes)))
+    )
+
+    if is_tar and not results["is_archive"]:
+        results["is_archive"] = True
+        try:
+            with tarfile.open(fileobj=io.BytesIO(file_bytes), mode="r:*") as t:
+                total_uncompressed = 0
+                non_dir_entries: list[tuple[str, tarfile.TarInfo]] = []
+                nested_archives: list[tuple[str, tarfile.TarInfo]] = []
+                count = 0
+                exceeded_limit = False
+
+                for member in t:
+                    count += 1
+                    if count > MAX_ARCHIVE_ENTRIES:
+                        exceeded_limit = True
+                        break
+
+                    total_uncompressed += member.size
+                    filename = member.name
+                    clean_name = sanitize_filename(filename)
+
+                    if not member.isdir() and clean_name:
+                        non_dir_entries.append((clean_name, member))
+
+                    # 1. Path traversal check (normpath traversal or absolute path)
+                    norm_parts = filename.replace("\\", "/").split("/")
+                    if ".." in norm_parts or filename.startswith("/") or filename.startswith("\\"):
+                        results["flags"].append("SUSPICIOUS_ARCHIVE")
+                        results["evidence"].append(EvidenceItem(
+                            key="archive_path_traversal",
+                            value=clean_name or filename,
+                            description="Archive contains suspicious directory traversal entries."
+                        ))
+
+                    # 2. Path depth anomaly
+                    if len(norm_parts) > 5:
+                        results["flags"].append("ARCHIVE_DEPTH_ANOMALY")
+                        results["evidence"].append(EvidenceItem(
+                            key="archive_depth_anomaly",
+                            value=f"depth={len(norm_parts)}",
+                            description=f"Archive directory structure exceeds safe nesting depth limit ({len(norm_parts)})."
+                        ))
+
+                    if clean_name:
+                        # 3. Double extension inside archive
+                        if detect_double_extension(clean_name):
+                            results["flags"].append("DOUBLE_EXTENSION")
+                            results["flags"].append("SUSPICIOUS_ARCHIVE")
+                            results["evidence"].append(EvidenceItem(
+                                key="archive_contained_double_extension",
+                                value=clean_name,
+                                description=f"Archive contains deceptive double extension: '{clean_name}'."
+                            ))
+
+                        # 4. Executable or script payload inside archive
+                        ext = clean_name.lower().split(".")[-1]
+                        if ext in DANGEROUS_EXTENSIONS and ext not in ARCHIVE_EXTENSIONS:
+                            if ext in EXECUTABLE_EXTENSIONS:
+                                results["flags"].append("EXECUTABLE_ATTACHMENT")
+                            else:
+                                results["flags"].append("SCRIPT_ATTACHMENT")
+                            results["flags"].append("SUSPICIOUS_ARCHIVE")
+                            results["evidence"].append(EvidenceItem(
+                                key="archive_contained_payload",
+                                value=f"{clean_name} (.{ext})",
+                                description=f"Archive contains executable or script payload: '{clean_name}'."
+                            ))
+
+                        # 5. Nested archive
+                        if ext in ARCHIVE_EXTENSIONS:
+                            nested_archives.append((clean_name, member))
+                            results["flags"].append("NESTED_ARCHIVE")
+                            results["evidence"].append(EvidenceItem(
+                                key="nested_archive",
+                                value=clean_name,
+                                description=f"Archive contains nested archive file: '{clean_name}'."
+                            ))
+
+                if exceeded_limit:
+                    results["flags"].append("SUSPICIOUS_ARCHIVE")
+                    results["evidence"].append(EvidenceItem(
+                        key="archive_entry_limit_exceeded",
+                        value=f"entries_exceeded>{MAX_ARCHIVE_ENTRIES}",
+                        description=f"Archive contains excessive entries exceeding safety limit ({MAX_ARCHIVE_ENTRIES})."
+                    ))
+
+                # Uncompressed size / expansion check
+                if total_uncompressed > MAX_UNCOMPRESSED_ARCHIVE_SIZE:
+                    results["flags"].append("ARCHIVE_EXPANSION_ANOMALY")
+                    results["evidence"].append(EvidenceItem(
+                        key="archive_expansion_anomaly",
+                        value=f"uncompressed={total_uncompressed}B",
+                        description=f"Archive uncompressed size ({total_uncompressed}B) exceeds safety boundary ({MAX_UNCOMPRESSED_ARCHIVE_SIZE}B)."
+                    ))
+
+                # Single executable dropper check
+                if len(non_dir_entries) == 1 and not exceeded_limit:
+                    single_name, _ = non_dir_entries[0]
+                    single_ext = single_name.lower().split(".")[-1]
+                    if single_ext in DANGEROUS_EXTENSIONS:
+                        results["flags"].append("SUSPICIOUS_ARCHIVE")
+                        results["evidence"].append(EvidenceItem(
+                            key="archive_single_payload_dropper",
+                            value=single_name,
+                            description="Archive contains a solitary executable/script payload (classic dropper format)."
+                        ))
+
+        except (tarfile.TarError, Exception) as exc:
+            results["is_partial"] = True
+            results["flags"].append("SUSPICIOUS_ARCHIVE")
+            results["evidence"].append(EvidenceItem(
+                key="archive_malformed",
+                value=f"malformed_header ({type(exc).__name__})",
+                description="Archive header is corrupted, malformed, or invalid."
+            ))
+
     return results
+
 
 
 # -------------------------------------------------------------------------

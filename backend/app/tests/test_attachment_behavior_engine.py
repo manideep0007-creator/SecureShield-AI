@@ -4,7 +4,9 @@ import os
 import sys
 import unittest
 import zipfile
+import tarfile
 from unittest.mock import patch
+
 
 # Ensure backend directory is in sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -110,6 +112,57 @@ def create_ooxml_macro_bytes() -> bytes:
         z.writestr("word/document.xml", "<w:document></w:document>")
         z.writestr("word/vbaProject.bin", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1VBA_PROJECT")
     return buf.getvalue()
+
+
+def create_safe_tar_bytes() -> bytes:
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as t:
+        ti = tarfile.TarInfo("docs/notes.txt")
+        content = b"Safe text inside tar"
+        ti.size = len(content)
+        t.addfile(ti, io.BytesIO(content))
+    return buf.getvalue()
+
+
+def create_payload_tar_bytes() -> bytes:
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as t:
+        ti = tarfile.TarInfo("run_tool.sh")
+        content = b"#!/bin/bash\necho 'hello'\n"
+        ti.size = len(content)
+        t.addfile(ti, io.BytesIO(content))
+    return buf.getvalue()
+
+
+def create_traversal_tar_bytes() -> bytes:
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as t:
+        ti = tarfile.TarInfo("../../etc/passwd")
+        content = b"root:x:0:0"
+        ti.size = len(content)
+        t.addfile(ti, io.BytesIO(content))
+    return buf.getvalue()
+
+
+def create_nested_tar_bytes() -> bytes:
+    inner_zip = create_safe_zip_bytes()
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as t:
+        ti = tarfile.TarInfo("inner_bundle.zip")
+        ti.size = len(inner_zip)
+        t.addfile(ti, io.BytesIO(inner_zip))
+    return buf.getvalue()
+
+
+def create_oversized_entries_tar_bytes() -> bytes:
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as t:
+        for i in range(250):
+            ti = tarfile.TarInfo(f"entry_{i}.txt")
+            ti.size = 0
+            t.addfile(ti, io.BytesIO(b""))
+    return buf.getvalue()
+
 
 
 # -------------------------------------------------------------------------
@@ -335,6 +388,49 @@ class TestAttachmentBehaviorEngine(unittest.IsolatedAsyncioTestCase):
         result = await self.engine.analyze(input_data)
         self.assertEqual(result.status, EngineStatus.PARTIAL)
         self.assertIn("SUSPICIOUS_ARCHIVE", result.flags)
+
+    # 20. Focused TAR tests (Phase 17 Recovery)
+    async def test_safe_tar_inspection(self):
+        tar_bytes = create_safe_tar_bytes()
+        input_data = ScanInput(file_name="safe_archive.tar", file_bytes=tar_bytes)
+        result = await self.engine.analyze(input_data)
+        self.assertEqual(result.status, EngineStatus.SUCCESS)
+        self.assertEqual(result.risk_score, 0.0)
+        self.assertEqual(len(result.flags), 0)
+
+    async def test_tar_containing_executable_or_script(self):
+        tar_bytes = create_payload_tar_bytes()
+        input_data = ScanInput(file_name="utility_scripts.tar", file_bytes=tar_bytes)
+        result = await self.engine.analyze(input_data)
+        self.assertEqual(result.status, EngineStatus.SUCCESS)
+        self.assertIn("SCRIPT_ATTACHMENT", result.flags)
+        self.assertIn("SUSPICIOUS_ARCHIVE", result.flags)
+        self.assertGreaterEqual(result.risk_score, 45.0)
+
+    async def test_tar_path_traversal(self):
+        tar_bytes = create_traversal_tar_bytes()
+        input_data = ScanInput(file_name="traversal_test.tar", file_bytes=tar_bytes)
+        result = await self.engine.analyze(input_data)
+        self.assertEqual(result.status, EngineStatus.SUCCESS)
+        self.assertIn("SUSPICIOUS_ARCHIVE", result.flags)
+        self.assertTrue(any(e.key == "archive_path_traversal" for e in result.evidence))
+
+    async def test_tar_nested_archive(self):
+        tar_bytes = create_nested_tar_bytes()
+        input_data = ScanInput(file_name="outer_bundle.tar", file_bytes=tar_bytes)
+        result = await self.engine.analyze(input_data)
+        self.assertEqual(result.status, EngineStatus.SUCCESS)
+        self.assertIn("NESTED_ARCHIVE", result.flags)
+        self.assertTrue(any(e.key == "nested_archive" for e in result.evidence))
+
+    async def test_tar_resource_entry_limit(self):
+        tar_bytes = create_oversized_entries_tar_bytes()
+        input_data = ScanInput(file_name="many_entries.tar", file_bytes=tar_bytes)
+        result = await self.engine.analyze(input_data)
+        self.assertEqual(result.status, EngineStatus.SUCCESS)
+        self.assertIn("SUSPICIOUS_ARCHIVE", result.flags)
+        self.assertTrue(any(e.key == "archive_entry_limit_exceeded" for e in result.evidence))
+
 
 
 if __name__ == "__main__":
