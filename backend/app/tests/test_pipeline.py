@@ -43,6 +43,39 @@ TEST_CASES = [
     }
 ]
 
+def test_legacy_pipeline_cases():
+    with patch("app.engines.url_engine.check_google_safe_browsing", new_callable=AsyncMock) as mock_gsb, \
+         patch("app.engines.malware_engine.check_virustotal", new_callable=AsyncMock) as mock_vt:
+        
+        def gsb_side_effect(url):
+            if "secure-login-verify" in url:
+                return {"gsb_score": 1.0, "gsb_threats": ["MALWARE"]}
+            return {"gsb_score": 0.0, "gsb_threats": []}
+        mock_gsb.side_effect = gsb_side_effect
+        mock_vt.return_value = {"score": 0.3, "flags": ["vt_not_found"]}
+        
+        for case in TEST_CASES:
+            res = client.post(case["endpoint"], json=case["payload"])
+            assert res.status_code == 200, f"Case {case['name']} failed with status {res.status_code}"
+            data = res.json()
+            actual = data.get("category", "UNKNOWN")
+            assert actual in case["expected_category_in"], f"Case {case['name']} expected {case['expected_category_in']}, got {actual}"
+            
+        file_path = "test_spoofed_invoice.exe"
+        with open(file_path, "wb") as f:
+            f.write(b"%PDF-1.4\n%Fake PDF Content to trigger mismatch rule")
+            
+        try:
+            with open(file_path, "rb") as f:
+                file_res = client.post("/api/analyze/file", files={"file": (file_path, f)})
+            assert file_res.status_code == 200
+            data = file_res.json()
+            cat = data.get("category", "UNKNOWN")
+            assert cat in ["Suspicious", "Deceptive", "Phishing", "Malware"]
+        finally:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
 def run_tests():
     print("========================================")
     print(" SecureShield AI - Pipeline Test Suite")

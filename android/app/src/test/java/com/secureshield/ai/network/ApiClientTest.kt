@@ -159,4 +159,74 @@ class ApiClientTest {
     fun `binary file bytes are rejected instead of corrupted`() {
         fileBytesAsBackendJsonValue(byteArrayOf(0, 0xC3.toByte(), 0x28))
     }
+
+    @Test
+    fun `test scan input includes classification profile`() = runTest {
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("""
+            {
+                "scan_id": "test-uuid-profile",
+                "status": "completed",
+                "total_engines": 1,
+                "completed_engines": 1,
+                "skipped_engines": 0,
+                "risk_score": 45.0,
+                "classification": "Deceptive",
+                "results": [],
+                "risk_assessment": {
+                    "risk_score": 45.0,
+                    "classification": "Deceptive",
+                    "confidence": 0.95,
+                    "contributing_engines": ["url_engine"],
+                    "ignored_engines": [],
+                    "flags": [],
+                    "evidence": [],
+                    "reasons": ["Risk assessed under strict profile."],
+                    "recommended_action": "Do not trust this content."
+                }
+            }
+        """.trimIndent()))
+
+        val input = ScanInput(text = "sample", classification_profile = "strict")
+        val response = api.scan(input)
+        assertTrue(response.isSuccessful)
+        val parsed = UnifiedScanResponseParser.parse(response.body()!!)
+        assertEquals("Deceptive", parsed.classification)
+
+        val recordedRequest = mockWebServer.takeRequest()
+        assertTrue(recordedRequest.body.readUtf8().contains("\"classification_profile\":\"strict\""))
+    }
+
+    @Test
+    fun `test malformed schema response missing root classification`() = runTest {
+        val jsonWithoutClassification = """
+            {
+                "scan_id": "test-uuid",
+                "status": "completed",
+                "total_engines": 1,
+                "completed_engines": 1,
+                "skipped_engines": 0,
+                "risk_score": 85.0,
+                "results": [],
+                "risk_assessment": {
+                    "risk_score": 85.0,
+                    "classification": "Phishing",
+                    "confidence": 0.9,
+                    "contributing_engines": [],
+                    "ignored_engines": [],
+                    "flags": [],
+                    "evidence": [],
+                    "reasons": [],
+                    "recommended_action": "Do not click"
+                }
+            }
+        """.trimIndent()
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(jsonWithoutClassification))
+        val response = api.scan(ScanInput(text = "test"))
+        try {
+            UnifiedScanResponseParser.parse(response.body()!!)
+            throw AssertionError("Expected missing root classification to fail validation")
+        } catch (e: MalformedScanResponseException) {
+            assertTrue(e.message!!.contains("classification"))
+        }
+    }
 }
