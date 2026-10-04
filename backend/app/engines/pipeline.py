@@ -2,7 +2,13 @@ from app.models.scan_input import ScanInput
 from app.models.engine_result import EngineResult
 from app.engines.registry import engine_registry
 from app.preprocessing.data_prep import resolve_url, check_file_type
-import app.engines.visual_engine # Ensure it's registered
+import app.engines.url_engine
+import app.engines.malware_engine
+import app.engines.nlp_engine
+import app.engines.sender_engine
+import app.engines.visual_engine
+import app.engines.header_analysis_engine
+import app.engines.attachment_behavior_engine
 
 class UnifiedScanPipeline:
     """
@@ -27,7 +33,7 @@ class UnifiedScanPipeline:
     async def run(self, input_data: ScanInput) -> list[EngineResult]:
         # 1. Validate input
         # Ensure at least one scannable field is present
-        if not any([input_data.text, input_data.url, input_data.file_bytes, input_data.image_bytes, input_data.sender_id]):
+        if not any([input_data.text, input_data.url, input_data.file_bytes, input_data.image_bytes, input_data.sender_id, input_data.file_name]):
             raise ValueError("ScanInput must contain at least one piece of scannable data.")
 
         results = []

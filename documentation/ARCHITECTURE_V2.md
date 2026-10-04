@@ -226,11 +226,47 @@ Fully functional engine that processes normalized email header metadata to detec
 - Deterministic score calculation with a capped maximum to avoid a solitary weak anomaly escalating the output to high-risk without additional evidence.
 - **Privacy Boundary**: Purely metadata-driven. Raw email bodies, attachments, access tokens, and passwords are never collected, accessed, or persisted by this engine.
 
-### 3.8 Attachment Behavior Engine — `NOT IMPLEMENTED`
+### 3.8 Attachment Behavior Engine — `IMPLEMENTED`
 
-> **Target**: `app/engines/`
+> **Location**: `app/engines/attachment_behavior_engine.py`
 
-Future engine for deep file behavioral analysis beyond hash lookup (macro detection, embedded scripts, archive inspection).
+Engine performing safe, bounded static analysis on attachment metadata and byte headers to detect behavioral threats without execution:
+- **Supported Static Analysis**:
+  - File-type magic bytes analysis (PE, ELF, Mach-O, Java class, PDF, OLE2, OOXML, RTF, ZIP, TAR, GZIP, BZIP2, 7z, RAR, HTML, Shebang).
+  - Extension / type mismatch detection (`ATTACHMENT_TYPE_MISMATCH`).
+  - Suspicious executable and script file characteristics (`EXECUTABLE_ATTACHMENT`, `SCRIPT_ATTACHMENT`, `SUSPICIOUS_EXTENSION`).
+  - Office document macro presence detection in OOXML and legacy OLE2 formats (`MACRO_PRESENT`).
+  - Embedded script indicators in PDF (JavaScript, Launch actions), OOXML (embedded OLE/scripts), RTF, and HTML (`EMBEDDED_SCRIPT`).
+  - Archive inspection (ZIP & TAR):
+    - Dangerous contained file types (executables, scripts).
+    - Nested archives (`NESTED_ARCHIVE`).
+    - Excessive archive nesting depth anomalies (`ARCHIVE_DEPTH_ANOMALY`).
+    - Suspicious archive structure including path traversal, encrypted entries, and dropper structures (`SUSPICIOUS_ARCHIVE`).
+    - Bounded metadata analysis for compression expansion anomalies and zip bombs (`ARCHIVE_EXPANSION_ANOMALY`).
+  - Deceptive double extensions (e.g., `document.pdf.exe`, `invoice.docx.js`, `image.jpg.scr`) and Right-to-Left Override (RTLO) unicode deception (`DOUBLE_EXTENSION`).
+  - Phishing lure naming patterns combined with dangerous extensions (`SUSPICIOUS_FILENAME`).
+- **Safety Boundaries**:
+  - SAFE STATIC ANALYSIS ONLY.
+  - NEVER executes attachments, macros, or scripts.
+  - NEVER launches executables, invokes shell commands, or opens network connections.
+  - NEVER downloads payloads or modifies original attachments.
+- **Privacy Boundary**:
+  - Raw attachment bytes, file contents, passwords, tokens, and credentials are NEVER persisted or stored.
+  - Filenames are sanitized to strip local path information, user directories, and control characters.
+  - Evidence items contain only safe, high-level metadata (detected format, mismatch details, macro indicator).
+- **Deterministic Scoring & Risk Fusion**:
+  - Produces deterministic `risk_score` (0.0–100.0) capped at 85.0 so Attachment Behavior alone does not automatically classify every suspicious attachment as Malware.
+  - Produces deterministic confidence (0.0–1.0) and sorted machine-readable flags.
+  - One weak anomaly (e.g. filename lure alone) cannot trigger high risk.
+- **Resource Limits**:
+  - Bounded archive processing: max 200 entries inspected per archive.
+  - Uncompressed size bound: max 50 MB inspected.
+  - Expansion ratio bound: flags archives exceeding 50:1 ratio with > 1 MB uncompressed size.
+  - Bounded nested archive traversal: max 1 level of nested archive inspection up to 1 MB compressed size.
+- **Registry Integration**:
+  - Registered as `attachment_behavior_engine` in `EngineRegistry`.
+  - Executes concurrently within the unified scan pipeline, isolated by `safe_analyze` fault tolerance.
+
 
 ### 3.9 Visual Engine (Phases 4 & 5) — `IMPLEMENTED`
 

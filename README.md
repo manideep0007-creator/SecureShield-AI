@@ -11,6 +11,7 @@ SecureShield AI is an end-to-end mobile security platform consisting of an Andro
     *   **NLP Engine**: Classifies raw message text using category patterns focusing on Social Engineering constraints.
     *   **Sender Behavior Engine**: A stateful anomaly tracker (via SQLite) identifying unusual sending patterns.
     *   **Header Analysis Engine**: Analyzes email header metadata for inconsistencies (SPF/DKIM/DMARC logic, mismatching Return-Paths).
+    *   **Attachment Behavior Engine**: Performs safe static analysis of attachments (magic-byte validation, extension/type mismatch, double extensions, executable/script detection, Office macros, embedded scripts, and archive safety/expansion inspection) without execution or persistence.
 *   **Fusion & Explainability Layer**: Calculates confidence-weighted averages to assign scores (0-100) and distinct categories: Safe, Suspicious, Deceptive, Phishing, Malware. Translates flags into human-readable actions.
 *   **Feedback Evaluation**: Scan-bound positive/negative feedback is stored locally in SQLite and summarized through read-only evaluation metrics. Metrics are measurement data, not a model-accuracy claim or automatic retuning signal.
 *   **Secure Scan History**: Completed scan result metadata is stored locally for paginated browsing, details, and local deletion; scans still use the existing backend pipeline.

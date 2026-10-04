@@ -28,8 +28,21 @@ class ExplainabilityEngine:
         "qr_code_detected": "A QR code was detected in the attached image.",
         "ocr_text_extracted": "Text was extracted from the image for analysis.",
         "visual_phishing_detected": "Visual analysis detected potential phishing markers.",
-        "visual_credential_prompt": "The image contains elements that prompt for credentials or passwords."
+        "visual_credential_prompt": "The image contains elements that prompt for credentials or passwords.",
+        "ATTACHMENT_TYPE_MISMATCH": "The attachment extension does not match its true detected file type.",
+        "SUSPICIOUS_EXTENSION": "The attachment uses a high-risk or suspicious file extension.",
+        "DOUBLE_EXTENSION": "The attachment uses a deceptive double file extension to conceal its true format.",
+        "EXECUTABLE_ATTACHMENT": "The attachment is an executable binary or executable file format.",
+        "SCRIPT_ATTACHMENT": "The attachment contains an executable script file capable of executing commands.",
+        "MACRO_PRESENT": "The Office document attachment contains embedded VBA macros.",
+        "EMBEDDED_SCRIPT": "The attachment contains embedded scripts or executable objects.",
+        "NESTED_ARCHIVE": "The attachment archive contains one or more nested archives.",
+        "SUSPICIOUS_ARCHIVE": "The attachment archive exhibits suspicious structural characteristics or payloads.",
+        "ARCHIVE_DEPTH_ANOMALY": "The archive structure exceeds safe nesting depth limits.",
+        "ARCHIVE_EXPANSION_ANOMALY": "The archive exhibits an unusually large compression expansion ratio.",
+        "SUSPICIOUS_FILENAME": "The attachment filename matches deceptive phishing or malware lure patterns."
     }
+
 
     ACTION_MAPPING = {
         RiskClassification.SAFE: "Proceed with normal caution.",
