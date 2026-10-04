@@ -1,7 +1,16 @@
+from __future__ import annotations
+
 from app.models.scan_input import ScanInput
 from app.models.engine_result import EngineResult
 from app.engines.registry import engine_registry
-from app.preprocessing.data_prep import resolve_url, check_file_type
+from app.preprocessing import (
+    V2Preprocessor,
+    PreprocessingStatus,
+    resolve_url,
+    check_file_type,
+    normalize_text,
+    normalize_url,
+)
 import app.engines.url_engine
 import app.engines.malware_engine
 import app.engines.nlp_engine
@@ -12,29 +21,38 @@ import app.engines.attachment_behavior_engine
 
 class UnifiedScanPipeline:
     """
-    V2 Unified Scan Pipeline (Phase 6: Concurrent Execution)
+    V2 Unified Scan Pipeline (Phase 6: Concurrent Execution, Phase 18: V2 Preprocessing)
 
-    Coordinates preprocessing, visual context extraction (sequential, for
+    Coordinates centralized preprocessing, visual context extraction (sequential, for
     downstream dependency propagation), and concurrent parallel execution of
     all independent detection engines via the EngineRegistry.
 
     Execution order:
-        1. Validate input
+        1. Validate & Preprocess input (V2 Preprocessing Layer)
         2. Visual Engine (sequential — QR/OCR output feeds URL/NLP engines)
-        3. Preprocess (URL resolution, file type check)
+        3. URL redirect resolution
         4. All remaining engines run concurrently via asyncio.gather
         5. Post-process (extension_mismatch boost)
         6. Collect & return all EngineResults
     """
     
-    def __init__(self, registry=engine_registry):
+    def __init__(self, registry=engine_registry, preprocessor: V2Preprocessor | None = None):
         self.registry = registry
+        self.preprocessor = preprocessor or V2Preprocessor()
 
     async def run(self, input_data: ScanInput) -> list[EngineResult]:
         # 1. Validate input
         # Ensure at least one scannable field is present
         if not any([input_data.text, input_data.url, input_data.file_bytes, input_data.image_bytes, input_data.sender_id, input_data.file_name]):
             raise ValueError("ScanInput must contain at least one piece of scannable data.")
+
+        # V2 Preprocessing: Normalize & sanitize input
+        prep_result = self.preprocessor.preprocess(input_data)
+        if prep_result.status == PreprocessingStatus.REJECTED:
+            raise ValueError(prep_result.error_message or "ScanInput was rejected during preprocessing.")
+
+        input_data = prep_result.normalized_input
+        extension_mismatch = prep_result.details.get("extension_mismatch", False)
 
         results = []
 
@@ -51,16 +69,18 @@ class UnifiedScanPipeline:
                 ext_url = vis_res.metadata.get("extracted_url")
                 
                 if ext_text and not input_data.text:
-                    input_data.text = ext_text
+                    norm_ext, _ = normalize_text(ext_text)
+                    input_data.text = norm_ext
                 if ext_url and not input_data.url:
-                    input_data.url = ext_url
+                    norm_ext_url, _, url_valid = normalize_url(ext_url)
+                    if url_valid:
+                        input_data.url = norm_ext_url
 
-        # 3. Preprocess available data
+        # 3. Preprocess available data (URL redirect resolution)
         if input_data.url:
             input_data.url = await resolve_url(input_data.url)
             
-        extension_mismatch = False
-        if input_data.file_bytes and input_data.file_name:
+        if not extension_mismatch and input_data.file_bytes and input_data.file_name:
             type_check = check_file_type(input_data.file_bytes, input_data.file_name)
             extension_mismatch = type_check.get("extension_mismatch", False)
 

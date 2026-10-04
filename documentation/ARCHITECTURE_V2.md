@@ -122,12 +122,66 @@ Compares actual file type (detected via `filetype` library magic bytes) against 
 
 Dual enforcement — Android client checks before upload, backend rejects with HTTP 413 if exceeded.
 
-### 2.4 V2 Preprocessing Module — `NOT IMPLEMENTED`
+### 2.4 V2 Preprocessing Module — `IMPLEMENTED`
 
-> **Target**: `app/preprocessing/`  
-> **Current state**: Empty `__init__.py` placeholder only
+> **Location**: `app/preprocessing/v2_preprocessor.py`, `app/preprocessing/__init__.py`  
+> **Pipeline Position**: `ScanInput` → `V2 Preprocessor` → `Vision Extraction` → `URL Resolution` → `Engine Registry` (Concurrent) → `Risk Fusion` → `Explainability`
 
-V2 preprocessing will centralize input normalization, add text sanitization, and provide a unified preprocessing pipeline that feeds standardized data into the engine registry.
+The V2 Preprocessing layer provides a centralized, deterministic, and bounded stage that normalizes, sanitizes, and validates `ScanInput` before detection engines in the registry execute.
+
+#### Responsibilities
+1. **Text / Message Normalization**:
+   - Applies Unicode NFKC normalization to resolve compatibility characters (fullwidth characters, ligatures, non-breaking spaces).
+   - Strips non-printable ASCII control characters (preserving `\n`, `\r`, `\t`).
+   - Normalizes newlines to `\n`, collapses redundant horizontal whitespace, and collapses excessive blank lines (>2).
+   - Preserves all valid multilingual content without code or script execution.
+   - Enforces length bounds (`MAX_TEXT_LENGTH = 50,000`).
+
+2. **URL Normalization**:
+   - Lowercases scheme and host components.
+   - Strips enclosing quotes and brackets (`<...>`, `"..."`, `'...'`, `[...]`).
+   - Removes standard default ports (`:80` for HTTP, `:443` for HTTPS).
+   - Safely defaults missing schemes to `http://` while recording a warning.
+   - Rejects unsupported or dangerous pseudo-schemes (`javascript:`, `file:`, `data:`, `vbscript:`, `about:`).
+   - Preserves embedded credentials/userinfo (`user:pass@host`) to maintain compatibility with downstream SSRF rejection in `SafeURLFetcher.validate_url_syntax()`.
+   - Never makes external network requests during preprocessing.
+   - Enforces URL length bounds (`MAX_URL_LENGTH = 4,096`).
+
+3. **File / Attachment Normalization**:
+   - Strictly enforces the `10 MB` file boundary (`MAX_FILE_BYTES = 10 * 1024 * 1024`). Files exceeding this are rejected immediately.
+   - Strips directory traversals and path prefixes (`/`, `\`, `../../`, Windows drive paths) to extract safe basenames.
+   - Sanitizes filename control characters and truncates filenames to `MAX_FILENAME_LENGTH = 255`.
+   - Performs non-invasive magic-byte validation via `check_file_type()` without extracting or executing attachment content.
+   - Preserves compatibility with `malware_engine` and `attachment_behavior_engine`.
+
+4. **Email & Header Metadata Normalization**:
+   - Extracts clean email addresses from RFC 5322 display names (e.g. `Display Name <user@domain.com>` → `user@domain.com`).
+   - Standardizes header casing and strips control characters from header values.
+   - Preserves semantic integrity of authentication headers: `Authentication-Results`, `Received-SPF`, `DKIM-Signature`, `DMARC-Filter`, `Message-ID`, `Date`, `Reply-To`, `Return-Path`.
+   - Bounds `Received` chain hops to `MAX_RECEIVED_HOPS = 30`.
+   - Bounds total metadata items to `MAX_METADATA_ITEMS = 100`.
+
+#### Resource Limits & Safety Boundaries
+| Constant | Value | Description |
+|---|---|---|
+| `MAX_FILE_BYTES` | 10 MB (10,485,760 bytes) | Maximum allowed file/attachment size |
+| `MAX_TEXT_LENGTH` | 50,000 chars | Maximum allowed message/text length |
+| `MAX_URL_LENGTH` | 4,096 chars | Maximum allowed URL length |
+| `MAX_FILENAME_LENGTH` | 255 chars | Maximum allowed filename length |
+| `MAX_METADATA_ITEMS` | 100 items | Maximum allowed metadata key-value pairs |
+| `MAX_LIST_ITEMS` | 50 items | Maximum allowed list items in metadata |
+| `MAX_RECEIVED_HOPS` | 30 hops | Maximum allowed hops in email `Received` header |
+
+#### Outcome Model (`PreprocessingResult`)
+- **`SUCCESS`**: All inputs normalized and validated cleanly without issues.
+- **`PARTIAL`**: Input normalized with warnings (e.g., text truncated, control chars stripped, scheme defaulted).
+- **`REJECTED`**: Malformed or dangerous input (e.g., oversized file, dangerous URL scheme, missing host, empty content). Raises `ValueError` at pipeline entry, mapping to HTTP 400.
+
+#### Privacy & Determinism Boundaries
+- **No Persistence**: Never writes or persists raw attachment bytes, email bodies, passwords, OAuth tokens, or API credentials.
+- **No External Telemetry**: Preprocessing is self-contained with no outbound calls or telemetry.
+- **Strict Determinism**: Outputs are purely functional based solely on input; no random numbers, timestamps, or system-environment-dependent logic.
+- **Failure Isolation**: Preprocessing exceptions are trapped and returned as `REJECTED` status, preventing unhandled crashes in the unified pipeline.
 
 ---
 
