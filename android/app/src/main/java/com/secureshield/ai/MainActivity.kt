@@ -1,4 +1,4 @@
-﻿package com.secureshield.ai
+package com.secureshield.ai
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -96,7 +96,10 @@ class MainActivity : AppCompatActivity() {
         when (GmailOAuthOutcomeMapper.classify(account != null, statusCode, GoogleSignInStatusCodes.SIGN_IN_CANCELLED)) {
             GmailOAuthOutcome.AUTHORIZED -> processUnreadMessages(account!!)
             GmailOAuthOutcome.CANCELLED -> finishGmailFlow("Gmail sign-in was cancelled.")
-            GmailOAuthOutcome.FAILED -> finishGmailFlow("Gmail authorization failed. Please try again.")
+            GmailOAuthOutcome.FAILED -> {
+                finishGmailFlow("Gmail authorization failed. Please try again.")
+                showGmailSetupOrDemoDialog(statusCode)
+            }
         }
     }
 
@@ -141,6 +144,10 @@ class MainActivity : AppCompatActivity() {
 
         btnScanGmail.setOnClickListener {
             beginGmailScan()
+        }
+        btnScanGmail.setOnLongClickListener {
+            scanDemoGmailMessage()
+            true
         }
 
         findViewById<Button>(R.id.btn_scan_history).setOnClickListener {
@@ -276,6 +283,55 @@ class MainActivity : AppCompatActivity() {
         message?.let { badgeCategory.text = it }
         gmailScanInProgress = false
         btnScanGmail.isEnabled = true
+    }
+
+    private fun showGmailSetupOrDemoDialog(statusCode: Int?) {
+        val statusDetail = when (statusCode) {
+            10 -> " (Developer Error: Debug SHA-1 not registered in Google Cloud Console)"
+            8 -> " (Internal Error: Google Play Services or Network issue)"
+            null -> ""
+            else -> " (Error Code: $statusCode)"
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Gmail Authorization Notice")
+            .setMessage(
+                "Google Sign-In could not complete$statusDetail.\n\n" +
+                "To scan real Gmail messages, package 'com.secureshield.ai' and your debug SHA-1 must be registered under an Android OAuth Client ID in Google Cloud Console with the Gmail API enabled.\n\n" +
+                "Would you like to run a simulated demo scan with a sample phishing email to test the detection engine?"
+            )
+            .setPositiveButton("Run Demo Scan") { _, _ ->
+                scanDemoGmailMessage()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun scanDemoGmailMessage() {
+        if (gmailScanInProgress) return
+        gmailScanInProgress = true
+        btnScanGmail.isEnabled = false
+        badgeCategory.text = "Loading demo Gmail message..."
+        progressBar.visibility = View.VISIBLE
+
+        val demoEmail = GmailEmail(
+            messageId = "demo-msg-001",
+            sender = "security-alert@amazon-security-update.xyz",
+            recipient = "user@gmail.com",
+            subject = "URGENT: Your account has been suspended",
+            bodyText = "Dear customer, your account has been locked due to unauthorized activity. Please verify your identity immediately: http://192.168.1.1@secure-login-verify.xyz/account",
+            embeddedUrls = listOf("http://192.168.1.1@secure-login-verify.xyz/account")
+        )
+
+        lifecycleScope.launch {
+            textTarget.text = buildString {
+                appendLine("From: ${demoEmail.sender}")
+                demoEmail.recipient?.let { appendLine("To: $it") }
+                demoEmail.subject?.let { appendLine("Subject: $it") }
+                append("Message: ${demoEmail.messageId}")
+            }
+            executeScan(demoEmail.toScanInput(), "Gmail message scanned", "Email", "gmail").join()
+            finishGmailFlow()
+        }
     }
 
     override fun onNewIntent(intent: Intent?) {
