@@ -33,6 +33,7 @@ class UnifiedScanResponse(BaseModel):
         skipped = sum(1 for r in results if r.status == EngineStatus.SKIPPED)
         completed = total - skipped
         
+        # Perform Risk Fusion exactly once using the selected profile/policy
         active_policy = policy or profile
         assessment = fuse_engine_results(results, policy=active_policy)
         

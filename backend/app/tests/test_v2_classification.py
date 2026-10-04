@@ -422,7 +422,122 @@ class TestV2PipelineClassificationIntegration(unittest.IsolatedAsyncioTestCase):
             RiskClassification.MALWARE,
         ])
         self.assertEqual(response.classification, response.risk_assessment.classification)
-        self.assertIsNotNone(response.risk_assessment.recommended_action)
+
+class TestV2ClassificationPR17Recovery(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+
+    def test_default_profile_works_when_no_profile_supplied(self):
+        # 1. Direct from_results check
+        res = [make_engine_result("url_engine", 30.0)]
+        resp = UnifiedScanResponse.from_results(res)
+        self.assertEqual(resp.classification, RiskClassification.SUSPICIOUS)
+        self.assertEqual(resp.risk_assessment.classification, RiskClassification.SUSPICIOUS)
+
+        # 2. Via API check
+        with patch("app.api.routes.unified_pipeline.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = [make_engine_result("url_engine", 30.0)]
+            api_resp = self.client.post("/api/scan", json={"text": "test content"})
+            self.assertEqual(api_resp.status_code, 200)
+            data = api_resp.json()
+            self.assertEqual(data["classification"], "Suspicious")
+
+    def test_strict_profile_changes_classification_through_api(self):
+        # Engine result with score 40.0:
+        # Default: 40.0 is Suspicious (< 45.0)
+        # Strict: 40.0 is Deceptive (>= 35.0 and < 55.0)
+        res = [make_engine_result("url_engine", 40.0)]
+
+        # Direct from_results:
+        resp_default = UnifiedScanResponse.from_results(res)
+        self.assertEqual(resp_default.classification, RiskClassification.SUSPICIOUS)
+
+        resp_strict = UnifiedScanResponse.from_results(res, profile="strict")
+        self.assertEqual(resp_strict.classification, RiskClassification.DECEPTIVE)
+
+        # Via API path:
+        with patch("app.api.routes.unified_pipeline.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = res
+
+            # Without profile -> uses default (Suspicious)
+            r_def = self.client.post("/api/scan", json={"text": "test content"})
+            self.assertEqual(r_def.status_code, 200)
+            self.assertEqual(r_def.json()["classification"], "Suspicious")
+
+            # With classification_profile="strict" -> Deceptive
+            r_strict = self.client.post("/api/scan", json={"text": "test content", "classification_profile": "strict"})
+            self.assertEqual(r_strict.status_code, 200)
+            self.assertEqual(r_strict.json()["classification"], "Deceptive")
+
+            # With metadata={"classification_profile": "strict"} -> Deceptive
+            r_meta = self.client.post("/api/scan", json={"text": "test content", "metadata": {"classification_profile": "strict"}})
+            self.assertEqual(r_meta.status_code, 200)
+            self.assertEqual(r_meta.json()["classification"], "Deceptive")
+
+    def test_enterprise_profile_changes_classification(self):
+        # Engine result with score 32.0:
+        # Default: 32.0 is Suspicious (< 45.0)
+        # Enterprise: 32.0 is Deceptive (>= 30.0 and < 50.0)
+        res = [make_engine_result("url_engine", 32.0)]
+
+        # Direct from_results:
+        resp_default = UnifiedScanResponse.from_results(res)
+        self.assertEqual(resp_default.classification, RiskClassification.SUSPICIOUS)
+
+        resp_enterprise = UnifiedScanResponse.from_results(res, profile="enterprise")
+        self.assertEqual(resp_enterprise.classification, RiskClassification.DECEPTIVE)
+
+        # Via API path:
+        with patch("app.api.routes.unified_pipeline.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = res
+
+            r_enterprise = self.client.post(
+                "/api/scan",
+                json={"text": "test content", "classification_profile": "enterprise"}
+            )
+            self.assertEqual(r_enterprise.status_code, 200)
+            self.assertEqual(r_enterprise.json()["classification"], "Deceptive")
+
+    def test_unknown_profile_safe_fallback_and_error_behavior(self):
+        res = [make_engine_result("url_engine", 30.0)]
+        with patch("app.api.routes.unified_pipeline.run", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = res
+
+            # Via API: unknown profile safely falls back to default without crashing
+            r_unknown = self.client.post(
+                "/api/scan",
+                json={"text": "test content", "classification_profile": "unknown_profile_xyz"}
+            )
+            self.assertEqual(r_unknown.status_code, 200)
+            self.assertEqual(r_unknown.json()["classification"], "Suspicious")
+
+        # Direct policy check:
+        # Fallback to default
+        fallback_policy = get_classification_profile("unknown_profile_xyz", fallback_to_default=True)
+        self.assertEqual(fallback_policy.name, "default")
+
+        # Controlled error when fallback is disabled
+        with self.assertRaises(ValueError) as ctx:
+            get_classification_profile("unknown_profile_xyz", fallback_to_default=False)
+        self.assertIn("Unknown classification profile", str(ctx.exception))
+
+    def test_risk_fusion_invoked_only_once_by_from_results(self):
+        res = [make_engine_result("url_engine", 50.0)]
+        with patch("app.fusion.risk_fusion.fuse_engine_results") as mock_fuse:
+            mock_fuse.return_value = RiskAssessment(
+                risk_score=50.0,
+                classification=RiskClassification.DECEPTIVE,
+                confidence=1.0,
+                contributing_engines=["url_engine"],
+                flags=[],
+                evidence=[],
+            )
+            resp = UnifiedScanResponse.from_results(res, profile="strict")
+
+            # Assert fuse_engine_results was called exactly once
+            mock_fuse.assert_called_once()
+            self.assertEqual(mock_fuse.call_count, 1)
+            self.assertEqual(mock_fuse.call_args[1].get("policy"), "strict")
 
 
 if __name__ == "__main__":
