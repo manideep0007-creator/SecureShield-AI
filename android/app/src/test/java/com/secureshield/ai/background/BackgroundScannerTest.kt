@@ -151,7 +151,7 @@ class BackgroundScannerTest {
             override fun markProcessed(messageId: String) {}
             override suspend fun scan(input: ScanInput) = null
             override suspend fun saveHistory(result: UnifiedScanResponse, source: String) {}
-            override fun notifyThreat(c: String, s: Float, action: String, scanId: String) {}
+            override fun notifyThreat(classification: String, score: Float, action: String, scanId: String) {}
         }
         var threw = false
         try {
@@ -172,8 +172,8 @@ class BackgroundScannerTest {
             override fun isProcessed(messageId: String) = false
             override fun markProcessed(messageId: String) {}
             override suspend fun scan(input: ScanInput) = null
-            override suspend fun saveHistory(r: UnifiedScanResponse, s: String) {}
-            override fun notifyThreat(c: String, s: Float, a: String, scanId: String) {}
+            override suspend fun saveHistory(result: UnifiedScanResponse, source: String) {}
+            override fun notifyThreat(classification: String, score: Float, action: String, scanId: String) {}
         }
         assertFalse(BackgroundScanner.execute(deps))
     }
@@ -198,7 +198,7 @@ class BackgroundScannerTest {
             override suspend fun saveHistory(result: UnifiedScanResponse, source: String) {
                 throw Exception("Database Error")
             }
-            override fun notifyThreat(c: String, s: Float, a: String, scanId: String) {}
+            override fun notifyThreat(classification: String, score: Float, action: String, scanId: String) {}
         }
         assertTrue(BackgroundScanner.execute(deps))
         assertFalse(deps.processed)
@@ -219,7 +219,7 @@ class BackgroundScannerTest {
                 throw kotlinx.coroutines.CancellationException()
             }
             override suspend fun saveHistory(result: UnifiedScanResponse, source: String) {}
-            override fun notifyThreat(c: String, s: Float, a: String, scanId: String) {}
+            override fun notifyThreat(classification: String, score: Float, action: String, scanId: String) {}
         }
         var threw = false
         try {
@@ -248,8 +248,8 @@ class BackgroundScannerTest {
             
             var notifiedScanId: String? = null
             var notifiedClass: String? = null
-            override fun notifyThreat(c: String, s: Float, a: String, scanId: String) {
-                notifiedClass = c
+            override fun notifyThreat(classification: String, score: Float, action: String, scanId: String) {
+                notifiedClass = classification
                 notifiedScanId = scanId
             }
         }

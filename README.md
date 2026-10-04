@@ -19,18 +19,20 @@ SecureShield AI is an end-to-end mobile security platform consisting of an Andro
 ## Project Structure
 ```text
 SecureShield AI/
-├── documentation/       # Architecture maps, project audits, and baselines
+├── documentation/       # Architecture maps, release readiness, and specifications
 ├── backend/             # Python FastAPI backend
 │   ├── app/             # V2 Application core 
 │   │   ├── api/         # FastAPI router and endpoints
+│   │   ├── classification/ # Dynamic classification profiles (Phase 19)
 │   │   ├── config/      # Settings and environment configs
 │   │   ├── database/    # SQLite persistence logic
 │   │   ├── engines/     # Detection modules 
-│   │   ├── explainability/ # Narrative logic (Planned)
-│   │   ├── fusion/      # Risk aggregation
+│   │   ├── evaluation/  # Feedback evaluation metrics
+│   │   ├── explainability/ # Narrative logic and action recommendations (Phase 8)
+│   │   ├── fusion/      # Risk aggregation (Phase 7)
 │   │   ├── models/      # Engine interfaces and Pydantic models
-│   │   ├── preprocessing/ # URL resolution & sanitization
-│   │   └── tests/       # Pipeline tests
+│   │   ├── preprocessing/ # V2 Preprocessor, sanitization, and URL resolution
+│   │   └── tests/       # Pipeline and regression test suites
 │   ├── data/            # Local SQLite database files
 │   └── main.py          # Uvicorn entry point
 ├── android/             # Kotlin Android client application
@@ -118,6 +120,39 @@ The Header Analysis Engine evaluates normalized email headers (e.g. SPF/DKIM/DMA
 
 **Privacy Boundary**: Analysis is aggressively metadata-only. The engine gracefully skips missing headers and uses deterministic scoring that avoids causing a high-risk misclassification from a single weak signal. Raw email bodies, HTML, attachments, OAuth tokens, and passwords are never processed, retained, or stored by this engine.
 
+## Phase 17 Attachment Behavior Intelligence
+The Attachment Behavior Engine performs safe static analysis of attachments without execution or persistence. It evaluates:
+- Magic-byte file format verification and extension mismatch detection
+- Deceptive double extensions and right-to-left override (RTLO) manipulation
+- High-risk script formats and direct binary executables
+- Embedded Office VBA macros and active scripts
+- Bounded archive structural inspection (ZIP and TAR) enforcing safety limits (`MAX_ARCHIVE_ENTRIES = 200`, `MAX_UNCOMPRESSED_ARCHIVE_SIZE = 50 MB`, `MAX_EXPANSION_RATIO = 50:1`)
+- Suspicious social engineering lure keywords in filenames
+
+**Safety Boundary**: Static analysis only. Files are never executed, extracted to the host filesystem, or persisted to disk. Suspicious attachment characteristics alone cannot trigger a `Malware` classification without an authentic malware signal.
+
+## Phase 18 V2 Preprocessing & Input Normalization
+A centralized, deterministic preprocessing layer executes prior to detection engines:
+- **Text Normalization**: Unicode NFKC decomposition, control character stripping, whitespace normalization, and strict 50,000-character bounding.
+- **URL Normalization**: Scheme/host lowercasing, default port removal, credential stripping, path normalization, and rejection of dangerous pseudo-schemes (`javascript:`, `data:`, `vbscript:`).
+- **File Normalization**: Enforcement of the strict 10 MB limit, filename sanitization, and path traversal stripping.
+- **Header Normalization**: RFC-compliant header folding, hop limiting (`MAX_RECEIVED_HOPS = 30`), and authentication result extraction.
+
+## Phase 19 V2 Dynamic Risk Classification & Context Profiles
+Separates numerical risk scoring (Phase 7 Risk Fusion, 0–100) from discrete categorization policy:
+- **`default`**: Safe (<20), Suspicious (<45), Deceptive (<70), Phishing (<90), Malware (≥90 + verified malware signal).
+- **`strict`**: Heightened sensitivity profile for elevated-risk contexts (Safe <15, Suspicious <35, Deceptive <55, Phishing <80).
+- **`enterprise`**: Zero-trust profile with aggressive suspicion thresholds (Safe <10, Suspicious <30, Deceptive <50, Phishing <75).
+- **Malware Safeguard**: High risk score alone never yields `Malware` without an authentic Phase 7 malware signal (`MALWARE`, `malware_detected`, `vt_malicious`, `vt_suspicious`).
+- **Feedback Boundary**: User feedback cannot dynamically retune security thresholds at runtime (`apply_feedback_tuning()` raises `PermissionError`).
+
+## Phase 20 Final Integration, Hardening & Release Readiness
+Comprehensive end-to-end integration and release hardening across backend and Android:
+- End-to-end V2 pipeline verification across all communication channels.
+- Full contract parity between Android (`ApiClient`, `UnifiedScanResponseParser`) and FastAPI (`/api/scan`, `/api/feedback`).
+- Complete regression test suite verifying resource safety limits, graceful degradation, and sensitive data isolation.
+- Verified release readiness documented in `documentation/RELEASE_READINESS_V2.md`.
+
 ## Environment Variables Required
 To run the backend engines with full functionality, create a `.env` file in the root or `backend/` directory by copying `.env.example`:
 
@@ -127,3 +162,4 @@ VIRUSTOTAL_API_KEY=your_virustotal_key_here
 ENVIRONMENT=development
 ```
 *(Note: If API keys are omitted, the engines degrade gracefully and bypass the external lookups without crashing the pipeline.)*
+

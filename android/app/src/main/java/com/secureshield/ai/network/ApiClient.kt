@@ -23,7 +23,8 @@ data class ScanInput(
     val file_name: String? = null,
     val file_bytes: String? = null,
     val image_bytes: String? = null,
-    val metadata: Map<String, Any> = emptyMap()
+    val metadata: Map<String, Any> = emptyMap(),
+    val classification_profile: String? = null
 )
 
 data class EvidenceItem(
@@ -102,6 +103,7 @@ object UnifiedScanResponseParser {
         requireNumber(json, "completed_engines")
         requireNumber(json, "skipped_engines")
         requireNumber(json, "risk_score")
+        requireString(json, "classification")
 
         val assessment = requireObject(json, "risk_assessment")
         requireNumber(assessment, "risk_score")
