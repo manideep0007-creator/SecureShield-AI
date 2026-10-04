@@ -102,8 +102,9 @@ async def test_timestamp_anomaly():
         "headers": {
             "From": "alice@test.com",
             "Message-ID": "<123@test.com>",
+            "Date": "Wed, 01 Jan 2020 00:00:00 +0000"
         },
-        "timestamp": time.time() - 86400 * 10 # 10 days ago
+        "timestamp": 1577836800 + (86400 * 10) # 10 days after the email Date
     }
     result = await engine.analyze(ScanInput(sender_id="alice@test.com", metadata=metadata))
     assert "TIMESTAMP_ANOMALY" in result.flags
@@ -133,9 +134,10 @@ async def test_deterministic_scoring_bounds_confidence():
             "Return-Path": "hacker@evil.com", # 0.3
             "Message-ID": "<123@evil.com>", # 0.1
             "Authentication-Results": "spf=fail", # 0.4
-            "Received": "forged" # 0.3
+            "Received": "forged", # 0.3
+            "Date": "Wed, 01 Jan 2020 00:00:00 +0000"
         },
-        "timestamp": time.time() - 86400 * 10 # 0.2
+        "timestamp": 1577836800 + (86400 * 10) # 0.2
     }
     # Total sum is 1.6, but capped at 0.9 (90.0) so it does not exceed Malware independently merely on headers.
     result = await engine.analyze(ScanInput(sender_id="alice@test.com", metadata=metadata))

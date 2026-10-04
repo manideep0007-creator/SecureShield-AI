@@ -162,17 +162,27 @@ class HeaderAnalysisEngine(BaseEngine):
             ))
 
         # 5. TIMESTAMP_ANOMALY
-        meta_ts = metadata.get("timestamp")
-        if meta_ts and isinstance(meta_ts, (int, float)):
-            current_time = time.time()
-            if abs(current_time - meta_ts) > 86400 * 7: # more than 7 days
-                flags.append("TIMESTAMP_ANOMALY")
-                score_accumulator += 0.2
-                evidence.append(EvidenceItem(
-                    key="timestamp_anomaly",
-                    value=meta_ts,
-                    description="Message timestamp is anomalous (differs significantly from current time)"
-                ))
+        reference_ts = metadata.get("timestamp")
+        if reference_ts and isinstance(reference_ts, (int, float)):
+            email_ts = None
+            if date_str:
+                import email.utils
+                try:
+                    parsed_dt = email.utils.parsedate_to_datetime(str(date_str))
+                    email_ts = parsed_dt.timestamp()
+                except (TypeError, ValueError, AttributeError):
+                    email_ts = None
+            
+            if email_ts is not None:
+                # 7 days difference
+                if abs(reference_ts - email_ts) > 86400 * 7:
+                    flags.append("TIMESTAMP_ANOMALY")
+                    score_accumulator += 0.2
+                    evidence.append(EvidenceItem(
+                        key="timestamp_anomaly",
+                        value=str(date_str),
+                        description="Email Date header differs significantly from scan reference time"
+                    ))
 
         # 6. RECEIVED_CHAIN_ANOMALY
         if received:
