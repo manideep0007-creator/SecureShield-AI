@@ -285,7 +285,11 @@ class URLEngine(BaseEngine):
         lexical = heuristics["lexical_score"]
         gsb = gsb_result["gsb_score"]
         
-        if gsb > 0:
+        if gsb >= 1.0:
+            # GSB-confirmed threat produces a risk_score of at least 90,
+            # with lexical heuristics scaling the remaining [90, 100] interval.
+            combined_score = min(1.0, 0.90 + (lexical * 0.10))
+        elif gsb > 0:
             combined_score = lexical * 0.4 + gsb * 0.6
         else:
             combined_score = lexical * 0.7 + gsb * 0.3

@@ -13,6 +13,8 @@ from app.engines.url_engine import URLEngine
 from app.engines.malware_engine import MalwareEngine
 from app.engines.nlp_engine import NLPEngine
 from app.engines.sender_engine import SenderEngine
+from app.classification.policy import DEFAULT_PROFILE
+from app.models.risk_assessment import RiskClassification
 
 class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
 
@@ -161,6 +163,44 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         # Must not crash the engine
         self.assertNotIn("newly_registered_domain", res2.flags)
         self.assertIsNone(next((e for e in res2.evidence if e.key == "DOMAIN_AGE_DAYS"), None))
+
+    @patch("app.engines.url_engine.check_google_safe_browsing", new_callable=AsyncMock)
+    @patch("app.engines.url_engine.lexical_heuristics")
+    @patch("app.engines.url_engine._get_domain_age_days", new_callable=AsyncMock)
+    async def test_url_engine_gsb_confirmed_threat_floor(self, mock_age, mock_lex, mock_gsb):
+        mock_age.return_value = 100
+        engine = URLEngine()
+
+        # 1. gsb_score=1.0 with lexical_score=0.2 and MALWARE threat
+        mock_lex.return_value = {"lexical_score": 0.2, "lexical_flags": [], "evidence": []}
+        mock_gsb.return_value = {"gsb_score": 1.0, "gsb_threats": ["MALWARE"]}
+        res = await engine.analyze(ScanInput(url="https://example.com/malware"))
+        
+        # Risk score must be exactly 92.0 (0.90 floor + 0.2 * 0.10)
+        self.assertAlmostEqual(res.risk_score, 92.0, places=2)
+        self.assertGreaterEqual(res.risk_score, 90.0)
+        # Classifies as Malware, not Deceptive
+        classification = DEFAULT_PROFILE.classify(res.risk_score, flags=res.flags)
+        self.assertEqual(classification, RiskClassification.MALWARE)
+        self.assertNotEqual(classification, RiskClassification.DECEPTIVE)
+
+        # 2. gsb_score=1.0 with lexical_score=0.2 and SOCIAL_ENGINEERING (Phishing) threat
+        mock_gsb.return_value = {"gsb_score": 1.0, "gsb_threats": ["SOCIAL_ENGINEERING"]}
+        res_phish = await engine.analyze(ScanInput(url="https://example.com/phish"))
+        self.assertAlmostEqual(res_phish.risk_score, 92.0, places=2)
+        classification_phish = DEFAULT_PROFILE.classify(res_phish.risk_score, flags=res_phish.flags)
+        self.assertEqual(classification_phish, RiskClassification.PHISHING)
+        self.assertNotEqual(classification_phish, RiskClassification.DECEPTIVE)
+
+        # 3. gsb_score=1.0 with lexical_score=0.0 -> reaches the 90.0 floor
+        mock_lex.return_value = {"lexical_score": 0.0, "lexical_flags": [], "evidence": []}
+        res_floor = await engine.analyze(ScanInput(url="https://example.com/floor"))
+        self.assertAlmostEqual(res_floor.risk_score, 90.0, places=2)
+
+        # 4. gsb_score=1.0 with lexical_score=1.0 -> reaches 100.0
+        mock_lex.return_value = {"lexical_score": 1.0, "lexical_flags": [], "evidence": []}
+        res_max = await engine.analyze(ScanInput(url="https://example.com/max"))
+        self.assertAlmostEqual(res_max.risk_score, 100.0, places=2)
 
     async def test_malware_engine_skipped(self):
         engine = MalwareEngine()
