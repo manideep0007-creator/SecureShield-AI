@@ -146,6 +146,54 @@ class TestV2Classification(unittest.TestCase):
             RiskClassification.SUSPICIOUS,
         )
 
+    def test_executable_attachment_alone_cannot_produce_malware(self):
+        # EXECUTABLE_ATTACHMENT flag alone at high score (>90) must yield Phishing, NOT Malware
+        self.assertEqual(
+            self.default_policy.classify(95.0, flags=["EXECUTABLE_ATTACHMENT"]),
+            RiskClassification.PHISHING,
+        )
+        self.assertEqual(
+            self.strict_policy.classify(95.0, flags=["EXECUTABLE_ATTACHMENT"]),
+            RiskClassification.PHISHING,
+        )
+        self.assertEqual(
+            self.enterprise_policy.classify(95.0, flags=["EXECUTABLE_ATTACHMENT"]),
+            RiskClassification.PHISHING,
+        )
+
+    def test_attachment_type_mismatch_alone_cannot_produce_malware(self):
+        # ATTACHMENT_TYPE_MISMATCH flag alone at high score (>90) must yield Phishing, NOT Malware
+        self.assertEqual(
+            self.default_policy.classify(95.0, flags=["ATTACHMENT_TYPE_MISMATCH"]),
+            RiskClassification.PHISHING,
+        )
+        self.assertEqual(
+            self.strict_policy.classify(95.0, flags=["ATTACHMENT_TYPE_MISMATCH"]),
+            RiskClassification.PHISHING,
+        )
+        self.assertEqual(
+            self.enterprise_policy.classify(95.0, flags=["ATTACHMENT_TYPE_MISMATCH"]),
+            RiskClassification.PHISHING,
+        )
+
+    def test_genuine_phase7_malware_flags_produce_malware(self):
+        # Score >= 90.0 with any authentic Phase 7 malware flag -> Malware
+        for genuine_flag in ["MALWARE", "malware_detected", "vt_malicious", "vt_suspicious"]:
+            with self.subTest(flag=genuine_flag):
+                self.assertEqual(
+                    self.default_policy.classify(90.0, flags=[genuine_flag]),
+                    RiskClassification.MALWARE,
+                )
+                self.assertEqual(
+                    self.default_policy.classify(100.0, flags=[genuine_flag]),
+                    RiskClassification.MALWARE,
+                )
+                # Below threshold must still be Phishing even with genuine malware flag
+                self.assertEqual(
+                    self.default_policy.classify(85.0, flags=[genuine_flag]),
+                    RiskClassification.PHISHING,
+                )
+
     # 8. Strict profile
     def test_strict_profile(self):
         # Strict: safe < 15, suspicious < 35, deceptive < 55, phishing < 80

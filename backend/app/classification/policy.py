@@ -28,8 +28,6 @@ MALWARE_FLAGS = frozenset({
     "malware_detected",
     "vt_malicious",
     "vt_suspicious",
-    "ATTACHMENT_TYPE_MISMATCH",
-    "EXECUTABLE_ATTACHMENT",
 })
 
 

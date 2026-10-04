@@ -456,7 +456,7 @@ Profiles are declarative configurations selectable via `ScanInput.classification
 - **Unknown Profile Handling**: Safely falls back to `default` profile or raises a controlled `ValueError` without crashing the application.
 
 #### Malware Safeguard
-A high numerical score alone never triggers a `Malware` classification. Score ≥ `phishing_upper` (e.g. ≥ 90.0) yields `Phishing` unless an authentic malware signal is confirmed (e.g., `vt_malicious`, `vt_suspicious`, `extension_mismatch`, `MALWARE`, `malware_detected`, `ATTACHMENT_TYPE_MISMATCH`, or `EXECUTABLE_ATTACHMENT` from `malware_engine` or `attachment_behavior_engine`).
+A high numerical score alone never triggers a `Malware` classification. Score ≥ `phishing_upper` (e.g. ≥ 90.0) yields `Phishing` unless an authentic Phase 7 malware signal is confirmed (`vt_malicious`, `vt_suspicious`, `extension_mismatch`, `MALWARE`, `malware_detected`). Suspicious attachment characteristics (such as executable format or attachment type mismatch) cannot independently become a verified malware signal.
 
 #### Determinism & Privacy Boundary
 - **Strict Determinism**: For identical risk scores, malware flags, and classification policy, outputs are identical across executions. No random values, system clocks, network requests, or external APIs are used.
