@@ -419,11 +419,49 @@ Mapping the final fused score to a discrete threat category.
 
 Malware classification requires score ≥ 90 **and** at least one of: `vt_malicious`, `vt_suspicious`, `extension_mismatch`, `MALWARE`. Otherwise falls to Phishing.
 
-### 6.2 V2 Dynamic Classification — `NOT IMPLEMENTED`
+### 6.2 V2 Dynamic Classification — `IMPLEMENTED`
 
-> **Target**: `app/fusion/` or `app/explainability/`
+> **Location**: `app/classification/policy.py`, `app/classification/__init__.py`, `app/fusion/risk_fusion.py`  
+> **Pipeline Position**: `ScanInput` → `UnifiedScanPipeline` → `Engine Results` → `Risk Fusion` (0–100 score) → `Classification Policy` (`RiskClassification`) → `ExplainabilityEngine`
 
-V2 will support configurable thresholds, category weight tuning from feedback data, and per-context classification profiles (e.g. stricter thresholds for enterprise deployments).
+The V2 Dynamic Classification module decouples the calculation of unified risk scores from the policy mapping scores to categorical verdicts.
+
+#### Separation Between Risk Fusion and Classification
+- **Phase 7 Risk Fusion**: Responsible solely for aggregating individual engine outputs, applying engine reliability weights and confidence penalties, computing the unified 0–100 numerical `risk_score`, collecting flags/evidence, and tracking engine execution statuses.
+- **Phase 19 Classification Policy**: Responsible for the policy boundaries and deterministic mapping of the aggregated score to a `RiskClassification` (`Safe`, `Suspicious`, `Deceptive`, `Phishing`, or `Malware`).
+
+#### Default Thresholds
+The default classification policy preserves the existing Phase 7 boundaries exactly:
+
+| Category | Score Range | Default Boundary Rule |
+|---|---|---|
+| **Safe** | 0.0 – 19.99 | `score < 20.0` |
+| **Suspicious** | 20.0 – 44.99 | `20.0 <= score < 45.0` |
+| **Deceptive** | 45.0 – 69.99 | `45.0 <= score < 70.0` |
+| **Phishing** | 70.0 – 89.99 (or 90+ without malware signal) | `70.0 <= score < 90.0` |
+| **Malware** | 90.0 – 100.0 (requires verified malware signal) | `score >= 90.0` AND `malware_signal == True` |
+
+#### Configurable Policies & Validation Rules
+Custom or context-specific policies are defined via `ClassificationPolicy`:
+- **Validation Constraint**: `0.0 <= safe_upper < suspicious_upper < deceptive_upper < phishing_upper <= 100.0`.
+- All threshold values must be valid numbers within `[0.0, 100.0]`.
+- Non-monotonic orderings (e.g. `safe_upper >= suspicious_upper`) or values outside 0–100 are strictly rejected with a `ValueError`.
+- Configuration never silently creates overlapping, negative, or impossible category ranges.
+
+#### Supported Context Profiles
+Profiles are declarative configurations selectable via `ScanInput.classification_profile` or `metadata["classification_profile"]`:
+- **`default`**: Standard 5-tier classification matching Phase 7 (safe < 20, suspicious < 45, deceptive < 70, phishing < 90).
+- **`strict`**: Heightened sensitivity for elevated-risk environments (safe < 15, suspicious < 35, deceptive < 55, phishing < 80).
+- **`enterprise`**: Aggressive zero-trust thresholds for organizational deployments (safe < 10, suspicious < 30, deceptive < 50, phishing < 75).
+- **Unknown Profile Handling**: Safely falls back to `default` profile or raises a controlled `ValueError` without crashing the application.
+
+#### Malware Safeguard
+A high numerical score alone never triggers a `Malware` classification. Score ≥ `phishing_upper` (e.g. ≥ 90.0) yields `Phishing` unless an authentic Phase 7 malware signal is confirmed (`vt_malicious`, `vt_suspicious`, `extension_mismatch`, `MALWARE`, `malware_detected`). Suspicious attachment characteristics (such as executable format or attachment type mismatch) cannot independently become a verified malware signal.
+
+#### Determinism & Privacy Boundary
+- **Strict Determinism**: For identical risk scores, malware flags, and classification policy, outputs are identical across executions. No random values, system clocks, network requests, or external APIs are used.
+- **Privacy Boundary**: Operates exclusively on numerical scores, engine flags, and metadata. Never inspects or accesses email bodies, attachments, passwords, OAuth tokens, or user credentials.
+- **Feedback Protection**: User feedback is strictly advisory and cannot dynamically retune policy thresholds. `apply_feedback_tuning()` explicitly raises `PermissionError` to guarantee that security thresholds remain deterministic and immutable at runtime.
 
 ---
 

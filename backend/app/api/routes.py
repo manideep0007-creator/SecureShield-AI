@@ -142,7 +142,12 @@ async def api_scan(payload: ScanInput):
     """V2 Unified Scan Endpoint: Parses ScanInput and returns all EngineResults."""
     try:
         results = await unified_pipeline.run(payload)
-        return UnifiedScanResponse.from_results(results)
+        profile = (
+            payload.classification_profile
+            or (payload.metadata.get("classification_profile") if isinstance(payload.metadata, dict) else None)
+            or (payload.metadata.get("profile") if isinstance(payload.metadata, dict) else None)
+        )
+        return UnifiedScanResponse.from_results(results, profile=profile)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from app.classification.policy import ClassificationPolicy, get_classification_profile
 from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
 from app.models.risk_assessment import RiskAssessment, RiskClassification
 
@@ -19,16 +20,13 @@ ENGINE_RELIABILITY = {
 MALWARE_FLAGS = frozenset({"MALWARE", "malware_detected", "vt_malicious", "vt_suspicious"})
 
 
-def _classification(score: float, malware_signal: bool) -> RiskClassification:
-    if score < 20.0:
-        return RiskClassification.SAFE
-    if score < 45.0:
-        return RiskClassification.SUSPICIOUS
-    if score < 70.0:
-        return RiskClassification.DECEPTIVE
-    if score < 90.0:
-        return RiskClassification.PHISHING
-    return RiskClassification.MALWARE if malware_signal else RiskClassification.PHISHING
+def _classification(
+    score: float,
+    malware_signal: bool,
+    policy: ClassificationPolicy | str | None = None,
+) -> RiskClassification:
+    active_policy = policy if isinstance(policy, ClassificationPolicy) else get_classification_profile(policy)
+    return active_policy.classify(score, malware_signal)
 
 
 def _has_malware_signal(result: EngineResult) -> bool:
@@ -39,13 +37,18 @@ def _has_malware_signal(result: EngineResult) -> bool:
     ) or bool(MALWARE_FLAGS.intersection(result.flags))
 
 
-def fuse_engine_results(results: Iterable[EngineResult]) -> RiskAssessment:
+def fuse_engine_results(
+    results: Iterable[EngineResult],
+    policy: ClassificationPolicy | str | None = None,
+) -> RiskAssessment:
     """Combine usable engine results without penalizing unavailable engines.
 
     Successful results use ``confidence * engine reliability`` as their weight.
     Partial results contribute at half weight because they contain incomplete
     analysis. Skipped and error results are recorded as ignored and contribute
     neither risk nor confidence.
+    
+    Classification is determined by the provided or default ``ClassificationPolicy``.
     """
     ordered_results = sorted(results, key=lambda result: result.engine_name)
     usable = [
@@ -88,7 +91,7 @@ def fuse_engine_results(results: Iterable[EngineResult]) -> RiskAssessment:
 
     return RiskAssessment(
         risk_score=score,
-        classification=_classification(score, malware_signal),
+        classification=_classification(score, malware_signal, policy=policy),
         confidence=round(aggregate_confidence, 4),
         contributing_engines=[result.engine_name for result in usable],
         ignored_engines=sorted(set(ignored)),
