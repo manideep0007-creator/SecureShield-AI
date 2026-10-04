@@ -214,11 +214,17 @@ V2 implementation is fully functional and wrapped as a `BaseEngine` subclass ret
 - Returns bounded `0.0–100.0` score with deterministic evidence generation.
 - **Privacy Boundary**: Sender anomalies are behavioral signals and do not by themselves prove malicious activity. Raw email content, passwords, attachments, or OAuth tokens are NEVER persisted.
 
-### 3.7 Header Analysis Engine — `NOT IMPLEMENTED`
+### 3.7 Header Analysis Engine — `IMPLEMENTED`
 
-> **Target**: `app/engines/`
+> **Location**: `app/engines/header_analysis_engine.py`
 
-Future engine to analyze email headers (SPF, DKIM, DMARC, reply-to mismatch, routing anomalies).
+Fully functional engine that processes normalized email header metadata to detect spoofing and inconsistencies:
+- Examines `Authentication-Results` alongside extracted SPF, DKIM, DMARC metadata.
+- Flags mismatches between `Return-Path`, `Reply-To`, and `From` domains.
+- Detects missing/anomalous `Message-ID` fields and significantly skewed `Date` timestamps.
+- Flags explicitly `forged` jumps in the `Received` chain.
+- Deterministic score calculation with a capped maximum to avoid a solitary weak anomaly escalating the output to high-risk without additional evidence.
+- **Privacy Boundary**: Purely metadata-driven. Raw email bodies, attachments, access tokens, and passwords are never collected, accessed, or persisted by this engine.
 
 ### 3.8 Attachment Behavior Engine — `NOT IMPLEMENTED`
 
@@ -437,7 +443,7 @@ The dedicated `secure_scan_history.db` schema uses additive versioned upgrades; 
 | | NLP Engine | `PARTIAL` |
 | | Sender Behavior Engine | `IMPLEMENTED` |
 | | Visual Engine (QR/OCR/Phishing) | `IMPLEMENTED` |
-| | Header Analysis Engine | `NOT IMPLEMENTED` |
+| | Header Analysis Engine | `IMPLEMENTED` |
 | | Attachment Behavior Engine | `NOT IMPLEMENTED` |
 | **Risk Fusion** | V1 Weighted Average | `IMPLEMENTED` |
 | | V2 Fusion Module | `NOT IMPLEMENTED` |

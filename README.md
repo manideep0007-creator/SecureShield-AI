@@ -10,6 +10,7 @@ SecureShield AI is an end-to-end mobile security platform consisting of an Andro
     *   **Malware Engine**: Identifies file type spoofing via Magic Bytes and hashes payloads against VirusTotal API v3.
     *   **NLP Engine**: Classifies raw message text using category patterns focusing on Social Engineering constraints.
     *   **Sender Behavior Engine**: A stateful anomaly tracker (via SQLite) identifying unusual sending patterns.
+    *   **Header Analysis Engine**: Analyzes email header metadata for inconsistencies (SPF/DKIM/DMARC logic, mismatching Return-Paths).
 *   **Fusion & Explainability Layer**: Calculates confidence-weighted averages to assign scores (0-100) and distinct categories: Safe, Suspicious, Deceptive, Phishing, Malware. Translates flags into human-readable actions.
 *   **Feedback Evaluation**: Scan-bound positive/negative feedback is stored locally in SQLite and summarized through read-only evaluation metrics. Metrics are measurement data, not a model-accuracy claim or automatic retuning signal.
 *   **Secure Scan History**: Completed scan result metadata is stored locally for paginated browsing, details, and local deletion; scans still use the existing backend pipeline.
@@ -110,6 +111,11 @@ gradlew test --tests "*background*"
 The Sender Behavior Engine applies deterministic anomaly rules against a localized, privacy-preserving profile to track sending patterns. The engine enforces a strict cold-start policy requiring sufficient observed history prior to escalating risk scores for unusual volumes or times. Sender anomalies are behavioral signals and do not by themselves prove malicious activity. Raw email content, passwords, attachments, or OAuth tokens are NEVER persisted; state is managed securely with a parameterized SQLite schema using purely additive migrations. The engine executes concurrently alongside the V2 detection pipeline and contributes its bounded `EngineResult` securely to risk fusion.
 
 Run backend tests from `backend/` with `python -m pytest app/tests`.
+
+## Phase 16 Header Analysis Intelligence
+The Header Analysis Engine evaluates normalized email headers (e.g. SPF/DKIM/DMARC results, Reply-To mismatches, Message-ID anomalies, timestamps, and Received chains) for structural inconsistencies and spoofing indicators. 
+
+**Privacy Boundary**: Analysis is aggressively metadata-only. The engine gracefully skips missing headers and uses deterministic scoring that avoids causing a high-risk misclassification from a single weak signal. Raw email bodies, HTML, attachments, OAuth tokens, and passwords are never processed, retained, or stored by this engine.
 
 ## Environment Variables Required
 To run the backend engines with full functionality, create a `.env` file in the root or `backend/` directory by copying `.env.example`:
