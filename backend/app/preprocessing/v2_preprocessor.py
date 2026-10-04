@@ -368,6 +368,7 @@ class V2Preprocessor:
                 file_bytes=norm_file_bytes,
                 image_bytes=input_data.image_bytes,
                 metadata=norm_meta,
+                classification_profile=input_data.classification_profile,
             )
 
             # 5. Check if normalized_input contains scannable data

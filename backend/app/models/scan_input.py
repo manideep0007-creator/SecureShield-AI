@@ -15,3 +15,4 @@ class ScanInput(BaseModel):
     file_bytes: bytes | None = Field(default=None, description="Raw file payload representing documents or executables")
     image_bytes: bytes | None = Field(default=None, description="Raw image payload for OCR/vision analysis")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional arbitrary context or metadata")
+    classification_profile: str | None = Field(default=None, description="Optional classification profile ('default', 'strict', 'enterprise')")

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import uuid
+from typing import Any
 from pydantic import BaseModel, Field
 from app.models.engine_result import EngineResult, EngineStatus
 from app.models.risk_assessment import RiskAssessment, RiskClassification
@@ -18,14 +21,20 @@ class UnifiedScanResponse(BaseModel):
     classification: RiskClassification = Field(..., description="Unified final risk classification")
     
     @classmethod
-    def from_results(cls, results: list[EngineResult]) -> "UnifiedScanResponse":
+    def from_results(
+        cls,
+        results: list[EngineResult],
+        profile: str | Any | None = None,
+        policy: Any | None = None,
+    ) -> "UnifiedScanResponse":
         from app.fusion.risk_fusion import fuse_engine_results
 
         total = len(results)
         skipped = sum(1 for r in results if r.status == EngineStatus.SKIPPED)
         completed = total - skipped
         
-        assessment = fuse_engine_results(results)
+        active_policy = policy or profile
+        assessment = fuse_engine_results(results, policy=active_policy)
         
         from app.explainability.explainability_engine import ExplainabilityEngine
         assessment = ExplainabilityEngine.explain(assessment)
