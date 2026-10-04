@@ -31,3 +31,4 @@ class RiskAssessment(BaseModel):
     evidence: list[EvidenceItem] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list, description="Human-readable explanations for the risk score")
     recommended_action: str = Field(default="Proceed with normal caution.", description="Recommended user action based on risk level")
+    warnings: list[str] = Field(default_factory=list, description="Top-level security warnings for unavailable or degraded engines")

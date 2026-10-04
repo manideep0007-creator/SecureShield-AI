@@ -79,6 +79,15 @@ class ExplainabilityEngine:
             if r not in unique_reasons:
                 unique_reasons.append(r)
         
+        for w in getattr(assessment, "warnings", []):
+            if w not in unique_reasons:
+                unique_reasons.append(w)
+
+        if "malware_engine" in assessment.ignored_engines:
+            msg = "Malware scan unavailable: Anti-malware engine could not complete analysis."
+            if not any("malware scan unavailable" in r.lower() for r in unique_reasons):
+                unique_reasons.append(msg)
+
         if not unique_reasons:
             if assessment.classification == RiskClassification.SAFE:
                 unique_reasons.append("No suspicious indicators were found.")
@@ -93,8 +102,11 @@ class ExplainabilityEngine:
             
         assessment.reasons = unique_reasons
 
-        assessment.recommended_action = cls.ACTION_MAPPING.get(
+        default_action = cls.ACTION_MAPPING.get(
             assessment.classification, "Proceed with normal caution."
         )
+        if assessment.classification == RiskClassification.SAFE and "malware_engine" in assessment.ignored_engines:
+            default_action = "Proceed with caution. Malware scanning was unavailable for this file."
+        assessment.recommended_action = default_action
 
         return assessment
