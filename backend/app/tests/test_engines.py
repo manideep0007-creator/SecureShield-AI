@@ -286,6 +286,31 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertIn("nlp_unusual_payment", res.flags)
         self.assertEqual(len(res.evidence), 4)
 
+    async def test_nlp_engine_suspension_inflections_and_otp_disclaimer(self):
+        engine = NLPEngine()
+
+        # Case 1: Suspension inflection + credential request -> positive score
+        res1 = await engine.analyze(ScanInput(text="Your account has been suspended. Verify your account now."))
+        self.assertGreater(res1.risk_score, 0.0)
+        self.assertIn("nlp_account_suspension", res1.flags)
+        self.assertIn("nlp_credential_request", res1.flags)
+
+        # Case 2: Past-tense suspension inflection alone -> positive score
+        res2 = await engine.analyze(ScanInput(text="Your account was suspended"))
+        self.assertGreater(res2.risk_score, 0.0)
+        self.assertIn("nlp_account_suspension", res2.flags)
+
+        # Case 3: Legitimate OTP delivery message with safety warning -> score 0.0, no flags
+        res3 = await engine.analyze(ScanInput(text="Your SBI OTP is 483920. Do not share it with anyone."))
+        self.assertEqual(res3.risk_score, 0.0)
+        self.assertEqual(res3.flags, [])
+
+        # Case 4: Urgent message requesting login -> positive score
+        res4 = await engine.analyze(ScanInput(text="Meeting is urgent, login to the portal and send the report immediately"))
+        self.assertGreater(res4.risk_score, 0.0)
+        self.assertIn("nlp_urgency", res4.flags)
+        self.assertIn("nlp_credential_request", res4.flags)
+
     async def test_sender_engine_analysis(self):
         engine = SenderEngine()
         import uuid
