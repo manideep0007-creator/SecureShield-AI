@@ -40,7 +40,7 @@ class HeaderAnalysisEngine(BaseEngine):
             return None
 
         # Gather inputs
-        from_header = get_header(["From", "from", "From-Address"]) or input_data.sender_id
+        actual_from = get_header(["From", "from", "From-Address"])
         reply_to = get_header(["Reply-To", "reply_to", "reply-to"])
         return_path = get_header(["Return-Path", "return_path", "return-path"])
         message_id = get_header(["Message-ID", "message_id", "message-id"])
@@ -51,9 +51,14 @@ class HeaderAnalysisEngine(BaseEngine):
         dmarc_res = get_header(["dmarc", "DMARC"])
         received = get_header(["Received", "received"])
 
-        if not any([reply_to, return_path, message_id, date_str, auth_results, spf_res, dkim_res, dmarc_res, received]):
+        has_email_headers = bool(headers) or any([
+            actual_from, reply_to, return_path, message_id, date_str, auth_results, spf_res, dkim_res, dmarc_res, received
+        ])
+
+        if not has_email_headers:
             return EngineResult.skipped(self.name, "No normalized header metadata found")
 
+        from_header = actual_from or input_data.sender_id
         flags = []
         evidence = []
         score_accumulator = 0.0

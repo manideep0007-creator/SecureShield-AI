@@ -170,3 +170,35 @@ async def test_engine_failure_isolation():
     assert result.status == "error"
     assert "Simulated catastrophic crash" in result.error_message
     assert result.risk_score == 0.0
+
+@pytest.mark.asyncio
+async def test_deduplicate_authentication_failures():
+    engine = HeaderAnalysisEngine()
+    metadata = {
+        "headers": {
+            "From": "alice@test.com",
+             "Message-ID": "<123@test.com>",
+             "Authentication-Results": "spf=fail dkim=fail dmarc=reject",
+             "SPF": "fail",
+             "DKIM": "fail",
+             "DMARC": "fail"
+        }
+    }
+    result = await engine.analyze(ScanInput(sender_id="alice@test.com", metadata=metadata))
+    assert result.flags.count("SPF_FAILURE") == 1
+    assert result.flags.count("DKIM_FAILURE") == 1
+    assert result.flags.count("DMARC_FAILURE") == 1
+    assert result.flags.count("AUTHENTICATION_FAILURE") == 1
+    assert result.risk_score == 40.0
+
+@pytest.mark.asyncio
+async def test_message_id_anomaly_missing_completely():
+    engine = HeaderAnalysisEngine()
+    metadata = {
+        "headers": {
+            "From": "alice@test.com"
+        }
+    }
+    result = await engine.analyze(ScanInput(sender_id="alice@test.com", metadata=metadata))
+    assert result.status == "success"
+    assert "MESSAGE_ID_ANOMALY" in result.flags
