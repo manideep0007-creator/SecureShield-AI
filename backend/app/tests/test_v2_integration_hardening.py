@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from main import app
+from app.config.config import Settings, settings
 from app.classification.policy import ClassificationPolicy, get_classification_profile
 from app.engines.pipeline import UnifiedScanPipeline
 from app.explainability.explainability_engine import ExplainabilityEngine
@@ -182,6 +183,35 @@ class TestV2IntegrationHardening(unittest.TestCase):
         assessment2 = fuse_engine_results(results, policy="default")
         self.assertEqual(assessment1.risk_score, assessment2.risk_score)
         self.assertEqual(assessment1.classification, assessment2.classification)
+
+    def test_settings_pydantic_v2_migration(self):
+        """Settings uses Pydantic v2 model_config and legacy inner class Config is removed."""
+        # 1. Inner Config class must be absent
+        self.assertNotIn("Config", Settings.__dict__, "Inner class Config must be completely removed")
+
+        # 2. model_config must be present and configure .env
+        self.assertTrue(hasattr(Settings, "model_config"))
+        model_config = Settings.model_config
+        self.assertEqual(model_config.get("env_file"), ".env")
+        self.assertEqual(model_config.get("extra"), "ignore")
+
+        # 3. Default instance has expected defaults
+        self.assertEqual(settings.PROJECT_NAME, "SecureShield AI")
+        self.assertEqual(settings.ENVIRONMENT, "development")
+
+    def test_settings_loads_from_environment_variables(self):
+        """Settings properly loads configuration from environment variables."""
+        with patch.dict(os.environ, {
+            "PROJECT_NAME": "Custom SecureShield",
+            "ENVIRONMENT": "production",
+            "GOOGLE_SAFE_BROWSING_API_KEY": "test_gsb_key_12345",
+            "VIRUSTOTAL_API_KEY": "test_vt_key_67890",
+        }):
+            custom_settings = Settings()
+            self.assertEqual(custom_settings.PROJECT_NAME, "Custom SecureShield")
+            self.assertEqual(custom_settings.ENVIRONMENT, "production")
+            self.assertEqual(custom_settings.GOOGLE_SAFE_BROWSING_API_KEY, "test_gsb_key_12345")
+            self.assertEqual(custom_settings.VIRUSTOTAL_API_KEY, "test_vt_key_67890")
 
 
 if __name__ == "__main__":
