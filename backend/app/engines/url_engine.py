@@ -331,19 +331,3 @@ class URLEngine(BaseEngine):
 
 # Register engine
 engine_registry.register(URLEngine())
-
-# Legacy function to preserve working functionality for existing pipeline
-async def analyze_url(url: str) -> dict:
-    engine = URLEngine()
-    res = await engine.analyze(ScanInput(url=url))
-    
-    legacy_dict = {
-        "type": "url",
-        "score": res.risk_score / 100.0,
-        "flags": res.flags,
-        "details": res.metadata
-    }
-    if res.error_message:
-        legacy_dict["error"] = res.error_message
-        
-    return legacy_dict

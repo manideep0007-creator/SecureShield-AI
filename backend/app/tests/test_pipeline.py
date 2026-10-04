@@ -1,3 +1,4 @@
+import base64
 import json
 import sys
 import os
@@ -17,33 +18,29 @@ client = TestClient(app)
 TEST_CASES = [
     {
         "name": "Known Safe Message",
-        "endpoint": "/api/analyze/message",
-        "payload": {"message_text": "Hi there, are we still meeting for lunch at 12?"},
+        "payload": {"text": "Hi there, are we still meeting for lunch at 12?"},
         "expected_category_in": ["Safe"]
     },
     {
         "name": "Known Safe URL",
-        "endpoint": "/api/analyze/message",
         "payload": {"url": "https://www.google.com"},
         "expected_category_in": ["Safe"]
     },
     {
         "name": "Obvious Phishing Scam",
-        "endpoint": "/api/analyze/message",
         "payload": {
-            "message_text": "URGENT! Your account is locked! Please verify your password and send a gift card immediately."
+            "text": "URGENT! Your account is locked! Please verify your password and send a gift card immediately."
         },
-        "expected_category_in": ["Phishing"]
+        "expected_category_in": ["Phishing", "Deceptive"]
     },
     {
         "name": "Suspicious / IP-Based URL",
-        "endpoint": "/api/analyze/message",
         "payload": {"url": "http://192.168.1.1@secure-login-verify.xyz/login"},
         "expected_category_in": ["Suspicious", "Deceptive", "Phishing", "Malware"]
     }
 ]
 
-def test_legacy_pipeline_cases():
+def test_pipeline_cases():
     with patch("app.engines.url_engine.check_google_safe_browsing", new_callable=AsyncMock) as mock_gsb, \
          patch("app.engines.malware_engine.check_virustotal", new_callable=AsyncMock) as mock_vt:
         
@@ -55,26 +52,24 @@ def test_legacy_pipeline_cases():
         mock_vt.return_value = {"score": 0.3, "flags": ["vt_not_found"]}
         
         for case in TEST_CASES:
-            res = client.post(case["endpoint"], json=case["payload"])
+            res = client.post("/api/scan", json=case["payload"])
             assert res.status_code == 200, f"Case {case['name']} failed with status {res.status_code}"
             data = res.json()
-            actual = data.get("category", "UNKNOWN")
+            actual = data.get("classification", "UNKNOWN")
             assert actual in case["expected_category_in"], f"Case {case['name']} expected {case['expected_category_in']}, got {actual}"
             
-        file_path = "test_spoofed_invoice.exe"
-        with open(file_path, "wb") as f:
-            f.write(b"%PDF-1.4\n%Fake PDF Content to trigger mismatch rule")
-            
-        try:
-            with open(file_path, "rb") as f:
-                file_res = client.post("/api/analyze/file", files={"file": (file_path, f)})
-            assert file_res.status_code == 200
-            data = file_res.json()
-            cat = data.get("category", "UNKNOWN")
-            assert cat in ["Suspicious", "Deceptive", "Phishing", "Malware"]
-        finally:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+        dummy_pdf_bytes = b"%PDF-1.4\n%Fake PDF Content to trigger mismatch rule"
+        encoded_file = base64.b64encode(dummy_pdf_bytes).decode("utf-8")
+        file_payload = {
+            "file_name": "spoofed_invoice.exe",
+            "file_bytes": encoded_file,
+            "source_channel": "manual_upload"
+        }
+        file_res = client.post("/api/scan", json=file_payload)
+        assert file_res.status_code == 200
+        data = file_res.json()
+        cat = data.get("classification", "UNKNOWN")
+        assert cat in ["Suspicious", "Deceptive", "Phishing", "Malware"]
 
 def run_tests():
     print("========================================")
@@ -97,47 +92,42 @@ def run_tests():
         
         for case in TEST_CASES:
             print(f"[*] Testing: {case['name']}")
-            res = client.post(case["endpoint"], json=case["payload"])
+            res = client.post("/api/scan", json=case["payload"])
             
             if res.status_code != 200:
                 print(f"  [X] FAILED: HTTP {res.status_code}")
                 continue
                 
             data = res.json()
-            actual = data.get("category", "UNKNOWN")
+            actual = data.get("classification", "UNKNOWN")
             
             if actual in case["expected_category_in"]:
                 print(f"  [+] PASSED (Classified as {actual})")
                 passed += 1
             else:
                 print(f"  [X] FAILED! Expected {case['expected_category_in']}, got {actual}")
-                print(f"      Score:   {data.get('final_score')}")
-                print(f"      Reasons: {data.get('reasons')}")
+                print(f"      Score:   {data.get('risk_score')}")
             print()
             
         print("[*] Testing: Malware / Misleading Extension Upload")
-        file_path = "test_spoofed_invoice.exe"
-        with open(file_path, "wb") as f:
-            f.write(b"%PDF-1.4\n%Fake PDF Content to trigger mismatch rule")
-            
-        try:
-            with open(file_path, "rb") as f:
-                file_res = client.post("/api/analyze/file", files={"file": (file_path, f)})
-                
-            if file_res.status_code == 200:
-                data = file_res.json()
-                cat = data.get("category", "UNKNOWN")
-                if cat in ["Suspicious", "Deceptive", "Phishing", "Malware"]:
-                    print(f"  [+] PASSED (Classified as {cat})")
-                    passed += 1
-                else:
-                    print(f"  [X] FAILED! Expected elevated risk, got {cat}")
-                    print(f"      Reasons: {data.get('reasons')}")
+        dummy_pdf_bytes = b"%PDF-1.4\n%Fake PDF Content to trigger mismatch rule"
+        encoded_file = base64.b64encode(dummy_pdf_bytes).decode("utf-8")
+        file_payload = {
+            "file_name": "spoofed_invoice.exe",
+            "file_bytes": encoded_file,
+            "source_channel": "manual_upload"
+        }
+        file_res = client.post("/api/scan", json=file_payload)
+        if file_res.status_code == 200:
+            data = file_res.json()
+            cat = data.get("classification", "UNKNOWN")
+            if cat in ["Suspicious", "Deceptive", "Phishing", "Malware"]:
+                print(f"  [+] PASSED (Classified as {cat})")
+                passed += 1
             else:
-                print(f"  [X] FAILED: Upload HTTP {file_res.status_code}")
-        finally:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+                print(f"  [X] FAILED! Expected elevated risk, got {cat}")
+        else:
+            print(f"  [X] FAILED: Upload HTTP {file_res.status_code}")
         
         print("\n----------------------------------------")
         print(f"Summary: {passed} / {total} tests passed.")

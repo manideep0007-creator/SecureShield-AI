@@ -82,15 +82,3 @@ class NLPEngine(BaseEngine):
 
 # Register engine
 engine_registry.register(NLPEngine())
-
-# Legacy function for V1 pipeline
-def analyze_text(text: str) -> dict:
-    # Notice this is synchronous in V1
-    import asyncio
-    engine = NLPEngine()
-    # But wait, python's async def analyze can't be called directly synchronously.
-    # To not change behavior, we'll just bypass and use the internal one for V1.
-    res = _analyze_text_internal(text)
-    if res:
-        res["type"] = "nlp"
-    return res

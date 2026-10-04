@@ -286,25 +286,6 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertIn("nlp_unusual_payment", res.flags)
         self.assertEqual(len(res.evidence), 4)
 
-    def test_nlp_v1_legacy_wrapper(self):
-        from app.engines.nlp_engine import analyze_text
-        res = analyze_text("URGENT update password")
-        self.assertIn("score", res)
-        self.assertGreater(res["score"], 0.0)
-        self.assertLessEqual(res["score"], 1.0)
-        
-        self.assertIn("flags", res)
-        self.assertIn("nlp_urgency", res["flags"])
-        self.assertIn("nlp_credential_request", res["flags"])
-        
-        self.assertIn("triggered_phrases", res)
-        # Check that both categories of phrases got triggered
-        self.assertTrue(any("urgent" in phrase for phrase in res["triggered_phrases"]))
-        
-        # Test clean test in legacy
-        res_clean = analyze_text("Hello nice day")
-        self.assertEqual(res_clean, {})
-
     async def test_sender_engine_analysis(self):
         engine = SenderEngine()
         import uuid

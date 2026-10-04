@@ -340,12 +340,6 @@ class TestV2PipelineAndAPIRegression(unittest.IsolatedAsyncioTestCase):
         bad_url_resp = self.client.post("/api/scan", json={"url": "javascript:alert(1)"})
         self.assertEqual(bad_url_resp.status_code, 400)
 
-        # V1 compatibility endpoint /api/analyze/message still works
-        msg_resp = self.client.post("/api/analyze/message", json={"message_text": "Verify your password"})
-        self.assertEqual(msg_resp.status_code, 200)
-        self.assertIn("category", msg_resp.json())
-        self.assertIn("final_score", msg_resp.json())
-
     # 20. complete unified pipeline regression
     @patch("app.engines.url_engine.check_google_safe_browsing", new_callable=AsyncMock)
     @patch("app.engines.malware_engine.check_virustotal", new_callable=AsyncMock)
