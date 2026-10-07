@@ -1,3 +1,5 @@
+import os
+import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
@@ -24,10 +26,17 @@ async def handle_request_validation_error(request: Request, exc: RequestValidati
         )
     return await request_validation_exception_handler(request, exc)
 
+
 @app.get("/")
+@app.get("/health")
 def health_check():
-    return {"status": "running", "project": settings.PROJECT_NAME}
+    return {
+        "status": "running",
+        "project": settings.PROJECT_NAME,
+        "environment": settings.ENVIRONMENT
+    }
+
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=(settings.ENVIRONMENT == "development"))

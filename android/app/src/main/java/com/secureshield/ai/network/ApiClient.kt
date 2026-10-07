@@ -11,9 +11,12 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
-import java.nio.ByteBuffer
-import java.nio.charset.CodingErrorAction
-import java.nio.charset.StandardCharsets
+import okhttp3.OkHttpClient
+import okio.ByteString.Companion.toByteString
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 data class ScanInput(
     val text: String? = null,
@@ -65,7 +68,8 @@ data class UnifiedScanResponse(
     val skipped_engines: Int,
     val risk_assessment: RiskAssessment,
     val risk_score: Float,
-    val classification: String
+    val classification: String,
+    val warnings: List<String> = emptyList()
 )
 
 data class FeedbackRequest(
@@ -89,6 +93,9 @@ interface SecureShieldApi {
     
     @POST("/api/feedback")
     suspend fun sendFeedback(@Body request: FeedbackRequest): Response<FeedbackSubmissionResponse>
+
+    @retrofit2.http.GET("/health")
+    suspend fun healthCheck(): Response<JsonObject>
 }
 
 class MalformedScanResponseException(message: String) : RuntimeException(message)
@@ -130,8 +137,19 @@ object UnifiedScanResponseParser {
             requireObject(result, "metadata")
         }
 
+        if (json.has("warnings") && !json.get("warnings").isJsonNull) {
+            requireStringArray(json, "warnings")
+        }
+
         return try {
-            gson.fromJson(json, UnifiedScanResponse::class.java)
+            gson.fromJson(json, UnifiedScanResponse::class.java).let { parsed ->
+                val warnings = if (json.has("warnings") && json.get("warnings").isJsonArray) {
+                    json.getAsJsonArray("warnings").map { it.asString }
+                } else {
+                    emptyList()
+                }
+                parsed.copy(warnings = warnings)
+            }
         } catch (error: JsonParseException) {
             throw MalformedScanResponseException("Response fields do not match the scan contract.")
         }
@@ -181,24 +199,129 @@ object UnifiedScanResponseParser {
     private fun malformed(message: String): Nothing = throw MalformedScanResponseException(message)
 }
 
-fun fileBytesAsBackendJsonValue(bytes: ByteArray): String = try {
-    StandardCharsets.UTF_8.newDecoder()
-        .onMalformedInput(CodingErrorAction.REPORT)
-        .onUnmappableCharacter(CodingErrorAction.REPORT)
-        .decode(ByteBuffer.wrap(bytes))
-        .toString()
-} catch (error: java.nio.charset.CharacterCodingException) {
-    throw IllegalArgumentException("The scan API accepts UTF-8 file content only.", error)
-}
+/**
+ * Encodes a file payload for the scan API.
+ *
+ * JSON cannot carry raw bytes and the backend `file_bytes` field decodes strings as
+ * base64, so every payload — text or binary — is base64-encoded here. Encoding the
+ * bytes verbatim instead would corrupt any non-UTF-8 file (PE, PDF, ZIP, images) and
+ * invalidate the SHA-256 the Malware engine sends to VirusTotal.
+ *
+ * okio's ByteString produces standard padded base64 with no line wrapping, so the
+ * value stays a single JSON string token.
+ */
+fun fileBytesAsBackendJsonValue(bytes: ByteArray): String = bytes.toByteString().base64()
 
 object ApiClient {
-    private val BASE_URL = BuildConfig.BASE_URL 
+    @Volatile
+    private var customBaseUrl: String? = null
 
-    val api: SecureShieldApi by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
+    val baseUrl: String
+        get() = customBaseUrl ?: BuildConfig.BASE_URL
+
+    private val okHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(35, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
             .build()
-            .create(SecureShieldApi::class.java)
+    }
+
+    @Volatile
+    private var currentApi: SecureShieldApi? = null
+
+    val api: SecureShieldApi
+        get() = currentApi ?: synchronized(this) {
+            currentApi ?: Retrofit.Builder()
+                .baseUrl(baseUrl)
+                .client(okHttpClient)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+                .create(SecureShieldApi::class.java).also { currentApi = it }
+        }
+
+    fun setBaseUrl(url: String) {
+        val trimmed = url.trim()
+        val sanitized = if (!trimmed.endsWith("/")) "$trimmed/" else trimmed
+        synchronized(this) {
+            customBaseUrl = sanitized
+            currentApi = null
+        }
+    }
+
+    fun resetBaseUrl() {
+        synchronized(this) {
+            customBaseUrl = null
+            currentApi = null
+        }
+    }
+
+    fun normalizeBaseUrl(url: String): String {
+        val trimmed = url.trim()
+        return if (!trimmed.endsWith("/")) "$trimmed/" else trimmed
+    }
+
+    /**
+     * Performs a lightweight backend availability check using the configured [baseUrl].
+     */
+    suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val response = withTimeout(5000L) {
+                api.healthCheck()
+            }
+            response.isSuccessful
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Probes connectivity against a candidate URL without affecting the active [baseUrl].
+     */
+    suspend fun testConnection(candidateUrl: String): ProbeResult = withContext(Dispatchers.IO) {
+        if (!ServerSettings.isValidServerUrl(candidateUrl)) {
+            return@withContext ProbeResult.Failure("Invalid URL format. Must start with http:// or https://")
+        }
+        val start = System.currentTimeMillis()
+        try {
+            val probeApi = createProbeApi(candidateUrl)
+            val response = withTimeout(5000L) {
+                probeApi.healthCheck()
+            }
+            val elapsed = System.currentTimeMillis() - start
+            if (response.isSuccessful) {
+                ProbeResult.Success(elapsed)
+            } else {
+                ProbeResult.Failure("Server responded with HTTP ${response.code()}")
+            }
+        } catch (e: Exception) {
+            ProbeResult.Failure(e.localizedMessage ?: "Could not connect to server.")
+        }
+    }
+
+    /**
+     * Builds a throwaway API client for [url] without touching the shared instance.
+     * Connectivity tests must not repoint live scans at an unverified server.
+     */
+    fun createProbeApi(url: String): SecureShieldApi = Retrofit.Builder()
+        .baseUrl(normalizeBaseUrl(url))
+        .client(probeOkHttpClient)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(SecureShieldApi::class.java)
+
+    private val probeOkHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
     }
 }
+
+sealed class ProbeResult {
+    data class Success(val latencyMs: Long) : ProbeResult()
+    data class Failure(val message: String) : ProbeResult()
+}

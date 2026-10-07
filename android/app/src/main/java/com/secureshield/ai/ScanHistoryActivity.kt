@@ -97,35 +97,41 @@ class ScanHistoryActivity : AppCompatActivity() {
         }
     }
 
-    private fun createHistoryRow(record: ScanHistoryRecord): View = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(12, 12, 12, 12)
+    private fun createHistoryRow(record: ScanHistoryRecord): View {
+        val row = layoutInflater.inflate(R.layout.item_history_card, historyContainer, false)
+        val textSourceDate = row.findViewById<TextView>(R.id.history_item_source_and_date)
+        val badge = row.findViewById<TextView>(R.id.history_item_badge)
+        val textSummary = row.findViewById<TextView>(R.id.history_item_summary)
+        val btnDetails = row.findViewById<View>(R.id.history_item_btn_details)
+        val btnDelete = row.findViewById<View>(R.id.history_item_btn_delete)
 
-        val summary = TextView(this@ScanHistoryActivity).apply {
-            text = "${record.sourceType.uppercase()}  •  ${formatTimestamp(record.timestampMillis)}\n" +
-                "${record.classification}  •  Risk ${formatNumber(record.riskScore)}  •  Confidence ${formatPercent(record.confidence)}"
-            textSize = 16f
-            setOnClickListener { showDetails(record) }
-        }
-        addView(summary)
+        textSourceDate.text = "${record.sourceType.uppercase()} • ${formatTimestamp(record.timestampMillis)}"
+        badge.text = record.classification.uppercase()
 
-        val actions = LinearLayout(this@ScanHistoryActivity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
+        when (record.classification.lowercase()) {
+            "safe" -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_safe)
+                badge.setTextColor(0xFF10B981.toInt())
+            }
+            "suspicious", "deceptive" -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_warning)
+                badge.setTextColor(0xFFF59E0B.toInt())
+            }
+            "phishing", "malware" -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_threat)
+                badge.setTextColor(0xFFEF4444.toInt())
+            }
+            else -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_neutral)
+                badge.setTextColor(0xFFFFFFFF.toInt())
+            }
         }
-        actions.addView(Button(this@ScanHistoryActivity).apply {
-            text = "Details"
-            setOnClickListener { showDetails(record) }
-        })
-        actions.addView(Button(this@ScanHistoryActivity).apply {
-            text = "Delete"
-            setOnClickListener { confirmDelete(record) }
-        })
-        addView(actions)
-        addView(View(this@ScanHistoryActivity).apply {
-            setBackgroundColor(0xFFE0E0E0.toInt())
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
-        })
+
+        textSummary.text = "Risk: ${formatNumber(record.riskScore)}/100 • Conf: ${formatPercent(record.confidence)}"
+        btnDetails.setOnClickListener { showDetails(record) }
+        btnDelete.setOnClickListener { confirmDelete(record) }
+        row.setOnClickListener { showDetails(record) }
+        return row
     }
 
     private fun showDetails(record: ScanHistoryRecord) {
@@ -187,9 +193,9 @@ class ScanHistoryActivity : AppCompatActivity() {
     private fun formatTimestamp(timestampMillis: Long): String =
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(timestampMillis))
 
-    private fun formatNumber(value: Float): String = "%.1f".format(value)
+    private fun formatNumber(value: Float): String = String.format(java.util.Locale.US, "%.1f", value)
 
-    private fun formatPercent(value: Float): String = "%.0f%%".format(value * 100)
+    private fun formatPercent(value: Float): String = String.format(java.util.Locale.US, "%.0f%%", value * 100)
 
     override fun onDestroy() {
         if (repositoryDelegate.isInitialized()) repository.close()

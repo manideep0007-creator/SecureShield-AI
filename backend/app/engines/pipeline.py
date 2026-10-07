@@ -92,9 +92,10 @@ class UnifiedScanPipeline:
         # Post-process results based on global preprocessing flags (which handles parallelized results)
         if extension_mismatch:
             for res in registry_results:
-                if res.engine_name == "malware_engine" and res.status != "skipped":
+                if res.engine_name in ("malware_engine", "attachment_behavior_engine") and res.status != "skipped":
                     if "extension_mismatch" not in res.flags:
                         res.flags.append("extension_mismatch")
+                    if res.engine_name == "malware_engine":
                         # Boost the threat score for mismatched file extensions just like V1
                         res.risk_score = min(res.risk_score + 30.0, 100.0)
 

@@ -8,6 +8,7 @@ import android.database.sqlite.SQLiteOpenHelper
 
 object ScanHistorySchema {
     const val TABLE_HISTORY = "scan_history"
+    private const val TABLE_HISTORY_MIGRATION = "scan_history_v4"
     const val COLUMN_SCAN_ID = "scan_id"
     const val COLUMN_TIMESTAMP = "timestamp_millis"
     const val COLUMN_SOURCE_TYPE = "source_type"
@@ -20,10 +21,10 @@ object ScanHistorySchema {
     const val COLUMN_EVIDENCE_KEYS = "evidence_keys_json"
     const val COLUMN_FEEDBACK_STATE = "feedback_state"
 
-    const val CREATE_HISTORY_TABLE = """CREATE TABLE IF NOT EXISTS scan_history (
+    private const val HISTORY_COLUMNS_DDL = """
         scan_id TEXT PRIMARY KEY NOT NULL,
         timestamp_millis INTEGER NOT NULL,
-        source_type TEXT NOT NULL CHECK (source_type IN ('url','file','share','gmail','unknown')),
+        source_type TEXT NOT NULL CHECK (source_type IN ('url','file','share','gmail','accessibility_guard','unknown')),
         classification TEXT NOT NULL CHECK (classification IN ('Safe','Suspicious','Deceptive','Phishing','Malware')),
         risk_score REAL NOT NULL CHECK (risk_score BETWEEN 0 AND 100),
         confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
@@ -32,7 +33,31 @@ object ScanHistorySchema {
         flags_json TEXT NOT NULL,
         evidence_keys_json TEXT NOT NULL DEFAULT '[]',
         feedback_state TEXT CHECK (feedback_state IS NULL OR feedback_state IN ('positive','negative'))
-    )"""
+    """
+
+    const val CREATE_HISTORY_TABLE = "CREATE TABLE IF NOT EXISTS $TABLE_HISTORY ($HISTORY_COLUMNS_DDL)"
+
+    /**
+     * SQLite cannot widen a CHECK constraint in place, so version 4 rebuilds the table.
+     * Rows are copied verbatim; any source_type outside the new set is coerced to
+     * 'unknown' so a partially written legacy row can never abort the migration.
+     * Runs inside the SQLiteOpenHelper upgrade transaction, so it is atomic.
+     */
+    private val MIGRATE_TO_V4_STATEMENTS = listOf(
+        "CREATE TABLE $TABLE_HISTORY_MIGRATION ($HISTORY_COLUMNS_DDL)",
+        """INSERT INTO $TABLE_HISTORY_MIGRATION (
+            scan_id, timestamp_millis, source_type, classification, risk_score, confidence,
+            recommended_action, reasons_json, flags_json, evidence_keys_json, feedback_state
+        ) SELECT
+            scan_id, timestamp_millis,
+            CASE WHEN source_type IN ('url','file','share','gmail','accessibility_guard')
+                 THEN source_type ELSE 'unknown' END,
+            classification, risk_score, confidence,
+            recommended_action, reasons_json, flags_json, evidence_keys_json, feedback_state
+        FROM $TABLE_HISTORY""",
+        "DROP TABLE $TABLE_HISTORY",
+        "ALTER TABLE $TABLE_HISTORY_MIGRATION RENAME TO $TABLE_HISTORY"
+    )
 
     val CREATE_INDEX_STATEMENTS = listOf(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_scan_history_scan_id ON scan_history(scan_id)",
@@ -47,6 +72,9 @@ object ScanHistorySchema {
         }
         if (oldVersion < 3 && COLUMN_FEEDBACK_STATE !in columns) {
             add("ALTER TABLE $TABLE_HISTORY ADD COLUMN $COLUMN_FEEDBACK_STATE TEXT")
+        }
+        if (oldVersion < 4) {
+            addAll(MIGRATE_TO_V4_STATEMENTS)
         }
     }
 }
@@ -183,7 +211,7 @@ class ScanHistoryDatabase(
 
     private companion object {
         const val DATABASE_NAME = "secure_scan_history.db"
-        const val DATABASE_VERSION = 3
+        const val DATABASE_VERSION = 4
         const val TABLE_HISTORY = ScanHistorySchema.TABLE_HISTORY
         const val COLUMN_SCAN_ID = ScanHistorySchema.COLUMN_SCAN_ID
         const val COLUMN_TIMESTAMP = ScanHistorySchema.COLUMN_TIMESTAMP
@@ -197,7 +225,7 @@ class ScanHistoryDatabase(
         const val COLUMN_EVIDENCE_KEYS = ScanHistorySchema.COLUMN_EVIDENCE_KEYS
         const val COLUMN_FEEDBACK_STATE = ScanHistorySchema.COLUMN_FEEDBACK_STATE
         val CLASSIFICATIONS = setOf("Safe", "Suspicious", "Deceptive", "Phishing", "Malware")
-        val SOURCE_TYPES = setOf("url", "file", "share", "gmail", "unknown")
+        val SOURCE_TYPES = setOf("url", "file", "share", "gmail", "accessibility_guard", "unknown")
         val FEEDBACK_STATES = setOf("positive", "negative")
     }
 }

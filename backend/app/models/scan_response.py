@@ -19,6 +19,7 @@ class UnifiedScanResponse(BaseModel):
     risk_assessment: RiskAssessment = Field(..., description="Unified confidence-weighted risk assessment")
     risk_score: float = Field(..., ge=0.0, le=100.0, description="Unified final risk score")
     classification: RiskClassification = Field(..., description="Unified final risk classification")
+    warnings: list[str] = Field(default_factory=list, description="Top-level security and pipeline warnings")
     
     @classmethod
     def from_results(
@@ -40,6 +41,19 @@ class UnifiedScanResponse(BaseModel):
         from app.explainability.explainability_engine import ExplainabilityEngine
         assessment = ExplainabilityEngine.explain(assessment)
 
+        # Collect top-level security warnings for unavailable or errored engines
+        warnings: list[str] = list(assessment.warnings)
+        for r in results:
+            if r.engine_name == "malware_engine" and r.status == EngineStatus.ERROR:
+                err_detail = r.error_message or "service unavailable"
+                msg = f"malware scan unavailable: {err_detail}"
+                if msg not in warnings:
+                    warnings.append(msg)
+            elif r.status == EngineStatus.ERROR and r.error_message:
+                msg = f"{r.engine_name} scan unavailable: {r.error_message}"
+                if msg not in warnings:
+                    warnings.append(msg)
+
         return cls(
             scan_id=str(uuid.uuid4()),
             status="completed",
@@ -50,4 +64,5 @@ class UnifiedScanResponse(BaseModel):
             risk_assessment=assessment,
             risk_score=assessment.risk_score,
             classification=assessment.classification,
+            warnings=warnings,
         )

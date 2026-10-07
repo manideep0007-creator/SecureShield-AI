@@ -89,6 +89,14 @@ def fuse_engine_results(
         else 0.0
     )
 
+    warnings: list[str] = []
+    for result in ordered_results:
+        if result.engine_name == "malware_engine" and result.status == EngineStatus.ERROR:
+            err_msg = result.error_message or "service unavailable"
+            warnings.append(f"malware scan unavailable: {err_msg}")
+        elif result.status == EngineStatus.ERROR and result.error_message:
+            warnings.append(f"{result.engine_name} scan unavailable: {result.error_message}")
+
     return RiskAssessment(
         risk_score=score,
         classification=_classification(score, malware_signal, policy=policy),
@@ -97,4 +105,5 @@ def fuse_engine_results(
         ignored_engines=sorted(set(ignored)),
         flags=sorted(flags),
         evidence=evidence,
+        warnings=warnings,
     )

@@ -112,5 +112,50 @@ class TestAPIUnifiedScan(unittest.TestCase):
         
         self.assertEqual(data["total_engines"], data["completed_engines"] + data["skipped_engines"])
 
+    @patch("app.engines.malware_engine.check_virustotal", new_callable=AsyncMock)
+    def test_vt_failure_on_executable_file(self, mock_vt):
+        """Test VT API failure does not dilute risk score and surfaces top-level warning."""
+        mock_vt.return_value = {"score": 0.0, "error": "VT_API_ERROR_429: Rate limit exceeded", "flags": []}
+
+        pe_bytes = b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00" + b"\x00" * 500
+        encoded_exe = base64.b64encode(pe_bytes).decode("utf-8")
+
+        payload = {
+            "file_name": "installer.exe",
+            "file_bytes": encoded_exe,
+            "source_channel": "manual_upload",
+        }
+
+        res = client.post("/api/scan", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+
+        # Top-level warnings must indicate malware scan unavailable
+        self.assertIn("warnings", data)
+        self.assertTrue(any("malware scan unavailable" in w.lower() for w in data["warnings"]))
+
+        # Malware engine must report ERROR with 0 confidence
+        malware_result = next(r for r in data["results"] if r["engine_name"] == "malware_engine")
+        self.assertEqual(malware_result["status"], "error")
+        self.assertEqual(malware_result["confidence"], 0.0)
+
+        # Risk fusion must ignore malware_engine and rely on attachment_behavior_engine
+        self.assertIn("malware_engine", data["risk_assessment"]["ignored_engines"])
+        self.assertIn("attachment_behavior_engine", data["risk_assessment"]["contributing_engines"])
+
+        # Score must not be diluted by 0.0 malware score (remains at least 50.0 from attachment behavior)
+        self.assertGreaterEqual(data["risk_score"], 50.0)
+        self.assertEqual(data["classification"], "Deceptive")
+
+    def test_health_check_endpoints(self):
+        """Verify lightweight health check endpoints return 200 OK with running status."""
+        res_root = client.get("/health")
+        self.assertEqual(res_root.status_code, 200)
+        self.assertEqual(res_root.json()["status"], "running")
+
+        res_api = client.get("/api/health")
+        self.assertEqual(res_api.status_code, 200)
+        self.assertEqual(res_api.json()["status"], "running")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

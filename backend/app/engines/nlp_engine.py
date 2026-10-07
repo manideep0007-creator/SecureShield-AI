@@ -5,12 +5,29 @@ from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
 from app.models.scan_input import ScanInput
 
 CATEGORIES = {
-    "urgency": [r"\b(act now|urgent|immediately|asap|time is running out|24 hours)\b"],
-    "credential_request": [r"\b(password|login|verify your account|ssn|social security|one time code|otp)\b"],
-    "account_suspension": [r"\b(suspend|locked|blocked|unauthorized access|closing your account)\b"],
-    "prize_lottery": [r"\b(giveaway|lottery|winner|claim your prize|free gift|selected to win)\b"],
-    "unusual_payment": [r"\b(gift card|wire transfer|western union|bitcoin|crypto|usdt|apple pay|cashapp)\b"]
+    "urgency": [
+        r"\b(act(?:ing)?\s+now|action\s+required|urgent(?:ly)?|urgency|immediate(?:ly)?|asap|time\s+is\s+running\s+out|(?:within\s+)?24\s+hours)\b"
+    ],
+    "credential_request": [
+        r"\b(password(?:s)?|passcode(?:s)?|log[\s-]?in(?:s)?|logging[\s-]?in|verif(?:y|ying|ication(?:\s+of)?)\s+(?:your\s+)?(?:account|identity|credentials?)|ssn|social\s+security(?:\s+number)?)\b",
+        r"\b((?:share|enter|send|provide|give|submit|reply\s+with|input|type|forward)\s+(?:your\s+|the\s+)?(?:otp|one[\s-]?time\s+(?:code|password|passcode)))\b",
+    ],
+    "account_suspension": [
+        r"\b(suspend(?:ed|ing)?|suspension(?:s)?|lock(?:ed|ing)?|block(?:ed|ing)?|unauthori[zs]ed\s+access|clos(?:e|ed|ing|ure(?:\s+of)?)\s+(?:your\s+)?account|deactivat(?:e|ed|ing|ion)|restrict(?:ed|ing|ion)?)\b"
+    ],
+    "prize_lottery": [
+        r"\b(giveaway(?:s)?|lotter(?:y|ies)|win(?:ner|ners|ning)?|claim\s+(?:your\s+)?prize|free\s+gift(?:s)?|selected\s+to\s+win)\b"
+    ],
+    "unusual_payment": [
+        r"\b(gift\s+card(?:s)?|wire\s+transfer(?:s)?|western\s+union|bitcoin|crypto|usdt|apple\s+pay|cash\s*app)\b"
+    ]
 }
+
+# Negative pattern to identify legitimate 2FA warning disclaimers (e.g. "Do not share with anyone")
+OTP_DISCLAIMER_PATTERN = re.compile(
+    r"\b(?:do\s*n['o]?t|never|should\s+not|not\s+to)\s+(?:share|disclose|give|reveal|tell|forward)\b",
+    re.IGNORECASE
+)
 
 def _analyze_text_internal(text: str) -> dict:
     """Analyze message text for social engineering / phishing keywords."""
@@ -18,25 +35,40 @@ def _analyze_text_internal(text: str) -> dict:
         return {}
     
     text_lower = text.lower()
+    has_otp_disclaimer = bool(OTP_DISCLAIMER_PATTERN.search(text_lower))
     triggered = []
     flags = []
     evidence_dicts = []
     score = 0.0
     
     for category, patterns in CATEGORIES.items():
+        category_matches = []
         for pattern in patterns:
-            matches = re.findall(pattern, text_lower)
-            if matches:
-                flags.append(f"nlp_{category}")
-                triggered.extend(matches)
-                score += 0.35 # Increase score per category hit
+            raw_matches = re.findall(pattern, text_lower)
+            if not raw_matches:
+                continue
+            
+            for match in raw_matches:
+                match_str = match if isinstance(match, str) else match[0]
+                # If message contains an explicit OTP disclaimer (e.g. "do not share", "never share"),
+                # suppress matches that are parts of the safety warning (e.g. "share your otp")
+                if category == "credential_request" and has_otp_disclaimer:
+                    if any(otp_kw in match_str for otp_kw in ["otp", "one-time", "one time"]):
+                        if any(neg_verb in match_str for neg_verb in ["share", "disclose", "give", "tell", "forward"]):
+                            continue
+                category_matches.append(match_str)
                 
-                unique_matches = sorted(list(set(matches)))
-                evidence_dicts.append({
-                    "key": category,
-                    "value": unique_matches,
-                    "description": f"{category.replace('_', '-')} language was detected."
-                })
+        if category_matches:
+            flags.append(f"nlp_{category}")
+            triggered.extend(category_matches)
+            score += 0.35 # Increase score per category hit
+            
+            unique_matches = sorted(list(set(category_matches)))
+            evidence_dicts.append({
+                "key": category,
+                "value": unique_matches,
+                "description": f"{category.replace('_', '-')} language was detected."
+            })
                 
     if not flags:
         return {}
@@ -82,15 +114,3 @@ class NLPEngine(BaseEngine):
 
 # Register engine
 engine_registry.register(NLPEngine())
-
-# Legacy function for V1 pipeline
-def analyze_text(text: str) -> dict:
-    # Notice this is synchronous in V1
-    import asyncio
-    engine = NLPEngine()
-    # But wait, python's async def analyze can't be called directly synchronously.
-    # To not change behavior, we'll just bypass and use the internal one for V1.
-    res = _analyze_text_internal(text)
-    if res:
-        res["type"] = "nlp"
-    return res

@@ -254,11 +254,3 @@ class SenderEngine(BaseEngine):
         )
 
 engine_registry.register(SenderEngine())
-
-def analyze_sender(sender_id: str, has_link: bool = False, has_file: bool = False) -> dict:
-    res = _analyze_sender_internal(sender_id, has_link, has_file)
-    if res:
-        res["type"] = "sender"
-        if "evidence" in res:
-            res["evidence"] = [e.dict() for e in res["evidence"]]
-    return res

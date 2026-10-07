@@ -24,7 +24,15 @@ class FeedbackRequest(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def adapt_phase9_request(cls, values):
-        if not isinstance(values, dict) or "scan_id" in values:
+        if not isinstance(values, dict):
+            return values
+        uf = values.get("user_feedback")
+        if uf in ("correct", "accurate"):
+            values["user_feedback"] = "positive"
+        elif uf in ("incorrect", "inaccurate"):
+            values["user_feedback"] = "negative"
+
+        if "scan_id" in values:
             return values
         legacy_target = values.get("analyzed_target")
         if legacy_target is None:

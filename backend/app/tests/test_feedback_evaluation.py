@@ -153,6 +153,41 @@ class TestFeedbackEvaluationAPI(unittest.TestCase):
                     (str(uuid4()), "unknown", "Safe", 101, 0.5, "url"),
                 )
 
+    def test_database_level_unique_index_rejects_duplicate_scan_id(self):
+        from app.database.feedback import init_db
+
+        init_db(self.db_path)
+        scan_id = str(uuid4())
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            connection.execute(
+                """INSERT INTO feedback (scan_id, user_feedback, classification_at_scan_time,
+                    risk_score_at_scan_time, confidence_at_scan_time, source_type)
+                   VALUES (?, 'positive', 'Safe', 10.0, 0.9, 'url')""",
+                (scan_id,),
+            )
+            connection.commit()
+            with self.assertRaises(sqlite3.IntegrityError):
+                connection.execute(
+                    """INSERT INTO feedback (scan_id, user_feedback, classification_at_scan_time,
+                        risk_score_at_scan_time, confidence_at_scan_time, source_type)
+                       VALUES (?, 'negative', 'Safe', 10.0, 0.9, 'url')""",
+                    (scan_id,),
+                )
+
+    def test_correct_and_incorrect_feedback_values_are_supported(self):
+        scan_id_1 = str(uuid4())
+        scan_id_2 = str(uuid4())
+        res1 = self.client.post("/api/feedback", json=self.request(scan_id=scan_id_1, user_feedback="correct"))
+        res2 = self.client.post("/api/feedback", json=self.request(scan_id=scan_id_2, user_feedback="incorrect"))
+        self.assertEqual(res1.status_code, 200)
+        self.assertEqual(res2.status_code, 200)
+
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            row1 = connection.execute("SELECT user_feedback FROM feedback WHERE scan_id = ?", (scan_id_1,)).fetchone()
+            row2 = connection.execute("SELECT user_feedback FROM feedback WHERE scan_id = ?", (scan_id_2,)).fetchone()
+        self.assertEqual(row1[0], "positive")
+        self.assertEqual(row2[0], "negative")
+
     def test_zero_feedback_metrics_are_well_formed(self):
         response = self.client.get("/api/evaluation/metrics")
 

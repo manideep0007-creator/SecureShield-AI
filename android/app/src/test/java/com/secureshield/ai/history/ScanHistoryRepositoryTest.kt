@@ -204,6 +204,120 @@ class ScanHistoryRepositoryTest {
         }
     }
 
+    @Test
+    fun `accessibility_guard source type survives sanitization and filtering`() = runTest {
+        val fixture = fixture()
+        assertTrue(fixture.repository.saveCompletedScan(response(ID_A), "accessibility_guard"))
+        assertTrue(fixture.repository.saveCompletedScan(response(ID_B), "url"))
+
+        val guardRow = fixture.repository.getPage(filter = ScanHistoryFilter(sourceType = "accessibility_guard")).single()
+        assertEquals(ID_A, guardRow.scanId)
+        assertEquals("accessibility_guard", guardRow.sourceType)
+        assertEquals(2, fixture.repository.getPage().size)
+    }
+
+    @Test
+    fun `unknown source types still fall back to unknown`() = runTest {
+        val fixture = fixture()
+        assertTrue(fixture.repository.saveCompletedScan(response(ID_A), "some_new_channel"))
+
+        assertEquals(
+            "unknown",
+            fixture.repository.getById(ID_A)?.sourceType
+        )
+    }
+
+    @Test
+    fun `v4 migration widens the source_type check and preserves existing rows`() {
+        val file = File.createTempFile("history-v4-migration-", ".db")
+        try {
+            DriverManager.getConnection("jdbc:sqlite:${file.absolutePath}").use { connection ->
+                connection.createStatement().use { statement ->
+                    // v3 schema: source_type CHECK excludes accessibility_guard
+                    statement.execute(
+                        """CREATE TABLE scan_history (
+                            scan_id TEXT PRIMARY KEY NOT NULL,
+                            timestamp_millis INTEGER NOT NULL,
+                            source_type TEXT NOT NULL CHECK (source_type IN ('url','file','share','gmail','unknown')),
+                            classification TEXT NOT NULL CHECK (classification IN ('Safe','Suspicious','Deceptive','Phishing','Malware')),
+                            risk_score REAL NOT NULL CHECK (risk_score BETWEEN 0 AND 100),
+                            confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+                            recommended_action TEXT NOT NULL,
+                            reasons_json TEXT NOT NULL,
+                            flags_json TEXT NOT NULL,
+                            evidence_keys_json TEXT NOT NULL DEFAULT '[]',
+                            feedback_state TEXT CHECK (feedback_state IS NULL OR feedback_state IN ('positive','negative'))
+                        )""".trimIndent()
+                    )
+                }
+                connection.createStatement().use { statement ->
+                    statement.execute(
+                        """INSERT INTO scan_history VALUES
+                            ('11111111-1111-4111-8111-111111111111', 100, 'url', 'Safe', 25.0, 0.75, 'ok', '[]', '[]', '[]', 'positive')""".trimIndent()
+                    )
+                    statement.execute(
+                        """INSERT INTO scan_history VALUES
+                            ('22222222-2222-4222-8222-222222222222', 200, 'gmail', 'Phishing', 90.0, 0.9, 'delete', '[]', '[]', '[]', NULL)""".trimIndent()
+                    )
+                }
+
+                val columns = connection.createStatement().use { statement ->
+                    statement.executeQuery("PRAGMA table_info(scan_history)").use { rows ->
+                        buildSet { while (rows.next()) add(rows.getString("name")) }
+                    }
+                }
+                ScanHistorySchema.upgradeStatements(oldVersion = 3, columns = columns).forEach { sql ->
+                    connection.createStatement().use { it.execute(sql) }
+                }
+                ScanHistorySchema.CREATE_INDEX_STATEMENTS.forEach { sql ->
+                    connection.createStatement().use { it.execute(sql) }
+                }
+
+                // Rows preserved with their original values
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("SELECT COUNT(*) FROM scan_history").use {
+                        assertTrue(it.next())
+                        assertEquals(2, it.getInt(1))
+                    }
+                    statement.executeQuery(
+                        "SELECT feedback_state FROM scan_history WHERE scan_id = '11111111-1111-4111-8111-111111111111'"
+                    ).use {
+                        assertTrue(it.next())
+                        assertEquals("positive", it.getString(1))
+                    }
+                }
+
+                // Widened CHECK constraint now accepts accessibility_guard
+                connection.createStatement().use { statement ->
+                    statement.execute(
+                        """INSERT INTO scan_history VALUES
+                            ('33333333-3333-4333-8333-333333333333', 300, 'accessibility_guard', 'Suspicious', 50.0, 0.8, 'caution', '[]', '[]', '[]', NULL)""".trimIndent()
+                    )
+                    statement.executeQuery("SELECT COUNT(*) FROM scan_history").use {
+                        assertTrue(it.next())
+                        assertEquals(3, it.getInt(1))
+                    }
+                }
+
+                // Still rejects an out-of-set source type
+                connection.createStatement().use { statement ->
+                    var rejected = false
+                    try {
+                        statement.execute(
+                            """INSERT INTO scan_history VALUES
+                                ('44444444-4444-4444-8444-444444444444', 400, 'bogus_source', 'Safe', 10.0, 0.5, 'ok', '[]', '[]', '[]', NULL)""".trimIndent()
+                        )
+                    } catch (e: java.sql.SQLException) {
+                        rejected = true
+                    }
+                    assertTrue(rejected)
+                }
+            }
+        } finally {
+            file.delete()
+        }
+    }
+
     private fun fixture(): TestHistoryFixture {
         val store = MemoryHistoryStore()
         return TestHistoryFixture(store, ScanHistoryRepository(store, Dispatchers.Unconfined))
@@ -248,7 +362,7 @@ class ScanHistoryRepositoryTest {
                 classification == null || selected.classification == classification
             }
             .filter { selected ->
-                val source = filter.sourceType?.lowercase()?.takeIf { it in setOf("url", "file", "share", "gmail", "unknown") }
+                val source = filter.sourceType?.lowercase()?.takeIf { it in setOf("url", "file", "share", "gmail", "accessibility_guard", "unknown") }
                 source == null || selected.sourceType == source
             }
             .sortedWith(compareByDescending<ScanHistoryRecord> { it.timestampMillis }.thenByDescending { it.scanId })

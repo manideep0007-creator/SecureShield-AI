@@ -112,4 +112,16 @@ class FeedbackSubmissionManagerTest {
         assertEquals(FeedbackSubmissionResult.HttpFailure(503), outcome)
         assertFalse(FeedbackSubmissionUiPolicy.shouldDismissFeedback(outcome))
     }
+
+    @Test
+    fun `isSubmitted accurately tracks submission state`() = runTest {
+        val manager = FeedbackSubmissionManager { input ->
+            Response.success(FeedbackSubmissionResponse("success", input.scan_id, "2026-10-02T12:00:00Z"))
+        }
+
+        assertFalse(manager.isSubmitted("scan-uuid"))
+        assertEquals(FeedbackSubmissionResult.Submitted, manager.submit(request("scan-uuid")))
+        assertTrue(manager.isSubmitted("scan-uuid"))
+        assertFalse(manager.isSubmitted("other-scan-uuid"))
+    }
 }
