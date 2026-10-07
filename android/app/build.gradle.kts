@@ -11,12 +11,12 @@ if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
 val defaultDevUrl = "http://10.0.2.2:8000/"
-val defaultProdUrl = "https://secureshield-api.up.railway.app/"
+val defaultProdUrl = "https://secureshield-ai-yzn2.onrender.com/"
 
 val devBaseUrl = System.getenv("DEV_BASE_URL")
     ?: System.getenv("BASE_URL")
     ?: localProperties.getProperty("BASE_URL")
-    ?: defaultDevUrl
+    ?: defaultProdUrl
 
 val prodBaseUrl = System.getenv("PROD_BASE_URL")
     ?: System.getenv("BASE_URL")
