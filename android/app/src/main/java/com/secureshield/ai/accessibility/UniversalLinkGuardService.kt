@@ -94,36 +94,67 @@ class UniversalLinkGuardService : AccessibilityService() {
 
     private suspend fun processVisibleText(visibleText: String, sourcePackage: String) {
         val urls = UniversalLinkExtractor.extractUrlsFromText(visibleText)
-        if (urls.isEmpty()) return
+        if (urls.isNotEmpty()) {
+            android.util.Log.d("GuardianService", "Detected ${urls.size} URL(s) in active window of package: $sourcePackage")
+            for (url in urls) {
+                if (!inFlightUrls.add(url)) continue
+                try {
+                    // Short-TTL cache: skip if seen within ~10 minutes
+                    if (ProcessedMessageStore.isUrlProcessed(applicationContext, url)) {
+                        continue
+                    }
 
-        android.util.Log.d("UniversalLinkGuard", "Detected ${urls.size} URL(s) in active window of package: $sourcePackage")
+                    // Hard rate-limit: drop excess scans rather than queuing
+                    if (!rateLimiter.tryAcquire()) {
+                        android.util.Log.w("GuardianService", "Rate limit exceeded. Dropping URL: $url")
+                        continue
+                    }
 
-        for (url in urls) {
-            // In-memory guard closes the gap between event arrival and the disk
-            // cache write, so rapid window-content events cannot double-dispatch.
-            if (!inFlightUrls.add(url)) continue
-            try {
-                // Short-TTL cache: skip if seen within ~10 minutes
-                if (ProcessedMessageStore.isUrlProcessed(applicationContext, url)) {
-                    android.util.Log.d("UniversalLinkGuard", "Skipping URL within 10-min cache: $url")
-                    continue
+                    // Mark before scanning to prevent retry storms on failures
+                    ProcessedMessageStore.markUrlProcessed(applicationContext, url)
+
+                    android.util.Log.i("GuardianService", "Dispatching URL scan for: $url (Source: $sourcePackage)")
+                    val input = ScanInput(
+                        url = url,
+                        source_channel = "guardian",
+                        metadata = mapOf(
+                            "source_package" to sourcePackage,
+                            "detector" to "SecureShieldGuardianService"
+                        )
+                    )
+                    scanAndReport(input, sourcePackage, targetDisplay = url)
+                } finally {
+                    inFlightUrls.remove(url)
                 }
+            }
+        } else {
+            // Optional short suspicious text analysis when no URL is present
+            val snippet = UniversalLinkExtractor.extractSuspiciousTextSnippet(visibleText)
+            if (snippet != null) {
+                val textKey = "text:${snippet.hashCode()}"
+                if (!inFlightUrls.add(textKey)) return
+                try {
+                    if (ProcessedMessageStore.isUrlProcessed(applicationContext, textKey)) {
+                        return
+                    }
+                    if (!rateLimiter.tryAcquire()) {
+                        return
+                    }
+                    ProcessedMessageStore.markUrlProcessed(applicationContext, textKey)
 
-                // Hard rate-limit: drop excess scans rather than queuing
-                if (!rateLimiter.tryAcquire()) {
-                    android.util.Log.w("UniversalLinkGuard", "Rate limit exceeded (10 scans/min). Dropping URL: $url")
-                    continue
+                    android.util.Log.i("GuardianService", "Dispatching text scan for snippet (Source: $sourcePackage)")
+                    val input = ScanInput(
+                        text = snippet,
+                        source_channel = "guardian",
+                        metadata = mapOf(
+                            "source_package" to sourcePackage,
+                            "detector" to "SecureShieldGuardianService"
+                        )
+                    )
+                    scanAndReport(input, sourcePackage, targetDisplay = snippet)
+                } finally {
+                    inFlightUrls.remove(textKey)
                 }
-
-                // Mark before scanning to prevent retry storms on failures
-                ProcessedMessageStore.markUrlProcessed(applicationContext, url)
-
-                android.util.Log.i("UniversalLinkGuard", "Dispatching scan to backend for URL: $url (Source: $sourcePackage)")
-                scanAndReport(url, sourcePackage)
-            } finally {
-                // Only now safe to release: markUrlProcessed has populated the cache,
-                // so subsequent events are caught by the 10-minute TTL check above.
-                inFlightUrls.remove(url)
             }
         }
     }
@@ -139,17 +170,9 @@ class UniversalLinkGuardService : AccessibilityService() {
         super.onDestroy()
     }
 
-    private suspend fun scanAndReport(url: String, sourcePackage: String) {
+    private suspend fun scanAndReport(scanInput: ScanInput, sourcePackage: String, targetDisplay: String) {
         try {
             ServerSettings.init(applicationContext)
-            val scanInput = ScanInput(
-                url = url,
-                source_channel = "universal_guard",
-                metadata = mapOf(
-                    "source_package" to sourcePackage,
-                    "detector" to "UniversalLinkGuardService"
-                )
-            )
 
             val response = ApiClient.api.scan(scanInput)
             if (response.isSuccessful) {
@@ -162,40 +185,35 @@ class UniversalLinkGuardService : AccessibilityService() {
                 repo.close()
 
                 // Handle verdict
-                handleScanVerdict(scanResult, sourcePackage, url)
+                handleScanVerdict(scanResult, sourcePackage, targetDisplay)
             }
         } catch (_: Exception) {
-            // Network or parsing failure; cache & rate-limiter prevent retrying in a storm
+            // Fail-safe: Network or parsing failure; do not claim safe, do not crash service.
         }
     }
 
-    private fun handleScanVerdict(result: UnifiedScanResponse, sourcePackage: String, url: String) {
+    private fun handleScanVerdict(result: UnifiedScanResponse, sourcePackage: String, targetDisplay: String) {
         val isThreat = THREAT_CATEGORIES.any { it.equals(result.classification, ignoreCase = true) }
         android.util.Log.i(
-            "UniversalLinkGuard",
-            "Verdict for $url: ${result.classification} (Score: ${result.risk_score}, Threat: $isThreat)"
+            "GuardianService",
+            "Verdict for target: ${result.classification} (Score: ${result.risk_score}, Threat: $isThreat)"
         )
 
-        // Safe or excluded -> no notification, no action
+        // Safe or excluded -> no notification, do not interfere with normal experience
         if (!isThreat) {
             return
         }
 
         // Suspicious/Deceptive/Phishing/Malware -> fire high-priority notification on SS_ALERTS channel
-        sendThreatNotification(result, sourcePackage, url)
+        sendThreatNotification(result, sourcePackage, targetDisplay)
     }
 
     private fun sendThreatNotification(
         scanResult: UnifiedScanResponse,
         sourcePackage: String,
-        url: String
+        targetDisplay: String
     ) {
         ensureNotificationChannel()
-
-        android.util.Log.w(
-            "UniversalLinkGuard",
-            "Posting threat notification for ${scanResult.classification} from package: $sourcePackage"
-        )
 
         val appLabel = try {
             val pm = packageManager
@@ -206,9 +224,9 @@ class UniversalLinkGuardService : AccessibilityService() {
         }
 
         val topReason = scanResult.risk_assessment.reasons.firstOrNull()
-            ?: scanResult.risk_assessment.recommended_action.ifBlank { "Malicious link detected on screen" }
+            ?: scanResult.risk_assessment.recommended_action.ifBlank { "Potential threat detected on screen" }
 
-        // Tapping notification opens the full result screen in ScanHistoryActivity
+        // Tapping notification opens the result in ScanHistoryActivity
         val intent = Intent(applicationContext, ScanHistoryActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("scan_id", scanResult.scan_id)
@@ -220,14 +238,20 @@ class UniversalLinkGuardService : AccessibilityService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notificationTitle = "🚨 ${scanResult.classification} Link in $appLabel"
-        val message = "$topReason\nURL: $url"
+        val notificationTitle = "🚨 SecureShield Alert in $appLabel"
+        val alertSummary = "${scanResult.classification} detected (Risk Score: ${scanResult.risk_score.toInt()}/100)"
+        val bigMessage = buildString {
+            appendLine("App: $appLabel ($sourcePackage)")
+            appendLine("Threat: ${scanResult.classification} (Risk: ${scanResult.risk_score.toInt()}/100)")
+            appendLine("Reason: $topReason")
+            append("Target: $targetDisplay")
+        }
 
         val builder = NotificationCompat.Builder(applicationContext, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle(notificationTitle)
-            .setContentText(topReason)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentText(alertSummary)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigMessage))
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -254,3 +278,4 @@ class UniversalLinkGuardService : AccessibilityService() {
         }
     }
 }
+

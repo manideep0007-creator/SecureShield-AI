@@ -192,7 +192,7 @@ class MainActivity : AppCompatActivity() {
                 val isNowChecked = switchUniversalGuard.isChecked
                 UniversalLinkGuardManager.setUserPreferenceEnabled(this, isNowChecked)
                 updateUniversalGuardUi()
-                val msg = if (isNowChecked) "Universal Link Protection active across all apps." else "Universal Link Protection paused."
+                val msg = if (isNowChecked) "Guardian Mode active across all apps." else "Guardian Mode paused."
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             }
         }
@@ -311,15 +311,15 @@ class MainActivity : AppCompatActivity() {
         val isUserPrefOn = UniversalLinkGuardManager.isUserPreferenceEnabled(this)
         if (!isServiceOn) {
             switchUniversalGuard.isChecked = false
-            textUniversalGuardStatus.text = "Accessibility service inactive (Tap button to enable)"
+            textUniversalGuardStatus.text = "Accessibility permission required (Tap button to enable)"
             textUniversalGuardStatus.setTextColor(0xFFD32F2F.toInt())
         } else {
             switchUniversalGuard.isChecked = isUserPrefOn
             if (isUserPrefOn) {
-                textUniversalGuardStatus.text = "Protection active (Scanning links in all apps)"
+                textUniversalGuardStatus.text = "Guardian active (Scanning on-screen content)"
                 textUniversalGuardStatus.setTextColor(0xFF388E3C.toInt())
             } else {
-                textUniversalGuardStatus.text = "Paused by user"
+                textUniversalGuardStatus.text = "Guardian paused by user"
                 textUniversalGuardStatus.setTextColor(0xFF757575.toInt())
             }
         }
@@ -327,12 +327,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun promptAndOpenAccessibilitySettings() {
         AlertDialog.Builder(this)
-            .setTitle("Enable Universal Link Protection")
+            .setTitle("Enable Guardian Mode")
             .setMessage(
-                "To scan on-screen links across WhatsApp, Instagram, browsers, and all apps, enable the Accessibility Service:\n\n" +
+                "To monitor on-screen text and links across WhatsApp, Instagram, browsers, and all apps in real time, enable the Accessibility Service:\n\n" +
                 "1. Tap 'Open Settings' below.\n" +
                 "2. Tap 'Downloaded apps' (or 'Installed services').\n" +
-                "3. Select 'SecureShield Universal Link Guard'.\n" +
+                "3. Select 'SecureShield Universal Link Guard' (Guardian Mode).\n" +
                 "4. Turn the switch ON and tap 'Allow'."
             )
             .setPositiveButton("Open Settings") { _, _ ->
@@ -535,6 +535,8 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateUniversalGuardUi()
+        val textBackgroundStatus = findViewById<TextView?>(R.id.text_background_status)
+        textBackgroundStatus?.let { updateBackgroundStatusText(it) }
     }
 
     override fun onDestroy() {

@@ -135,4 +135,37 @@ object UniversalLinkExtractor {
 
         return cleaned
     }
+
+    /**
+     * Common high-confidence phishing/fraud urgency markers for detecting on-screen threat text
+     * when an explicit URL might not be present or is obfuscated.
+     */
+    private val SUSPICIOUS_TEXT_KEYWORDS = listOf(
+        "account suspended", "account locked", "account is locked", "account is suspended",
+        "verify your account", "verify account",
+        "unauthorized transaction", "unauthorized activity", "urgent action required",
+        "security alert", "confirm your identity", "confirm identity", "password reset",
+        "claim your reward", "won a prize", "free crypto", "wire transfer",
+        "bank account blocked", "unusual activity"
+    )
+
+    /**
+     * Checks if the text contains high-confidence suspicious phishing or fraud markers.
+     */
+    fun hasSuspiciousText(text: CharSequence): Boolean {
+        if (text.isBlank() || text.length > 600) return false
+        val lower = text.toString().lowercase(Locale.ROOT)
+        return SUSPICIOUS_TEXT_KEYWORDS.any { lower.contains(it) }
+    }
+
+    /**
+     * Extracts a compact normalized snippet of the suspicious text for scanning.
+     */
+    fun extractSuspiciousTextSnippet(text: CharSequence): String? {
+        if (!hasSuspiciousText(text)) return null
+        val trimmed = text.toString().trim()
+        return if (trimmed.length > 300) trimmed.take(300) + "..." else trimmed
+    }
 }
+
+

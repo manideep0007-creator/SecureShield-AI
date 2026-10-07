@@ -46,14 +46,14 @@
             android:id="@+id/switch_universal_guard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Universal Link Protection"
+            android:text="Guardian Mode (On-Screen Protection)"
             android:layout_marginBottom="2dp" />
 
         <TextView
             android:id="@+id/text_universal_guard_desc"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Scans on-screen text across all apps for dangerous links"
+            android:text="Monitors visible text in real-time across apps (WhatsApp, Instagram, Browsers) for threats"
             android:textSize="12sp"
             android:textColor="#555555"
             android:layout_marginBottom="4dp" />

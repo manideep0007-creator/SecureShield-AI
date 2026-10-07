@@ -55,4 +55,24 @@ class UniversalLinkExtractorTest {
         assertEquals("https://example.com/test", UniversalLinkExtractor.cleanAndNormalizeUrl("https://example.com/test."))
         assertEquals("https://example.com/test", UniversalLinkExtractor.cleanAndNormalizeUrl("[https://example.com/test]"))
     }
+
+    @Test
+    fun hasSuspiciousText_matchingPhrases_returnsTrue() {
+        assertTrue(UniversalLinkExtractor.hasSuspiciousText("URGENT: Your bank account is locked due to unauthorized activity"))
+        assertTrue(UniversalLinkExtractor.hasSuspiciousText("Security Alert: Please verify your account now"))
+        assertTrue(UniversalLinkExtractor.hasSuspiciousText("Account suspended! Confirm your identity immediately"))
+    }
+
+    @Test
+    fun hasSuspiciousText_benignPhrases_returnsFalse() {
+        org.junit.Assert.assertFalse(UniversalLinkExtractor.hasSuspiciousText("Hey are we still meeting for lunch at 12?"))
+        org.junit.Assert.assertFalse(UniversalLinkExtractor.hasSuspiciousText("The weather today is sunny and pleasant."))
+    }
+
+    @Test
+    fun extractSuspiciousTextSnippet_truncatesAndNormalizes() {
+        val snippet = UniversalLinkExtractor.extractSuspiciousTextSnippet("URGENT: Security Alert - please verify your account")
+        org.junit.Assert.assertNotNull(snippet)
+        assertTrue(snippet!!.contains("Security Alert"))
+    }
 }
