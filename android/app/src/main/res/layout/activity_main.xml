@@ -1,223 +1,770 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:background="@color/bg_dark">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:padding="24dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/text_app_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="SecureShield AI"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="16dp" />
-
-        <Button
-            android:id="@+id/btn_scan_gmail"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Connect Gmail &amp; Scan Inbox"
-            android:layout_marginBottom="8dp"
-            android:backgroundTint="#D32F2F" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/switch_background_protection"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Background Protection"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:id="@+id/text_background_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Protection inactive"
-            android:textSize="12sp"
-            android:layout_marginBottom="16dp" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/switch_universal_guard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Guardian Mode (On-Screen Protection)"
-            android:layout_marginBottom="2dp" />
-
-        <TextView
-            android:id="@+id/text_universal_guard_desc"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Monitors visible text in real-time across apps (WhatsApp, Instagram, Browsers) for threats"
-            android:textSize="12sp"
-            android:textColor="#555555"
-            android:layout_marginBottom="4dp" />
-
+        <!-- Top Cyber App Bar -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="20dp">
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="12dp">
 
-            <TextView
-                android:id="@+id/text_universal_guard_status"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Accessibility service: Inactive"
-                android:textSize="12sp" />
-
-            <Button
-                android:id="@+id/btn_accessibility_settings"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Accessibility Settings"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/btn_scan_history"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Scan History"
-            android:layout_marginBottom="16dp" />
-
-        <ProgressBar
-            android:id="@+id/progress_bar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Risk Verdict Card with Feedback Controls -->
-        <LinearLayout
-            android:id="@+id/layout_verdict_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#E0E0E0"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
-                <TextView
-                    android:id="@+id/badge_category"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Awaiting Scan"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
+                <ImageView
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_shield_protected"
+                    android:layout_marginEnd="10dp" />
 
-                <!-- Feedback Controls next to Verdict -->
-                <LinearLayout
-                    android:id="@+id/layout_feedback"
+                <TextView
+                    android:id="@+id/text_app_title"
                     android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SecureShield AI"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:letterSpacing="0.02" />
+            </LinearLayout>
+
+            <ImageView
+                android:id="@+id/btn_top_settings"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="6dp"
+                android:src="@drawable/ic_nav_settings"
+                app:tint="@color/text_secondary"
+                android:contentDescription="Settings" />
+        </LinearLayout>
+
+        <!-- Main Content Area with ViewFlipper / Tabs -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <!-- TAB 1: HOME DASHBOARD -->
+            <ScrollView
+                android:id="@+id/layout_home_tab"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:fillViewport="true"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingBottom="24dp">
+
+                    <!-- HERO SHIELD STATUS CARD -->
+                    <LinearLayout
+                        android:id="@+id/layout_hero_section"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:gravity="center_horizontal"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="20dp">
+
+                        <FrameLayout
+                            android:layout_width="140dp"
+                            android:layout_height="140dp"
+                            android:layout_marginBottom="12dp">
+
+                            <ImageView
+                                android:id="@+id/img_hero_shield_glow"
+                                android:layout_width="140dp"
+                                android:layout_height="140dp"
+                                android:src="@drawable/bg_shield_glow_safe" />
+
+                            <ImageView
+                                android:id="@+id/img_hero_shield"
+                                android:layout_width="80dp"
+                                android:layout_height="80dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_shield_protected" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:id="@+id/text_hero_title"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PROTECTION ACTIVE"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary"
+                            android:letterSpacing="0.05" />
+
+                        <TextView
+                            android:id="@+id/text_hero_subtitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Real-time on-screen &amp; inbox protection active"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
+
+                    <!-- Scanning Progress Bar -->
+                    <ProgressBar
+                        android:id="@+id/progress_bar"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:indeterminate="true"
+                        android:layout_width="match_parent"
+                        android:layout_height="4dp"
+                        android:visibility="gone"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- GUARDIAN MODE CARD -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/card_guardian"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="18dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+
+                                <ImageView
+                                    android:layout_width="32dp"
+                                    android:layout_height="32dp"
+                                    android:src="@drawable/ic_guardian_radar"
+                                    android:layout_marginEnd="12dp" />
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Guardian Mode"
+                                        android:textSize="16sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/text_primary" />
+
+                                    <TextView
+                                        android:id="@+id/text_universal_guard_desc"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="On-Screen Threat Interception"
+                                        android:textSize="12sp"
+                                        android:textColor="@color/text_secondary" />
+                                </LinearLayout>
+
+                                <androidx.appcompat.widget.SwitchCompat
+                                    android:id="@+id/switch_universal_guard"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- Status text indicator -->
+                            <TextView
+                                android:id="@+id/text_universal_guard_status"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Guardian active (Accessibility enabled)"
+                                android:textSize="12sp"
+                                android:textColor="@color/threat_safe"
+                                android:layout_marginTop="8dp" />
+
+                            <!-- Setup Banner (Shown only when accessibility permission missing) -->
+                            <LinearLayout
+                                android:id="@+id/layout_guardian_setup"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="@drawable/bg_badge_warning"
+                                android:padding="10dp"
+                                android:layout_marginTop="10dp"
+                                android:visibility="gone">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Accessibility permission required"
+                                    android:textSize="12sp"
+                                    android:textColor="@color/threat_warning" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btn_accessibility_settings"
+                                    style="@style/Widget.Material3.Button.TonalButton"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="36dp"
+                                    android:text="Enable"
+                                    android:textSize="11sp"
+                                    app:cornerRadius="18dp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- GMAIL / INBOX SCANNING CARD -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/card_gmail"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="18dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+
+                                <ImageView
+                                    android:layout_width="32dp"
+                                    android:layout_height="32dp"
+                                    android:src="@drawable/ic_gmail_shield"
+                                    android:layout_marginEnd="12dp" />
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Inbox Protection"
+                                        android:textSize="16sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/text_primary" />
+
+                                    <TextView
+                                        android:id="@+id/text_background_status"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Background Protection inactive"
+                                        android:textSize="12sp"
+                                        android:textColor="@color/text_secondary" />
+                                </LinearLayout>
+
+                                <androidx.appcompat.widget.SwitchCompat
+                                    android:id="@+id/switch_background_protection"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_scan_gmail"
+                                android:layout_width="match_parent"
+                                android:layout_height="48dp"
+                                android:text="CONNECT GMAIL &amp; SCAN INBOX"
+                                android:textStyle="bold"
+                                android:textSize="13sp"
+                                android:letterSpacing="0.05"
+                                android:layout_marginTop="14dp"
+                                app:backgroundTint="@color/btn_gmail_red"
+                                app:cornerRadius="24dp" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- LATEST SCAN VERDICT CARD -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/layout_verdict_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="18dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="8dp">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Latest Threat Analysis"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_muted"
+                                    android:textAllCaps="true" />
+
+                                <TextView
+                                    android:id="@+id/badge_category"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_badge_neutral"
+                                    android:text="Awaiting Scan"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/text_score"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="No threat scan recorded yet."
+                                android:textSize="15sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary"
+                                android:layout_marginBottom="4dp" />
+
+                            <TextView
+                                android:id="@+id/text_reasons"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Your on-screen links and messages will be analyzed here."
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"
+                                android:maxLines="2"
+                                android:ellipsize="end"
+                                android:layout_marginBottom="8dp" />
+
+                            <TextView
+                                android:id="@+id/text_target"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text=""
+                                android:textSize="11sp"
+                                android:textColor="@color/text_muted"
+                                android:maxLines="1"
+                                android:ellipsize="end"
+                                android:visibility="gone" />
+
+                            <TextView
+                                android:id="@+id/text_action"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text=""
+                                android:visibility="gone" />
+
+                            <!-- Feedback Controls -->
+                            <LinearLayout
+                                android:id="@+id/layout_feedback"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginTop="6dp"
+                                android:visibility="gone">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Accurate detection?"
+                                    android:textSize="11sp"
+                                    android:textColor="@color/text_muted" />
+
+                                <ImageView
+                                    android:id="@+id/btn_thumb_up"
+                                    android:layout_width="32dp"
+                                    android:layout_height="32dp"
+                                    android:padding="6dp"
+                                    android:background="?attr/selectableItemBackgroundBorderless"
+                                    android:src="@drawable/ic_thumb_up"
+                                    android:layout_marginEnd="4dp" />
+
+                                <ImageView
+                                    android:id="@+id/btn_thumb_down"
+                                    android:layout_width="32dp"
+                                    android:layout_height="32dp"
+                                    android:padding="6dp"
+                                    android:background="?attr/selectableItemBackgroundBorderless"
+                                    android:src="@drawable/ic_thumb_down"
+                                    android:layout_marginEnd="8dp" />
+
+                                <TextView
+                                    android:id="@+id/text_feedback_status"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text=""
+                                    android:textSize="11sp"
+                                    android:textColor="@color/text_secondary"
+                                    android:visibility="gone" />
+                            </LinearLayout>
+
+                            <!-- View Details Button -->
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_view_details"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="View Full Evidence &amp; Details →"
+                                android:textColor="@color/cyber_cyan"
+                                android:textSize="12sp"
+                                android:layout_marginTop="4dp"
+                                android:visibility="gone" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Hidden Button to keep compatibility with any legacy test references -->
+                    <Button
+                        android:id="@+id/btn_scan_history"
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- TAB 2: HISTORY TAB -->
+            <LinearLayout
+                android:id="@+id/layout_history_tab"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:paddingHorizontal="16dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:visibility="gone">
+                    android:paddingVertical="12dp">
 
-                    <Button
-                        android:id="@+id/btn_thumb_up"
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Local Scan Log"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_clear_history_tab"
+                        style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="👍"
-                        android:textSize="16sp"
-                        android:minWidth="48dp"
-                        android:minHeight="48dp"
-                        android:paddingLeft="12dp"
-                        android:paddingRight="12dp"
-                        android:layout_marginEnd="6dp" />
-
-                    <Button
-                        android:id="@+id/btn_thumb_down"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="👎"
-                        android:textSize="16sp"
-                        android:minWidth="48dp"
-                        android:minHeight="48dp"
-                        android:paddingLeft="12dp"
-                        android:paddingRight="12dp" />
+                        android:text="Clear Log"
+                        android:textColor="@color/threat_critical"
+                        android:textSize="12sp" />
                 </LinearLayout>
+
+                <TextView
+                    android:id="@+id/text_history_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:padding="32dp"
+                    android:text="No threat records yet.\nScanned links &amp; emails will appear here."
+                    android:textColor="@color/text_muted"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/container_history_items"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingBottom="24dp" />
+                </ScrollView>
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/text_feedback_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:text="Already submitted"
-                android:textSize="12sp"
-                android:textStyle="italic"
-                android:textColor="#555555"
-                android:visibility="gone"
-                android:layout_marginTop="4dp" />
-        </LinearLayout>
+            <!-- TAB 3: SETTINGS TAB -->
+            <ScrollView
+                android:id="@+id/layout_settings_tab"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scrollbars="none"
+                android:visibility="gone">
 
-        <TextView
-            android:id="@+id/text_target"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="12dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Protection Settings"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- Permissions Card -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="18dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="System Permissions"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary"
+                                android:layout_marginBottom="12dp" />
+
+                            <LinearLayout
+                                android:id="@+id/row_setting_accessibility"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingVertical="8dp"
+                                android:background="?attr/selectableItemBackground">
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Accessibility Service"
+                                        android:textColor="@color/text_primary"
+                                        android:textSize="14sp" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Enables real-time on-screen protection"
+                                        android:textColor="@color/text_muted"
+                                        android:textSize="12sp" />
+                                </LinearLayout>
+
+                                <ImageView
+                                    android:layout_width="20dp"
+                                    android:layout_height="20dp"
+                                    android:src="@drawable/ic_chevron_right" />
+                            </LinearLayout>
+
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"
+                                android:background="@color/bg_dark_card_stroke"
+                                android:layout_marginVertical="4dp" />
+
+                            <LinearLayout
+                                android:id="@+id/row_setting_notifications"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingVertical="8dp"
+                                android:background="?attr/selectableItemBackground">
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Threat Notifications"
+                                        android:textColor="@color/text_primary"
+                                        android:textSize="14sp" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Instant alerts when threats are identified"
+                                        android:textColor="@color/text_muted"
+                                        android:textSize="12sp" />
+                                </LinearLayout>
+
+                                <ImageView
+                                    android:layout_width="20dp"
+                                    android:layout_height="20dp"
+                                    android:src="@drawable/ic_chevron_right" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Advanced Developer / Server Card -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="18dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Advanced / Developer"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary"
+                                android:layout_marginBottom="12dp" />
+
+                            <LinearLayout
+                                android:id="@+id/row_setting_server"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingVertical="8dp"
+                                android:background="?attr/selectableItemBackground">
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Server Configuration"
+                                        android:textColor="@color/text_primary"
+                                        android:textSize="14sp" />
+
+                                    <TextView
+                                        android:id="@+id/text_setting_current_server"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Configure backend AI endpoint"
+                                        android:textColor="@color/text_muted"
+                                        android:textSize="12sp" />
+                                </LinearLayout>
+
+                                <ImageView
+                                    android:layout_width="20dp"
+                                    android:layout_height="20dp"
+                                    android:src="@drawable/ic_chevron_right" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- About Card -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="24dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="18dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="About SecureShield"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary"
+                                android:layout_marginBottom="8dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Version 1.0 • Multi-Engine AI Security Platform"
+                                android:textColor="@color/text_muted"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+                </LinearLayout>
+            </ScrollView>
+        </FrameLayout>
+
+        <!-- Bottom Cyber Navigation Bar -->
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottom_navigation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Target: N/A"
-            android:textSize="14sp"
-            android:textStyle="italic"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Score Info -->
-        <TextView
-            android:id="@+id/text_score"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Risk Score: -- / 100"
-            android:textSize="18sp"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Reasons -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Evidence Triggered:"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:id="@+id/text_reasons"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="None"
-            android:textSize="16sp"
-            android:layout_marginBottom="24dp" />
-
-        <!-- Recommended Action -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Recommended Action:"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:id="@+id/text_action"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="-"
-            android:textSize="16sp"
-            android:textColor="#D32F2F"
-            android:textStyle="bold" />
+            android:background="@color/bg_dark"
+            app:itemIconTint="@color/text_secondary"
+            app:itemTextColor="@color/text_secondary"
+            app:itemActiveIndicatorStyle="@style/Widget.Material3.BottomNavigationView.ActiveIndicator"
+            app:menu="@menu/menu_bottom_nav" />
 
     </LinearLayout>
-</ScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

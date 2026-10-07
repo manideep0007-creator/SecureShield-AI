@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Backgrounds & Surfaces (AMOLED Dark) -->
+    <color name="bg_dark">#080C14</color>
+    <color name="bg_dark_card">#0F172A</color>
+    <color name="bg_dark_card_elevated">#1E293B</color>
+    <color name="bg_dark_card_stroke">#1E2D48</color>
+    <color name="bg_dark_card_highlight">#1E293B</color>
+
+    <!-- Cyber Security Accents -->
+    <color name="cyber_cyan">#00E5FF</color>
+    <color name="cyber_blue">#0284C7</color>
+    <color name="cyber_blue_light">#38BDF8</color>
+    <color name="cyber_glow">#1A00E5FF</color>
+
+    <!-- Threat Levels -->
+    <color name="threat_safe">#10B981</color>
+    <color name="threat_safe_bg">#152D24</color>
+    <color name="threat_safe_glow">#3310B981</color>
+
+    <color name="threat_warning">#F59E0B</color>
+    <color name="threat_warning_bg">#2D2315</color>
+    <color name="threat_warning_glow">#33F59E0B</color>
+
+    <color name="threat_critical">#EF4444</color>
+    <color name="threat_critical_bg">#2D1518</color>
+    <color name="threat_critical_glow">#33EF4444</color>
+
+    <color name="threat_neutral">#64748B</color>
+    <color name="threat_neutral_bg">#1E293B</color>
+
+    <!-- Typography -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="text_muted">#64748B</color>
+
+    <!-- Primary Accent Button -->
+    <color name="btn_gmail_red">#DC2626</color>
+    <color name="btn_gmail_red_pressed">#B91C1C</color>
+</resources>

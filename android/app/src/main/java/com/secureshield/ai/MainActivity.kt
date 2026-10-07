@@ -1,5 +1,7 @@
 package com.secureshield.ai
 
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -16,12 +18,15 @@ import android.provider.OpenableColumns
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.EditText
+import android.widget.ImageView
 import androidx.appcompat.app.AlertDialog
 import java.net.ConnectException
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,6 +41,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.Scope
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.api.services.gmail.GmailScopes
 import android.graphics.Color
 import com.secureshield.ai.network.ApiClient
@@ -50,6 +56,7 @@ import com.secureshield.ai.network.fileBytesAsBackendJsonValue
 import com.secureshield.ai.feedback.FeedbackSubmissionManager
 import com.secureshield.ai.feedback.FeedbackSubmissionResult
 import com.secureshield.ai.feedback.FeedbackSubmissionUiPolicy
+import com.secureshield.ai.history.ScanHistoryRecord
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.background.BackgroundProtectionManager
 import com.secureshield.ai.background.ProcessedMessageStore
@@ -58,6 +65,7 @@ import com.secureshield.ai.share.ShareDispatchResult
 import com.secureshield.ai.share.SharedFileReadResult
 import com.secureshield.ai.share.SharedIntentPayload
 import com.secureshield.ai.share.SharedIntentRouter
+import com.secureshield.ai.share.SharedScanKind
 import com.google.gson.JsonParseException
 import com.google.gson.stream.MalformedJsonException
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +77,8 @@ import kotlinx.coroutines.withTimeout
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.text.DateFormat
+import java.util.Date
 
 class MainActivity : AppCompatActivity() {
 
@@ -81,13 +91,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnScanGmail: Button
     
     private lateinit var layoutFeedback: LinearLayout
-    private lateinit var btnThumbUp: Button
-    private lateinit var btnThumbDown: Button
+    private lateinit var btnThumbUp: View
+    private lateinit var btnThumbDown: View
     private lateinit var textFeedbackStatus: TextView
 
     private lateinit var switchUniversalGuard: SwitchCompat
     private lateinit var textUniversalGuardStatus: TextView
-    private lateinit var btnAccessibilitySettings: Button
+    private lateinit var btnAccessibilitySettings: View
+    private lateinit var btnViewDetails: View
     
     private var currentResult: UnifiedScanResponse? = null
     private var currentResultSourceType = "unknown"
@@ -143,6 +154,7 @@ class MainActivity : AppCompatActivity() {
         textAction = findViewById(R.id.text_action)
         progressBar = findViewById(R.id.progress_bar)
         btnScanGmail = findViewById(R.id.btn_scan_gmail)
+        btnViewDetails = findViewById(R.id.btn_view_details)
         
         layoutFeedback = findViewById(R.id.layout_feedback)
         btnThumbUp = findViewById(R.id.btn_thumb_up)
@@ -187,7 +199,6 @@ class MainActivity : AppCompatActivity() {
         switchUniversalGuard.setOnClickListener {
             val isServiceOn = UniversalLinkGuardManager.isServiceEnabledInSettings(this)
             if (!isServiceOn) {
-                // If service not enabled in Android Accessibility settings, prompt user to enable it
                 switchUniversalGuard.isChecked = false
                 promptAndOpenAccessibilitySettings()
             } else {
@@ -207,6 +218,10 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
+        btnViewDetails.setOnClickListener {
+            currentResult?.let { showScanDetailDialog(it) }
+        }
+
         ServerSettings.init(this)
 
         findViewById<TextView>(R.id.text_app_title)?.setOnLongClickListener {
@@ -214,11 +229,253 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        findViewById<Button>(R.id.btn_scan_history).setOnClickListener {
+        findViewById<Button>(R.id.btn_scan_history)?.setOnClickListener {
             startActivity(Intent(this, ScanHistoryActivity::class.java))
         }
 
+        setupBottomNavigation()
+        setupSettingsTab()
+        startAnimations()
+
         handleIntent(intent)
+    }
+
+    private fun setupBottomNavigation() {
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        val homeTab = findViewById<View>(R.id.layout_home_tab)
+        val historyTab = findViewById<View>(R.id.layout_history_tab)
+        val settingsTab = findViewById<View>(R.id.layout_settings_tab)
+
+        bottomNav?.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_home -> {
+                    homeTab?.visibility = View.VISIBLE
+                    historyTab?.visibility = View.GONE
+                    settingsTab?.visibility = View.GONE
+                    true
+                }
+                R.id.nav_history -> {
+                    homeTab?.visibility = View.GONE
+                    historyTab?.visibility = View.VISIBLE
+                    settingsTab?.visibility = View.GONE
+                    loadHistoryTab()
+                    true
+                }
+                R.id.nav_settings -> {
+                    homeTab?.visibility = View.GONE
+                    historyTab?.visibility = View.GONE
+                    settingsTab?.visibility = View.VISIBLE
+                    updateSettingsTab()
+                    true
+                }
+                else -> false
+            }
+        }
+
+        findViewById<View>(R.id.btn_top_settings)?.setOnClickListener {
+            bottomNav?.selectedItemId = R.id.nav_settings
+        }
+
+        findViewById<View>(R.id.btn_clear_history_tab)?.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Clear Scan Log?")
+                .setMessage("This will remove all local history entries.")
+                .setPositiveButton("Clear") { _, _ ->
+                    lifecycleScope.launch {
+                        scanHistoryRepository.deleteAll()
+                        loadHistoryTab()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun loadHistoryTab() {
+        val container = findViewById<LinearLayout>(R.id.container_history_items) ?: return
+        val emptyView = findViewById<TextView>(R.id.text_history_empty)
+        container.removeAllViews()
+
+        lifecycleScope.launch {
+            val records = scanHistoryRepository.getPage(limit = 30, offset = 0)
+            if (records.isEmpty()) {
+                emptyView?.visibility = View.VISIBLE
+            } else {
+                emptyView?.visibility = View.GONE
+                records.forEach { record ->
+                    container.addView(createHistoryRow(record))
+                }
+            }
+        }
+    }
+
+    private fun createHistoryRow(record: ScanHistoryRecord): View {
+        val row = layoutInflater.inflate(R.layout.item_history_card, null, false)
+        val textSourceDate = row.findViewById<TextView>(R.id.history_item_source_and_date)
+        val badge = row.findViewById<TextView>(R.id.history_item_badge)
+        val textSummary = row.findViewById<TextView>(R.id.history_item_summary)
+        val btnDetails = row.findViewById<View>(R.id.history_item_btn_details)
+        val btnDelete = row.findViewById<View>(R.id.history_item_btn_delete)
+
+        textSourceDate.text = "${record.sourceType.uppercase()} • ${formatTimestamp(record.timestampMillis)}"
+        badge.text = record.classification.uppercase()
+
+        when (record.classification.lowercase()) {
+            "safe" -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_safe)
+                badge.setTextColor(0xFF10B981.toInt())
+            }
+            "suspicious", "deceptive" -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_warning)
+                badge.setTextColor(0xFFF59E0B.toInt())
+            }
+            "phishing", "malware" -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_threat)
+                badge.setTextColor(0xFFEF4444.toInt())
+            }
+            else -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_neutral)
+                badge.setTextColor(0xFFFFFFFF.toInt())
+            }
+        }
+
+        textSummary.text = "Risk: ${formatScore(record.riskScore)}/100 • Conf: ${(record.confidence * 100).toInt()}%"
+        btnDetails.setOnClickListener { showRecordDetails(record) }
+        btnDelete.setOnClickListener {
+            lifecycleScope.launch {
+                scanHistoryRepository.delete(record.scanId)
+                loadHistoryTab()
+            }
+        }
+        row.setOnClickListener { showRecordDetails(record) }
+        return row
+    }
+
+    private fun showRecordDetails(record: ScanHistoryRecord) {
+        val details = buildString {
+            appendLine("Classification: ${record.classification}")
+            appendLine("Risk score: ${formatScore(record.riskScore)} / 100")
+            appendLine("Confidence: ${(record.confidence * 100).toInt()}%")
+            appendLine("Source: ${record.sourceType}")
+            appendLine("Scanned: ${formatTimestamp(record.timestampMillis)}")
+            appendLine("Feedback: ${record.feedbackState ?: "Not submitted locally"}")
+            appendLine()
+            appendLine("Reasons:")
+            if (record.reasons.isEmpty()) appendLine("None") else record.reasons.forEach { appendLine("• $it") }
+            appendLine()
+            appendLine("Recommended action:")
+            appendLine(record.recommendedAction.ifBlank { "None" })
+            appendLine()
+            appendLine("Flags:")
+            appendLine(record.flags.takeIf(List<String>::isNotEmpty)?.joinToString() ?: "None")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("${record.classification} scan")
+            .setMessage(details)
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
+    private fun setupSettingsTab() {
+        findViewById<View>(R.id.row_setting_accessibility)?.setOnClickListener {
+            promptAndOpenAccessibilitySettings()
+        }
+        findViewById<View>(R.id.row_setting_notifications)?.setOnClickListener {
+            ensureNotificationPermission()
+        }
+        findViewById<View>(R.id.row_setting_server)?.setOnClickListener {
+            showServerConfigDialog()
+        }
+        updateSettingsTab()
+    }
+
+    private fun updateSettingsTab() {
+        val serverText = findViewById<TextView>(R.id.text_setting_current_server)
+        serverText?.text = "Configured: ${ServerSettings.getServerUrl(this)}"
+    }
+
+    private fun startAnimations() {
+        // Hero Shield Glow Breathing / Pulsing animation
+        val glowView = findViewById<ImageView>(R.id.img_hero_shield_glow)
+        if (glowView != null) {
+            val scaleX = ObjectAnimator.ofFloat(glowView, "scaleX", 1f, 1.08f, 1f).apply {
+                duration = 2400
+                repeatCount = ObjectAnimator.INFINITE
+                interpolator = AccelerateDecelerateInterpolator()
+            }
+            val scaleY = ObjectAnimator.ofFloat(glowView, "scaleY", 1f, 1.08f, 1f).apply {
+                duration = 2400
+                repeatCount = ObjectAnimator.INFINITE
+                interpolator = AccelerateDecelerateInterpolator()
+            }
+            val alpha = ObjectAnimator.ofFloat(glowView, "alpha", 0.7f, 1.0f, 0.7f).apply {
+                duration = 2400
+                repeatCount = ObjectAnimator.INFINITE
+                interpolator = AccelerateDecelerateInterpolator()
+            }
+            AnimatorSet().apply {
+                playTogether(scaleX, scaleY, alpha)
+                start()
+            }
+        }
+
+        // Staggered cards entrance
+        val cards = listOfNotNull(
+            findViewById<View>(R.id.card_guardian),
+            findViewById<View>(R.id.card_gmail),
+            findViewById<View>(R.id.layout_verdict_card)
+        )
+        cards.forEachIndexed { index, card ->
+            card.alpha = 0f
+            card.translationY = 24f
+            card.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(350L)
+                .setStartDelay(80L * index)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
+    }
+
+    private fun updateHeroProtectionState(latestThreat: Boolean = false) {
+        val isGuardianPref = UniversalLinkGuardManager.isUserPreferenceEnabled(this)
+        val isServiceEnabled = UniversalLinkGuardManager.isServiceEnabledInSettings(this)
+        val imgShield = findViewById<ImageView>(R.id.img_hero_shield) ?: return
+        val imgGlow = findViewById<ImageView>(R.id.img_hero_shield_glow) ?: return
+        val textTitle = findViewById<TextView>(R.id.text_hero_title) ?: return
+        val textSubtitle = findViewById<TextView>(R.id.text_hero_subtitle) ?: return
+
+        when {
+            latestThreat -> {
+                imgShield.setImageResource(R.drawable.ic_shield_alert)
+                imgGlow.setImageResource(R.drawable.bg_shield_glow_threat)
+                textTitle.text = "THREAT DETECTED"
+                textTitle.setTextColor(ContextCompat.getColor(this, R.color.threat_critical))
+                textSubtitle.text = "High-risk threat intercepted on device"
+            }
+            isGuardianPref && isServiceEnabled -> {
+                imgShield.setImageResource(R.drawable.ic_shield_protected)
+                imgGlow.setImageResource(R.drawable.bg_shield_glow_safe)
+                textTitle.text = "PROTECTION ACTIVE"
+                textTitle.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+                textSubtitle.text = "Real-time on-screen & inbox protection active"
+            }
+            isGuardianPref && !isServiceEnabled -> {
+                imgShield.setImageResource(R.drawable.ic_shield_alert)
+                imgGlow.setImageResource(R.drawable.bg_shield_glow_warning)
+                textTitle.text = "SETUP REQUIRED"
+                textTitle.setTextColor(ContextCompat.getColor(this, R.color.threat_warning))
+                textSubtitle.text = "Grant accessibility permission to activate shield"
+            }
+            else -> {
+                imgShield.setImageResource(R.drawable.ic_shield_off)
+                imgGlow.setImageResource(R.drawable.bg_shield_glow_neutral)
+                textTitle.text = "PROTECTION PAUSED"
+                textTitle.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+                textSubtitle.text = "Enable Guardian Mode for real-time threat defense"
+            }
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -293,54 +550,47 @@ class MainActivity : AppCompatActivity() {
                     }
                     Toast.makeText(this@MainActivity, "Feedback could not be sent (HTTP ${submission.statusCode}). The scan result is still available; retry later.", Toast.LENGTH_LONG).show()
                 }
+                is FeedbackSubmissionResult.MalformedResponse -> {
+                    if (currentResult?.scan_id == request.scan_id) {
+                        btnThumbUp.isEnabled = true
+                        btnThumbDown.isEnabled = true
+                        textFeedbackStatus.visibility = View.GONE
+                    }
+                    Toast.makeText(this@MainActivity, "Server response was malformed.", Toast.LENGTH_SHORT).show()
+                }
                 FeedbackSubmissionResult.NetworkFailure -> {
                     if (currentResult?.scan_id == request.scan_id) {
                         btnThumbUp.isEnabled = true
                         btnThumbDown.isEnabled = true
                         textFeedbackStatus.visibility = View.GONE
                     }
-                    Toast.makeText(this@MainActivity, "Feedback could not be sent. The scan result is still available; retry later.", Toast.LENGTH_LONG).show()
-                }
-                FeedbackSubmissionResult.MalformedResponse -> {
-                    if (currentResult?.scan_id == request.scan_id) {
-                        btnThumbUp.isEnabled = true
-                        btnThumbDown.isEnabled = true
-                        textFeedbackStatus.visibility = View.GONE
-                    }
-                    Toast.makeText(this@MainActivity, "Feedback response was invalid. The scan result is still available; retry later.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Could not reach server to submit feedback.", Toast.LENGTH_SHORT).show()
                 }
             }
-        }
-    }
-
-    private fun updateBackgroundStatusText(textView: TextView) {
-        val isEnabled = BackgroundProtectionManager.isEnabled(this)
-        val lastCheck = BackgroundProtectionManager.getLastCheck(this)
-        if (!isEnabled) {
-            textView.text = "Protection inactive"
-        } else {
-            val lastStr = if (lastCheck > 0) java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(lastCheck)) else "Never"
-            textView.text = "Protection active (Last check: $lastStr)"
         }
     }
 
     private fun updateUniversalGuardUi() {
         val isServiceOn = UniversalLinkGuardManager.isServiceEnabledInSettings(this)
         val isUserPrefOn = UniversalLinkGuardManager.isUserPreferenceEnabled(this)
-        if (!isServiceOn) {
-            switchUniversalGuard.isChecked = false
-            textUniversalGuardStatus.text = "Accessibility permission required (Tap button to enable)"
-            textUniversalGuardStatus.setTextColor(0xFFD32F2F.toInt())
+        switchUniversalGuard.isChecked = isUserPrefOn && isServiceOn
+
+        val setupLayout = findViewById<View>(R.id.layout_guardian_setup)
+        if (isUserPrefOn && !isServiceOn) {
+            textUniversalGuardStatus.text = "Setup required (Permission missing)"
+            textUniversalGuardStatus.setTextColor(ContextCompat.getColor(this, R.color.threat_warning))
+            setupLayout?.visibility = View.VISIBLE
+        } else if (isUserPrefOn && isServiceOn) {
+            textUniversalGuardStatus.text = "Guardian Active (Monitoring apps)"
+            textUniversalGuardStatus.setTextColor(ContextCompat.getColor(this, R.color.threat_safe))
+            setupLayout?.visibility = View.GONE
         } else {
-            switchUniversalGuard.isChecked = isUserPrefOn
-            if (isUserPrefOn) {
-                textUniversalGuardStatus.text = "Guardian active (Scanning on-screen content)"
-                textUniversalGuardStatus.setTextColor(0xFF388E3C.toInt())
-            } else {
-                textUniversalGuardStatus.text = "Guardian paused by user"
-                textUniversalGuardStatus.setTextColor(0xFF757575.toInt())
-            }
+            textUniversalGuardStatus.text = "Guardian Paused"
+            textUniversalGuardStatus.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+            setupLayout?.visibility = View.GONE
         }
+
+        updateHeroProtectionState()
     }
 
     private fun promptAndOpenAccessibilitySettings() {
@@ -384,7 +634,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun processUnreadMessages(account: GoogleSignInAccount) {
         gmailSessionInvalid = false
-        badgeCategory.text = "Loading unread Gmail messages..."
+        badgeCategory.text = "Scanning..."
         progressBar.visibility = View.VISIBLE
 
         lifecycleScope.launch {
@@ -409,7 +659,7 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         // Pre-flight lightweight availability check using health endpoint
-                        badgeCategory.text = "Checking server connection..."
+                        badgeCategory.text = "Checking connection..."
                         val serverHealthy = ApiClient.checkHealth()
                         if (!serverHealthy) {
                             finishGmailFlow()
@@ -431,90 +681,70 @@ class MainActivity : AppCompatActivity() {
                             var scanSucceeded = false
                             executeScan(
                                 input = email.toScanInput(),
-                                notifyTitle = "Gmail message scanned",
+                                notifyTitle = "Threat in email from ${email.sender ?: "unknown sender"}",
                                 categorySuffix = "Email",
                                 sourceType = "gmail",
                                 onScanCompleted = { scanSucceeded = true }
                             ).join()
                             if (scanSucceeded) {
-                                scannedCount++
                                 ProcessedMessageStore.markProcessed(applicationContext, email.messageId)
+                                scannedCount++
                             }
                         }
-                        finishGmailFlow()
+                        finishGmailFlow(
+                            if (scannedCount > 0) "Finished scanning $scannedCount new message(s)."
+                            else "No new messages could be scanned."
+                        )
                     }
                 }
             } catch (_: Exception) {
-                finishGmailFlow("Could not retrieve Gmail messages. Please try again.")
+                finishGmailFlow("An error occurred during Gmail scanning.")
             }
         }
+    }
+
+    private fun finishGmailFlow(toastMessage: String? = null) {
+        gmailScanInProgress = false
+        btnScanGmail.isEnabled = true
+        progressBar.visibility = View.GONE
+        toastMessage?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
     }
 
     private fun gmailFailureMessage(kind: GmailFailureKind): String = when (kind) {
-        GmailFailureKind.AUTHENTICATION_REQUIRED -> "Gmail authorization expired. Reconnect Gmail to continue."
-        GmailFailureKind.PERMISSION_DENIED -> "Gmail read access was denied. Reconnect and grant Gmail read permission."
-        GmailFailureKind.TIMEOUT -> "Gmail request timed out. Check your network and try again."
-        GmailFailureKind.NETWORK -> "Network error while retrieving Gmail messages."
-        GmailFailureKind.API -> "Gmail API request failed. Please try again."
-        GmailFailureKind.MALFORMED_RESPONSE -> "Gmail returned an unreadable message response."
-    }
-
-    private fun finishGmailFlow(message: String? = null) {
-        progressBar.visibility = View.GONE
-        message?.let { badgeCategory.text = it }
-        gmailScanInProgress = false
-        btnScanGmail.isEnabled = true
+        GmailFailureKind.AUTHENTICATION_REQUIRED -> "Google authentication required. Please sign in again."
+        GmailFailureKind.NETWORK -> "Could not reach Google services. Please check your connection."
+        GmailFailureKind.TIMEOUT -> "Google sign-in timed out. Please try again."
+        GmailFailureKind.API -> "Google Gmail service reported an error."
+        GmailFailureKind.PERMISSION_DENIED -> "Gmail permission denied. Please grant required permissions."
+        GmailFailureKind.MALFORMED_RESPONSE -> "Gmail response could not be parsed."
     }
 
     private fun showGmailSetupOrDemoDialog(statusCode: Int?) {
-        val statusDetail = when (statusCode) {
-            10 -> " (Developer Error: Debug SHA-1 not registered in Google Cloud Console)"
-            8 -> " (Internal Error: Google Play Services or Network issue)"
-            null -> ""
-            else -> " (Error Code: $statusCode)"
-        }
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("Gmail Authorization Notice")
             .setMessage(
-                "Google Sign-In could not complete$statusDetail.\n\n" +
-                "To scan real Gmail messages, package 'com.secureshield.ai' and your debug SHA-1 must be registered under an Android OAuth Client ID in Google Cloud Console with the Gmail API enabled.\n\n" +
-                "Would you like to run a simulated demo scan with a sample phishing email to test the detection engine?"
+                "Google Sign-In returned status ${statusCode ?: "unknown"}.\n\n" +
+                "For local testing and evaluation, SecureShield includes a built-in demo scan."
             )
-            .setPositiveButton("Run Demo Scan") { _, _ ->
+            .setPositiveButton("Scan Demo Message") { _, _ ->
                 scanDemoGmailMessage()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Dismiss", null)
             .show()
     }
 
-    private fun showGmailFetchFailureDialog(errorDetail: String) {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Gmail Sync Notice")
-            .setMessage(
-                "Could not retrieve Gmail messages ($errorDetail).\n\n" +
-                "To scan real Gmail messages, package 'com.secureshield.ai' and your debug SHA-1 must be registered under an Android OAuth Client ID in Google Cloud Console with the Gmail API enabled.\n\n" +
-                "Would you like to run a simulated demo scan with a sample phishing email to test the detection engine?"
-            )
-            .setPositiveButton("Run Demo Scan") { _, _ ->
-                scanDemoGmailMessage()
-            }
-            .setNeutralButton("Retry") { _, _ ->
-                beginGmailScan()
-            }
-            .setNegativeButton("Cancel", null)
+    private fun showGmailFetchFailureDialog(message: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Gmail Scan")
+            .setMessage(message)
+            .setPositiveButton("OK", null)
             .show()
     }
 
     private fun scanDemoGmailMessage() {
-        if (gmailScanInProgress) return
-        gmailScanInProgress = true
-        btnScanGmail.isEnabled = false
-        badgeCategory.text = "Loading demo Gmail message..."
-        progressBar.visibility = View.VISIBLE
-
         val demoEmail = GmailEmail(
-            messageId = "demo-msg-001",
-            sender = "security-alert@amazon-security-update.xyz",
+            messageId = "demo-msg-${System.currentTimeMillis()}",
+            sender = "security-alert@fakebank-update.xyz",
             recipient = "user@gmail.com",
             subject = "URGENT: Your account has been suspended",
             bodyText = "Dear customer, your account has been locked due to unauthorized activity. Please verify your identity immediately: http://192.168.1.1@secure-login-verify.xyz/account",
@@ -522,7 +752,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         lifecycleScope.launch {
-            badgeCategory.text = "Checking server connection..."
+            badgeCategory.text = "Checking connection..."
             val serverHealthy = ApiClient.checkHealth()
             if (!serverHealthy) {
                 finishGmailFlow()
@@ -552,14 +782,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        ensureNotificationPermission()
         updateUniversalGuardUi()
-        val textBackgroundStatus = findViewById<TextView?>(R.id.text_background_status)
-        textBackgroundStatus?.let { updateBackgroundStatusText(it) }
-    }
-
-    override fun onDestroy() {
-        if (scanHistoryRepositoryDelegate.isInitialized()) scanHistoryRepository.close()
-        super.onDestroy()
     }
 
     private fun handleIntent(intent: Intent) {
@@ -599,14 +823,14 @@ class MainActivity : AppCompatActivity() {
             layoutFeedback.visibility = View.GONE
             textFeedbackStatus.visibility = View.GONE
             textTarget.text = when (kind) {
-                com.secureshield.ai.share.SharedScanKind.FILE -> "File: ${input.file_name}"
-                com.secureshield.ai.share.SharedScanKind.URL -> "URL:\n${input.url}"
-                com.secureshield.ai.share.SharedScanKind.TEXT -> input.text.orEmpty()
+                SharedScanKind.FILE -> "File: ${input.file_name}"
+                SharedScanKind.URL -> "URL:\n${input.url}"
+                SharedScanKind.TEXT -> input.text.orEmpty()
             }
             val sourceType = when (kind) {
-                com.secureshield.ai.share.SharedScanKind.FILE -> "file"
-                com.secureshield.ai.share.SharedScanKind.URL -> "url"
-                com.secureshield.ai.share.SharedScanKind.TEXT -> "share"
+                SharedScanKind.FILE -> "file"
+                SharedScanKind.URL -> "url"
+                SharedScanKind.TEXT -> "share"
             }
             executeScan(input, "Shared content scanned", kind.label, sourceType)
         }
@@ -625,8 +849,6 @@ class MainActivity : AppCompatActivity() {
             @Suppress("DEPRECATION")
             (intent.getParcelableExtra<android.os.Parcelable>(Intent.EXTRA_STREAM) as? Uri)
         }
-    } catch (_: BadParcelableException) {
-        null
     } catch (_: SecurityException) {
         null
     }
@@ -696,6 +918,7 @@ class MainActivity : AppCompatActivity() {
         textFeedbackStatus.text = ""
         btnThumbUp.isEnabled = true
         btnThumbDown.isEnabled = true
+        btnViewDetails.visibility = View.GONE
         progressBar.visibility = View.VISIBLE
         badgeCategory.setOnClickListener(null)
         textReasons.setOnClickListener(null)
@@ -717,6 +940,9 @@ class MainActivity : AppCompatActivity() {
                             scanHistoryRepository.saveCompletedScan(result, sourceType)
                         }
                         layoutFeedback.visibility = View.VISIBLE
+                        btnViewDetails.visibility = View.VISIBLE
+                        btnViewDetails.setOnClickListener { showScanDetailDialog(result) }
+
                         if (feedbackSubmissionManager.isSubmitted(result.scan_id)) {
                             btnThumbUp.isEnabled = false
                             btnThumbDown.isEnabled = false
@@ -728,7 +954,10 @@ class MainActivity : AppCompatActivity() {
                             textFeedbackStatus.visibility = View.GONE
                             textFeedbackStatus.text = ""
                         }
+
                         badgeCategory.text = "${result.classification} ($categorySuffix)"
+                        applyVerdictBadgeStyle(result.classification)
+
                         val confidencePct = (result.risk_assessment.confidence * 100).toInt()
                         textScore.text = "Risk Score: ${formatScore(result.risk_score)} / 100 (Conf: ${confidencePct}%)"
                         val assessment = result.risk_assessment
@@ -740,7 +969,7 @@ class MainActivity : AppCompatActivity() {
                             }
                             result.warnings.forEach { add("Warning: $it") }
                         }.distinct()
-                        textReasons.text = if (explanationLines.isNotEmpty()) explanationLines.joinToString("\n• ", prefix = "• ") else "None"
+                        textReasons.text = if (explanationLines.isNotEmpty()) explanationLines.first() else "None"
                         textAction.text = result.risk_assessment.recommended_action
 
                         if (result.warnings.isNotEmpty()) {
@@ -751,7 +980,10 @@ class MainActivity : AppCompatActivity() {
                             ).show()
                         }
 
-                        if (isThreatClassification(result.classification)) {
+                        val isThreat = isThreatClassification(result.classification)
+                        updateHeroProtectionState(latestThreat = isThreat)
+
+                        if (isThreat) {
                             sendPushNotification(notifyTitle, "Risk: ${result.classification}")
                         }
                         onScanCompleted?.invoke(result)
@@ -792,8 +1024,89 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun applyVerdictBadgeStyle(classification: String) {
+        when (classification.lowercase()) {
+            "safe" -> {
+                badgeCategory.setBackgroundResource(R.drawable.bg_badge_safe)
+                badgeCategory.setTextColor(ContextCompat.getColor(this, R.color.threat_safe))
+            }
+            "suspicious", "deceptive" -> {
+                badgeCategory.setBackgroundResource(R.drawable.bg_badge_warning)
+                badgeCategory.setTextColor(ContextCompat.getColor(this, R.color.threat_warning))
+            }
+            "phishing", "malware" -> {
+                badgeCategory.setBackgroundResource(R.drawable.bg_badge_threat)
+                badgeCategory.setTextColor(ContextCompat.getColor(this, R.color.threat_critical))
+            }
+            else -> {
+                badgeCategory.setBackgroundResource(R.drawable.bg_badge_neutral)
+                badgeCategory.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+            }
+        }
+    }
+
+    private fun showScanDetailDialog(result: UnifiedScanResponse) {
+        val view = layoutInflater.inflate(R.layout.dialog_scan_details, null)
+        val badge = view.findViewById<TextView>(R.id.dialog_badge_classification)
+        val textRisk = view.findViewById<TextView>(R.id.dialog_text_risk_score)
+        val textConf = view.findViewById<TextView>(R.id.dialog_text_confidence)
+        val textTarget = view.findViewById<TextView>(R.id.dialog_text_target)
+        val textAction = view.findViewById<TextView>(R.id.dialog_text_action)
+        val textReasons = view.findViewById<TextView>(R.id.dialog_text_reasons)
+        val btnClose = view.findViewById<Button>(R.id.dialog_btn_close)
+
+        badge.text = result.classification.uppercase()
+        when (result.classification.lowercase()) {
+            "safe" -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_safe)
+                badge.setTextColor(ContextCompat.getColor(this, R.color.threat_safe))
+            }
+            "suspicious", "deceptive" -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_warning)
+                badge.setTextColor(ContextCompat.getColor(this, R.color.threat_warning))
+            }
+            "phishing", "malware" -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_threat)
+                badge.setTextColor(ContextCompat.getColor(this, R.color.threat_critical))
+            }
+            else -> {
+                badge.setBackgroundResource(R.drawable.bg_badge_neutral)
+                badge.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+            }
+        }
+
+        val confidencePct = (result.risk_assessment.confidence * 100).toInt()
+        textRisk.text = "Risk Score: ${formatScore(result.risk_score)} / 100"
+        textConf.text = "Confidence: ${confidencePct}%"
+
+        val targetDisplay = this.textTarget.text.toString().takeIf { it.isNotBlank() } ?: "Scan ID: ${result.scan_id}"
+        textTarget.text = "Target: $targetDisplay"
+
+        textAction.text = result.risk_assessment.recommended_action.ifBlank { "No specific action required." }
+
+        val explanationLines = buildList {
+            addAll(result.risk_assessment.reasons)
+            if (result.risk_assessment.flags.isNotEmpty()) add("Indicators: ${result.risk_assessment.flags.joinToString()}")
+            result.risk_assessment.evidence.forEach { item ->
+                add(item.description?.takeIf(String::isNotBlank) ?: "${item.key}: ${item.value}")
+            }
+            result.warnings.forEach { add("Warning: $it") }
+        }.distinct()
+
+        textReasons.text = if (explanationLines.isNotEmpty()) explanationLines.joinToString("\n• ", prefix = "• ") else "No specific threat indicators triggered."
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(view)
+            .create()
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        dialog.show()
+    }
+
     private fun handleServerUnavailable(onRetry: (() -> Unit)? = null) {
         badgeCategory.text = "Service Unavailable"
+        badgeCategory.setBackgroundResource(R.drawable.bg_badge_warning)
+        badgeCategory.setTextColor(ContextCompat.getColor(this, R.color.threat_warning))
         textScore.text = "SecureShield protection service is unavailable."
         textReasons.text = "Please check your connection and try again."
         textAction.text = "Check connection and retry"
@@ -848,11 +1161,11 @@ class MainActivity : AppCompatActivity() {
                 try {
                     when (val result = ApiClient.testConnection(candidateUrl)) {
                         is ProbeResult.Success -> {
-                            textStatus.setTextColor(Color.parseColor("#2E7D32"))
+                            textStatus.setTextColor(Color.parseColor("#10B981"))
                             textStatus.text = "✓ Connected! (Latency: ${result.latencyMs}ms)"
                         }
                         is ProbeResult.Failure -> {
-                            textStatus.setTextColor(Color.RED)
+                            textStatus.setTextColor(Color.parseColor("#EF4444"))
                             textStatus.text = "✗ Connection failed: ${result.message}"
                         }
                     }
@@ -867,17 +1180,18 @@ class MainActivity : AppCompatActivity() {
             val candidateUrl = editUrl.text.toString().trim()
             if (!ServerSettings.isValidServerUrl(candidateUrl)) {
                 textStatus.visibility = View.VISIBLE
-                textStatus.setTextColor(Color.RED)
+                textStatus.setTextColor(Color.parseColor("#EF4444"))
                 textStatus.text = "Invalid URL. Please enter a valid URL."
                 return@setOnClickListener
             }
             val saved = ServerSettings.saveServerUrl(this, candidateUrl)
             if (saved) {
                 Toast.makeText(this, "Server URL updated to: ${ServerSettings.getServerUrl(this)}", Toast.LENGTH_SHORT).show()
+                updateSettingsTab()
                 dialog.dismiss()
             } else {
                 textStatus.visibility = View.VISIBLE
-                textStatus.setTextColor(Color.RED)
+                textStatus.setTextColor(Color.parseColor("#EF4444"))
                 textStatus.text = "Could not save server URL."
             }
         }
@@ -912,5 +1226,25 @@ class MainActivity : AppCompatActivity() {
             classification.equals("Phishing", ignoreCase = true) ||
             classification.equals("Malware", ignoreCase = true)
 
-    private fun formatScore(value: Float): String = String.format(java.util.Locale.US, "%.1f", value)
+    private fun updateBackgroundStatusText(textView: TextView) {
+        val enabled = BackgroundProtectionManager.isEnabled(this)
+        textView.text = if (enabled) "Background inbox scans enabled" else "Background Protection inactive"
+        textView.setTextColor(
+            if (enabled) ContextCompat.getColor(this, R.color.threat_safe)
+            else ContextCompat.getColor(this, R.color.text_muted)
+        )
+    }
+
+    private fun formatTimestamp(timestampMillis: Long): String =
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(timestampMillis))
+
+    private fun formatScore(score: Float): String =
+        String.format(java.util.Locale.US, "%.1f", score)
+
+    override fun onDestroy() {
+        if (scanHistoryRepositoryDelegate.isInitialized()) {
+            scanHistoryRepository.close()
+        }
+        super.onDestroy()
+    }
 }
