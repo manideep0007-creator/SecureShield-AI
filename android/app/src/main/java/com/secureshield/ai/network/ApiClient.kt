@@ -11,6 +11,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
@@ -89,6 +91,9 @@ interface SecureShieldApi {
     
     @POST("/api/feedback")
     suspend fun sendFeedback(@Body request: FeedbackRequest): Response<FeedbackSubmissionResponse>
+
+    @retrofit2.http.GET("/health")
+    suspend fun healthCheck(): Response<JsonObject>
 }
 
 class MalformedScanResponseException(message: String) : RuntimeException(message)
@@ -192,13 +197,40 @@ fun fileBytesAsBackendJsonValue(bytes: ByteArray): String = try {
 }
 
 object ApiClient {
-    private val BASE_URL = BuildConfig.BASE_URL 
+    @Volatile
+    private var customBaseUrl: String? = null
 
-    val api: SecureShieldApi by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
+    val baseUrl: String
+        get() = customBaseUrl ?: BuildConfig.BASE_URL
+
+    private val okHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(35, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
             .build()
-            .create(SecureShieldApi::class.java)
+    }
+
+    @Volatile
+    private var currentApi: SecureShieldApi? = null
+
+    val api: SecureShieldApi
+        get() = currentApi ?: synchronized(this) {
+            currentApi ?: Retrofit.Builder()
+                .baseUrl(baseUrl)
+                .client(okHttpClient)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+                .create(SecureShieldApi::class.java).also { currentApi = it }
+        }
+
+    fun setBaseUrl(url: String) {
+        val trimmed = url.trim()
+        val sanitized = if (!trimmed.endsWith("/")) "$trimmed/" else trimmed
+        synchronized(this) {
+            customBaseUrl = sanitized
+            currentApi = null
+        }
     }
 }

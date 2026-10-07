@@ -30,6 +30,10 @@ class FeedbackSubmissionManager(
     private val inFlightScanIds = mutableSetOf<String>()
     private val submittedScanIds = mutableSetOf<String>()
 
+    fun isSubmitted(scanId: String): Boolean = synchronized(lock) {
+        scanId in submittedScanIds
+    }
+
     suspend fun submit(request: FeedbackRequest): FeedbackSubmissionResult {
         if (request.scan_id.isBlank()) return FeedbackSubmissionResult.MalformedResponse
         val reservation = synchronized(lock) {

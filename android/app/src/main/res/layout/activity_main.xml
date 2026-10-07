@@ -40,13 +40,59 @@
             android:layout_height="wrap_content"
             android:text="Protection inactive"
             android:textSize="12sp"
-            android:layout_marginBottom="24dp" />
+            android:layout_marginBottom="16dp" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_universal_guard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Universal Link Protection"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:id="@+id/text_universal_guard_desc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scans on-screen text across all apps for dangerous links"
+            android:textSize="12sp"
+            android:textColor="#555555"
+            android:layout_marginBottom="4dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="20dp">
+
+            <TextView
+                android:id="@+id/text_universal_guard_status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Accessibility service: Inactive"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_accessibility_settings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Accessibility Settings"
+                android:textSize="11sp" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/btn_scan_history"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Scan History"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btn_server_settings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚙️ Server Settings"
             android:layout_marginBottom="16dp" />
 
         <ProgressBar
@@ -56,18 +102,77 @@
             android:visibility="gone"
             android:layout_marginBottom="16dp" />
 
-        <!-- Category Badge -->
-        <TextView
-            android:id="@+id/badge_category"
+        <!-- Risk Verdict Card with Feedback Controls -->
+        <LinearLayout
+            android:id="@+id/layout_verdict_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Awaiting Scan"
-            android:textAlignment="center"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:padding="12dp"
+            android:orientation="vertical"
             android:background="#E0E0E0"
-            android:layout_marginBottom="16dp" />
+            android:padding="12dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/badge_category"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Awaiting Scan"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <!-- Feedback Controls next to Verdict -->
+                <LinearLayout
+                    android:id="@+id/layout_feedback"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:visibility="gone">
+
+                    <Button
+                        android:id="@+id/btn_thumb_up"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="👍"
+                        android:textSize="16sp"
+                        android:minWidth="48dp"
+                        android:minHeight="48dp"
+                        android:paddingLeft="12dp"
+                        android:paddingRight="12dp"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btn_thumb_down"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="👎"
+                        android:textSize="16sp"
+                        android:minWidth="48dp"
+                        android:minHeight="48dp"
+                        android:paddingLeft="12dp"
+                        android:paddingRight="12dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/text_feedback_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:text="Already submitted"
+                android:textSize="12sp"
+                android:textStyle="italic"
+                android:textColor="#555555"
+                android:visibility="gone"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/text_target"
@@ -119,30 +224,6 @@
             android:textSize="16sp"
             android:textColor="#D32F2F"
             android:textStyle="bold" />
-
-        <!-- Feedback Controls -->
-        <LinearLayout
-            android:id="@+id/layout_feedback"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:visibility="gone"
-            android:layout_marginTop="32dp">
-            
-            <Button
-                android:id="@+id/btn_thumb_up"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="👍 Accurate"
-                android:layout_marginEnd="16dp"/>
-                
-            <Button
-                android:id="@+id/btn_thumb_down"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="👎 Inaccurate" />
-        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

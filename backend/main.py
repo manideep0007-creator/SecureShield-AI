@@ -25,6 +25,7 @@ async def handle_request_validation_error(request: Request, exc: RequestValidati
     return await request_validation_exception_handler(request, exc)
 
 @app.get("/")
+@app.get("/health")
 def health_check():
     return {"status": "running", "project": settings.PROJECT_NAME}
 

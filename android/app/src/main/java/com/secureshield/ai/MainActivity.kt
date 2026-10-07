@@ -17,6 +17,9 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.EditText
+import androidx.appcompat.app.AlertDialog
+import java.net.ConnectException
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.app.AppCompatActivity
@@ -41,6 +44,7 @@ import com.secureshield.ai.feedback.FeedbackSubmissionResult
 import com.secureshield.ai.feedback.FeedbackSubmissionUiPolicy
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.background.BackgroundProtectionManager
+import com.secureshield.ai.accessibility.UniversalLinkGuardManager
 import com.secureshield.ai.share.ShareDispatchResult
 import com.secureshield.ai.share.SharedFileReadResult
 import com.secureshield.ai.share.SharedIntentPayload
@@ -70,6 +74,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutFeedback: LinearLayout
     private lateinit var btnThumbUp: Button
     private lateinit var btnThumbDown: Button
+    private lateinit var textFeedbackStatus: TextView
+
+    private lateinit var switchUniversalGuard: SwitchCompat
+    private lateinit var textUniversalGuardStatus: TextView
+    private lateinit var btnAccessibilitySettings: Button
     
     private var currentResult: UnifiedScanResponse? = null
     private var currentResultSourceType = "unknown"
@@ -118,6 +127,7 @@ class MainActivity : AppCompatActivity() {
         layoutFeedback = findViewById(R.id.layout_feedback)
         btnThumbUp = findViewById(R.id.btn_thumb_up)
         btnThumbDown = findViewById(R.id.btn_thumb_down)
+        textFeedbackStatus = findViewById(R.id.text_feedback_status)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel("SS_ALERTS", "SecureShield Alerts", NotificationManager.IMPORTANCE_HIGH)
@@ -142,6 +152,31 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        switchUniversalGuard = findViewById(R.id.switch_universal_guard)
+        textUniversalGuardStatus = findViewById(R.id.text_universal_guard_status)
+        btnAccessibilitySettings = findViewById(R.id.btn_accessibility_settings)
+
+        updateUniversalGuardUi()
+
+        btnAccessibilitySettings.setOnClickListener {
+            promptAndOpenAccessibilitySettings()
+        }
+
+        switchUniversalGuard.setOnClickListener {
+            val isServiceOn = UniversalLinkGuardManager.isServiceEnabledInSettings(this)
+            if (!isServiceOn) {
+                // If service not enabled in Android Accessibility settings, prompt user to enable it
+                switchUniversalGuard.isChecked = false
+                promptAndOpenAccessibilitySettings()
+            } else {
+                val isNowChecked = switchUniversalGuard.isChecked
+                UniversalLinkGuardManager.setUserPreferenceEnabled(this, isNowChecked)
+                updateUniversalGuardUi()
+                val msg = if (isNowChecked) "Universal Link Protection active across all apps." else "Universal Link Protection paused."
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            }
+        }
+
         btnScanGmail.setOnClickListener {
             beginGmailScan()
         }
@@ -150,8 +185,18 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
+        val prefs = getSharedPreferences("secureshield_settings", Context.MODE_PRIVATE)
+        val savedUrl = prefs.getString("server_base_url", null)
+        if (!savedUrl.isNullOrBlank()) {
+            ApiClient.setBaseUrl(savedUrl)
+        }
+
         findViewById<Button>(R.id.btn_scan_history).setOnClickListener {
             startActivity(Intent(this, ScanHistoryActivity::class.java))
+        }
+
+        findViewById<Button>(R.id.btn_server_settings)?.setOnClickListener {
+            showServerConfigDialog()
         }
 
         handleIntent(intent)
@@ -161,19 +206,26 @@ class MainActivity : AppCompatActivity() {
         val result = currentResult ?: return
         val request = FeedbackRequest(
             scan_id = result.scan_id,
-            user_feedback = if (value == "up") "positive" else "negative",
+            user_feedback = if (value == "up" || value == "positive" || value == "correct") "positive" else "negative",
             classification_at_scan_time = result.classification,
             risk_score_at_scan_time = result.risk_score,
             confidence_at_scan_time = result.risk_assessment.confidence,
             source_type = currentResultSourceType
         )
+        // Optimistic UI: disable buttons immediately
         btnThumbUp.isEnabled = false
         btnThumbDown.isEnabled = false
+        textFeedbackStatus.text = "Submitting..."
+        textFeedbackStatus.visibility = View.VISIBLE
+
         lifecycleScope.launch {
             when (val submission = feedbackSubmissionManager.submit(request)) {
                 FeedbackSubmissionResult.Submitted -> {
-                    if (FeedbackSubmissionUiPolicy.shouldDismissFeedback(submission) && currentResult?.scan_id == request.scan_id) {
-                        layoutFeedback.visibility = View.GONE
+                    if (currentResult?.scan_id == request.scan_id) {
+                        btnThumbUp.isEnabled = false
+                        btnThumbDown.isEnabled = false
+                        textFeedbackStatus.text = "Feedback recorded ✓"
+                        textFeedbackStatus.visibility = View.VISIBLE
                         lifecycleScope.launch(Dispatchers.IO) {
                             scanHistoryRepository.updateFeedbackState(request.scan_id, request.user_feedback)
                         }
@@ -181,23 +233,39 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 FeedbackSubmissionResult.AlreadySubmitted -> {
-                    if (FeedbackSubmissionUiPolicy.shouldDismissFeedback(submission) && currentResult?.scan_id == request.scan_id) {
-                        layoutFeedback.visibility = View.GONE
-                        Toast.makeText(this@MainActivity, "Feedback was already recorded for this scan.", Toast.LENGTH_SHORT).show()
+                    if (currentResult?.scan_id == request.scan_id) {
+                        btnThumbUp.isEnabled = false
+                        btnThumbDown.isEnabled = false
+                        textFeedbackStatus.text = "Already submitted"
+                        textFeedbackStatus.visibility = View.VISIBLE
                     }
                 }
                 FeedbackSubmissionResult.InProgress ->
                     Toast.makeText(this@MainActivity, "Feedback submission is already in progress.", Toast.LENGTH_SHORT).show()
-                is FeedbackSubmissionResult.HttpFailure ->
+                is FeedbackSubmissionResult.HttpFailure -> {
+                    if (currentResult?.scan_id == request.scan_id) {
+                        btnThumbUp.isEnabled = true
+                        btnThumbDown.isEnabled = true
+                        textFeedbackStatus.visibility = View.GONE
+                    }
                     Toast.makeText(this@MainActivity, "Feedback could not be sent (HTTP ${submission.statusCode}). The scan result is still available; retry later.", Toast.LENGTH_LONG).show()
-                FeedbackSubmissionResult.NetworkFailure ->
+                }
+                FeedbackSubmissionResult.NetworkFailure -> {
+                    if (currentResult?.scan_id == request.scan_id) {
+                        btnThumbUp.isEnabled = true
+                        btnThumbDown.isEnabled = true
+                        textFeedbackStatus.visibility = View.GONE
+                    }
                     Toast.makeText(this@MainActivity, "Feedback could not be sent. The scan result is still available; retry later.", Toast.LENGTH_LONG).show()
-                FeedbackSubmissionResult.MalformedResponse ->
+                }
+                FeedbackSubmissionResult.MalformedResponse -> {
+                    if (currentResult?.scan_id == request.scan_id) {
+                        btnThumbUp.isEnabled = true
+                        btnThumbDown.isEnabled = true
+                        textFeedbackStatus.visibility = View.GONE
+                    }
                     Toast.makeText(this@MainActivity, "Feedback response was invalid. The scan result is still available; retry later.", Toast.LENGTH_LONG).show()
-            }
-            if (currentResult?.scan_id == request.scan_id && layoutFeedback.visibility == View.VISIBLE) {
-                btnThumbUp.isEnabled = true
-                btnThumbDown.isEnabled = true
+                }
             }
         }
     }
@@ -211,6 +279,42 @@ class MainActivity : AppCompatActivity() {
             val lastStr = if (lastCheck > 0) java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(lastCheck)) else "Never"
             textView.text = "Protection active (Last check: $lastStr)"
         }
+    }
+
+    private fun updateUniversalGuardUi() {
+        val isServiceOn = UniversalLinkGuardManager.isServiceEnabledInSettings(this)
+        val isUserPrefOn = UniversalLinkGuardManager.isUserPreferenceEnabled(this)
+        if (!isServiceOn) {
+            switchUniversalGuard.isChecked = false
+            textUniversalGuardStatus.text = "Accessibility service inactive (Tap button to enable)"
+            textUniversalGuardStatus.setTextColor(0xFFD32F2F.toInt())
+        } else {
+            switchUniversalGuard.isChecked = isUserPrefOn
+            if (isUserPrefOn) {
+                textUniversalGuardStatus.text = "Protection active (Scanning links in all apps)"
+                textUniversalGuardStatus.setTextColor(0xFF388E3C.toInt())
+            } else {
+                textUniversalGuardStatus.text = "Paused by user"
+                textUniversalGuardStatus.setTextColor(0xFF757575.toInt())
+            }
+        }
+    }
+
+    private fun promptAndOpenAccessibilitySettings() {
+        AlertDialog.Builder(this)
+            .setTitle("Enable Universal Link Protection")
+            .setMessage(
+                "To scan on-screen links across WhatsApp, Instagram, browsers, and all apps, enable the Accessibility Service:\n\n" +
+                "1. Tap 'Open Settings' below.\n" +
+                "2. Tap 'Downloaded apps' (or 'Installed services').\n" +
+                "3. Select 'SecureShield Universal Link Guard'.\n" +
+                "4. Turn the switch ON and tap 'Allow'."
+            )
+            .setPositiveButton("Open Settings") { _, _ ->
+                UniversalLinkGuardManager.openAccessibilitySettings(this)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun beginGmailScan() {
@@ -247,7 +351,9 @@ class MainActivity : AppCompatActivity() {
                     is GmailFetchResult.NoReadableMessages -> finishGmailFlow("Unread messages had no supported text body.")
                     is GmailFetchResult.Failure -> {
                         if (fetch.kind == GmailFailureKind.AUTHENTICATION_REQUIRED) gmailSessionInvalid = true
-                        finishGmailFlow(gmailFailureMessage(fetch.kind))
+                        val msg = gmailFailureMessage(fetch.kind)
+                        finishGmailFlow(msg)
+                        showGmailFetchFailureDialog(msg)
                     }
                     is GmailFetchResult.Messages -> {
                         GmailEmailScanDispatcher.dispatch(fetch.emails) { email ->
@@ -306,6 +412,24 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun showGmailFetchFailureDialog(errorDetail: String) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Gmail Sync Notice")
+            .setMessage(
+                "Could not retrieve Gmail messages ($errorDetail).\n\n" +
+                "To scan real Gmail messages, package 'com.secureshield.ai' and your debug SHA-1 must be registered under an Android OAuth Client ID in Google Cloud Console with the Gmail API enabled.\n\n" +
+                "Would you like to run a simulated demo scan with a sample phishing email to test the detection engine?"
+            )
+            .setPositiveButton("Run Demo Scan") { _, _ ->
+                scanDemoGmailMessage()
+            }
+            .setNeutralButton("Retry") { _, _ ->
+                beginGmailScan()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun scanDemoGmailMessage() {
         if (gmailScanInProgress) return
         gmailScanInProgress = true
@@ -339,6 +463,11 @@ class MainActivity : AppCompatActivity() {
         if (intent == null) return
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateUniversalGuardUi()
     }
 
     override fun onDestroy() {
@@ -381,6 +510,7 @@ class MainActivity : AppCompatActivity() {
         val result = SharedIntentRouter.dispatch(payload, ::readSharedFile) { input, kind ->
             progressBar.visibility = View.VISIBLE
             layoutFeedback.visibility = View.GONE
+            textFeedbackStatus.visibility = View.GONE
             textTarget.text = when (kind) {
                 com.secureshield.ai.share.SharedScanKind.FILE -> "File: ${input.file_name}"
                 com.secureshield.ai.share.SharedScanKind.URL -> "URL:\n${input.url}"
@@ -396,6 +526,7 @@ class MainActivity : AppCompatActivity() {
         if (result is ShareDispatchResult.Rejected) {
             progressBar.visibility = View.GONE
             layoutFeedback.visibility = View.GONE
+            textFeedbackStatus.visibility = View.GONE
             badgeCategory.text = result.message
         }
     }
@@ -468,8 +599,13 @@ class MainActivity : AppCompatActivity() {
     private fun executeScan(input: ScanInput, notifyTitle: String, categorySuffix: String, sourceType: String = "unknown"): Job {
         currentResult = null
         layoutFeedback.visibility = View.GONE
+        textFeedbackStatus.visibility = View.GONE
+        textFeedbackStatus.text = ""
         btnThumbUp.isEnabled = true
         btnThumbDown.isEnabled = true
+        progressBar.visibility = View.VISIBLE
+        badgeCategory.setOnClickListener(null)
+        textReasons.setOnClickListener(null)
         return lifecycleScope.launch {
             try {
                 val response = withTimeout(35000L) {
@@ -478,7 +614,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 
-                progressBar.visibility = View.GONE
                 if (response.isSuccessful) {
                     val responseJson = response.body()
                     if (responseJson != null) {
@@ -489,6 +624,17 @@ class MainActivity : AppCompatActivity() {
                             scanHistoryRepository.saveCompletedScan(result, sourceType)
                         }
                         layoutFeedback.visibility = View.VISIBLE
+                        if (feedbackSubmissionManager.isSubmitted(result.scan_id)) {
+                            btnThumbUp.isEnabled = false
+                            btnThumbDown.isEnabled = false
+                            textFeedbackStatus.text = "Already submitted"
+                            textFeedbackStatus.visibility = View.VISIBLE
+                        } else {
+                            btnThumbUp.isEnabled = true
+                            btnThumbDown.isEnabled = true
+                            textFeedbackStatus.visibility = View.GONE
+                            textFeedbackStatus.text = ""
+                        }
                         badgeCategory.text = "${result.classification} ($categorySuffix)"
                         val confidencePct = (result.risk_assessment.confidence * 100).toInt()
                         textScore.text = "Risk Score: ${result.risk_score} / 100 (Conf: ${confidencePct}%)"
@@ -511,29 +657,114 @@ class MainActivity : AppCompatActivity() {
                     val sc = response.code()
                     badgeCategory.text = "HTTP Error: $sc"
                 }
+            } catch (e: ConnectException) {
+                badgeCategory.text = "Connection Failed"
+                textScore.text = "Cannot reach server"
+                textReasons.text = "Could not connect to ${ApiClient.baseUrl}\n1. Check your phone Wi-Fi (must be same network as PC).\n2. Ensure backend server is running.\n\n👉 Tap here to configure Server IP."
+                val errorClick = View.OnClickListener { showServerConfigDialog() }
+                badgeCategory.setOnClickListener(errorClick)
+                textReasons.setOnClickListener(errorClick)
             } catch (e: TimeoutCancellationException) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = "Network Timeout: Scan took too long."
+                badgeCategory.text = "Network Timeout"
+                textScore.text = "Scan took too long"
+                textReasons.text = "Server at ${ApiClient.baseUrl} took over 35s to respond.\nIf scanning a file, ensure external services are reachable.\n\n👉 Tap here to configure Server IP."
+                val errorClick = View.OnClickListener { showServerConfigDialog() }
+                badgeCategory.setOnClickListener(errorClick)
+                textReasons.setOnClickListener(errorClick)
             } catch (e: SocketTimeoutException) {
-                progressBar.visibility = View.GONE
-                badgeCategory.text = "Network Timeout: Scan took too long."
+                badgeCategory.text = "Network Timeout"
+                textScore.text = "Connection timed out"
+                textReasons.text = "Socket timed out connecting to ${ApiClient.baseUrl}\nCheck your network connection or PC firewall.\n\n👉 Tap here to configure Server IP."
+                val errorClick = View.OnClickListener { showServerConfigDialog() }
+                badgeCategory.setOnClickListener(errorClick)
+                textReasons.setOnClickListener(errorClick)
             } catch (e: MalformedScanResponseException) {
-                progressBar.visibility = View.GONE
                 badgeCategory.text = "Malformed Response: ${e.message}"
             } catch (e: JsonParseException) {
-                progressBar.visibility = View.GONE
                 badgeCategory.text = "Malformed Response: Invalid JSON."
             } catch (e: MalformedJsonException) {
-                progressBar.visibility = View.GONE
                 badgeCategory.text = "Malformed Response: Invalid JSON."
             } catch (e: IOException) {
-                progressBar.visibility = View.GONE
                 badgeCategory.text = "Network Error: ${e.message}"
+                textReasons.text = "Network error connecting to ${ApiClient.baseUrl}\n\n👉 Tap here to configure Server IP."
+                val errorClick = View.OnClickListener { showServerConfigDialog() }
+                badgeCategory.setOnClickListener(errorClick)
+                textReasons.setOnClickListener(errorClick)
             } catch (e: Exception) {
-                progressBar.visibility = View.GONE
                 badgeCategory.text = "Network Error: ${e.message}"
+            } finally {
+                progressBar.visibility = View.GONE
             }
         }
+    }
+
+    private fun showServerConfigDialog() {
+        val input = EditText(this).apply {
+            hint = "http://192.168.x.x:8000/"
+            setText(ApiClient.baseUrl)
+            setSelection(text.length)
+            setPadding(48, 24, 48, 24)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Server Connection Settings")
+            .setMessage("Current Base URL:\n${ApiClient.baseUrl}\n\nEnter backend IP and port:")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val newUrl = input.text.toString().trim()
+                if (newUrl.startsWith("http://") || newUrl.startsWith("https://")) {
+                    ApiClient.setBaseUrl(newUrl)
+                    getSharedPreferences("secureshield_settings", Context.MODE_PRIVATE)
+                        .edit()
+                        .putString("server_base_url", ApiClient.baseUrl)
+                        .apply()
+                    Toast.makeText(this, "Server URL updated to: ${ApiClient.baseUrl}", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Invalid URL. Must begin with http:// or https://", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNeutralButton("Test Connection", null)
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        dialog.setOnShowListener {
+            val testButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+            testButton.setOnClickListener {
+                val candidateUrl = input.text.toString().trim()
+                if (!candidateUrl.startsWith("http://") && !candidateUrl.startsWith("https://")) {
+                    Toast.makeText(this, "Enter a valid URL starting with http:// or https://", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                testButton.isEnabled = false
+                testButton.text = "Testing..."
+                lifecycleScope.launch {
+                    val originalUrl = ApiClient.baseUrl
+                    try {
+                        ApiClient.setBaseUrl(candidateUrl)
+                        val start = System.currentTimeMillis()
+                        val response = withTimeout(10000L) {
+                            withContext(Dispatchers.IO) {
+                                ApiClient.api.healthCheck()
+                            }
+                        }
+                        val elapsed = System.currentTimeMillis() - start
+                        if (response.isSuccessful) {
+                            Toast.makeText(this@MainActivity, "Connected! Latency: ${elapsed}ms", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this@MainActivity, "Server responded with HTTP ${response.code()}", Toast.LENGTH_LONG).show()
+                        }
+                    } catch (e: Exception) {
+                        ApiClient.setBaseUrl(originalUrl)
+                        Toast.makeText(this@MainActivity, "Connection failed: ${e.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+                    } finally {
+                        testButton.isEnabled = true
+                        testButton.text = "Test Connection"
+                    }
+                }
+            }
+        }
+
+        dialog.show()
     }
 
     private fun sendPushNotification(title: String, message: String) {
