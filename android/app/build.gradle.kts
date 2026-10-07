@@ -10,7 +10,18 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-val baseUrl = localProperties.getProperty("BASE_URL") ?: "http://10.0.2.2:8000/"
+val defaultDevUrl = "http://10.0.2.2:8000/"
+val defaultProdUrl = "https://secureshield-api.up.railway.app/"
+
+val devBaseUrl = System.getenv("DEV_BASE_URL")
+    ?: System.getenv("BASE_URL")
+    ?: localProperties.getProperty("BASE_URL")
+    ?: defaultDevUrl
+
+val prodBaseUrl = System.getenv("PROD_BASE_URL")
+    ?: System.getenv("BASE_URL")
+    ?: localProperties.getProperty("PROD_BASE_URL")
+    ?: defaultProdUrl
 
 android {
     namespace = "com.secureshield.ai"
@@ -23,13 +34,17 @@ android {
         versionCode = 1
         versionName = "1.0"
         
-        buildConfigField("String", "BASE_URL", "\"${baseUrl}\"")
+        buildConfigField("String", "BASE_URL", "\"${devBaseUrl}\"")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "BASE_URL", "\"${devBaseUrl}\"")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            buildConfigField("String", "BASE_URL", "\"${prodBaseUrl}\"")
         }
     }
     compileOptions {
