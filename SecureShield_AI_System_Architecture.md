@@ -535,7 +535,7 @@ User Action (Share / Gmail / UI)
 * **Backend Runtime**: Python 3.14.x running under Uvicorn ASGI server.
   - Production start command: `uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4`
   - Dependencies: Managed via `backend/requirements.txt` (FastAPI, httpx, easyocr, opencv-python-headless, asyncwhois, tldextract, cachetools, pydantic-settings).
-* **Android Runtime**: Android 8.0 (API level 26) through Android 15 (API level 35).
+* **Android Runtime**: Android 7.0 (API level 24) through Android 14 (API level 34).
   - Network Configuration: `network_security_config.xml` permits cleartext traffic for local development testing (`10.0.2.2`, `localhost`). Production requires TLS.
   - Background Service: Powered by Android Jetpack WorkManager (`androidx.work:work-runtime-ktx`).
 
@@ -551,10 +551,10 @@ User Action (Share / Gmail / UI)
 * **Domain & Network Telemetry**: AsyncWHOIS, TLDExtract
 * **File & Type Sniffing**: Filetype, Python standard `zipfile` & `tarfile`
 * **Databases & Caching**: SQLite3, Cachetools (`TTLCache`)
-* **Testing Suite**: Pytest, Pytest-AsyncIO (183 automated tests)
+* **Testing Suite**: Pytest, Pytest-AsyncIO (185 automated tests, 259 total with Android)
 
 ### Android Stack
-* **Language & Architecture**: Kotlin 1.9+, Single-Activity Architecture + Modular Utility Dispatchers
+* **Language & Architecture**: Kotlin 2.2+, Single-Activity Architecture + Modular Utility Dispatchers
 * **Networking & Parsing**: Retrofit 2, OkHttp 3, Gson
 * **Background Processing**: AndroidX WorkManager, Coroutines (`Dispatchers.IO`)
 * **Persistence**: SQLite (`SQLiteOpenHelper`)

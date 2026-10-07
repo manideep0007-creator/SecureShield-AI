@@ -12,10 +12,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
 import okhttp3.OkHttpClient
+import okio.ByteString.Companion.toByteString
 import java.util.concurrent.TimeUnit
-import java.nio.ByteBuffer
-import java.nio.charset.CodingErrorAction
-import java.nio.charset.StandardCharsets
 
 data class ScanInput(
     val text: String? = null,
@@ -67,7 +65,8 @@ data class UnifiedScanResponse(
     val skipped_engines: Int,
     val risk_assessment: RiskAssessment,
     val risk_score: Float,
-    val classification: String
+    val classification: String,
+    val warnings: List<String> = emptyList()
 )
 
 data class FeedbackRequest(
@@ -135,8 +134,19 @@ object UnifiedScanResponseParser {
             requireObject(result, "metadata")
         }
 
+        if (json.has("warnings") && !json.get("warnings").isJsonNull) {
+            requireStringArray(json, "warnings")
+        }
+
         return try {
-            gson.fromJson(json, UnifiedScanResponse::class.java)
+            gson.fromJson(json, UnifiedScanResponse::class.java).let { parsed ->
+                val warnings = if (json.has("warnings") && json.get("warnings").isJsonArray) {
+                    json.getAsJsonArray("warnings").map { it.asString }
+                } else {
+                    emptyList()
+                }
+                parsed.copy(warnings = warnings)
+            }
         } catch (error: JsonParseException) {
             throw MalformedScanResponseException("Response fields do not match the scan contract.")
         }
@@ -186,15 +196,18 @@ object UnifiedScanResponseParser {
     private fun malformed(message: String): Nothing = throw MalformedScanResponseException(message)
 }
 
-fun fileBytesAsBackendJsonValue(bytes: ByteArray): String = try {
-    StandardCharsets.UTF_8.newDecoder()
-        .onMalformedInput(CodingErrorAction.REPORT)
-        .onUnmappableCharacter(CodingErrorAction.REPORT)
-        .decode(ByteBuffer.wrap(bytes))
-        .toString()
-} catch (error: java.nio.charset.CharacterCodingException) {
-    throw IllegalArgumentException("The scan API accepts UTF-8 file content only.", error)
-}
+/**
+ * Encodes a file payload for the scan API.
+ *
+ * JSON cannot carry raw bytes and the backend `file_bytes` field decodes strings as
+ * base64, so every payload — text or binary — is base64-encoded here. Encoding the
+ * bytes verbatim instead would corrupt any non-UTF-8 file (PE, PDF, ZIP, images) and
+ * invalidate the SHA-256 the Malware engine sends to VirusTotal.
+ *
+ * okio's ByteString produces standard padded base64 with no line wrapping, so the
+ * value stays a single JSON string token.
+ */
+fun fileBytesAsBackendJsonValue(bytes: ByteArray): String = bytes.toByteString().base64()
 
 object ApiClient {
     @Volatile
@@ -232,5 +245,30 @@ object ApiClient {
             customBaseUrl = sanitized
             currentApi = null
         }
+    }
+
+    fun normalizeBaseUrl(url: String): String {
+        val trimmed = url.trim()
+        return if (!trimmed.endsWith("/")) "$trimmed/" else trimmed
+    }
+
+    /**
+     * Builds a throwaway API client for [url] without touching the shared instance.
+     * Connectivity tests must not repoint live scans at an unverified server.
+     */
+    fun createProbeApi(url: String): SecureShieldApi = Retrofit.Builder()
+        .baseUrl(normalizeBaseUrl(url))
+        .client(probeOkHttpClient)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(SecureShieldApi::class.java)
+
+    private val probeOkHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
     }
 }

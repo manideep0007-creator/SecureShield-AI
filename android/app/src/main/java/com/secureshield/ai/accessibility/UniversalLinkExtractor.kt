@@ -2,6 +2,7 @@ package com.secureshield.ai.accessibility
 
 import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
+import java.util.Locale
 import java.util.regex.Pattern
 
 /**
@@ -9,6 +10,9 @@ import java.util.regex.Pattern
  * Walks generic AccessibilityNodeInfo hierarchies without any per-app view special-casing.
  */
 object UniversalLinkExtractor {
+
+    // Hard recursion ceiling: prevents StackOverflowError on pathologically deep view trees.
+    const val MAX_TRAVERSAL_DEPTH = 64
 
     // Regex matching web URLs and domain-shaped strings across all visible text
     private val URL_PATTERN = Pattern.compile(
@@ -18,17 +22,22 @@ object UniversalLinkExtractor {
 
     /**
      * Traverses the AccessibilityNodeInfo tree and aggregates all visible text.
-     * Treats all application hierarchies generically.
+     * Treats all application hierarchies generically. Password fields and their
+     * subtrees are never read. Depth is capped at [MAX_TRAVERSAL_DEPTH].
      */
     fun extractAllVisibleText(rootNode: AccessibilityNodeInfo?): String {
         if (rootNode == null) return ""
         val builder = StringBuilder()
-        collectVisibleText(rootNode, builder)
+        collectVisibleText(rootNode, builder, 0)
         return builder.toString()
     }
 
-    private fun collectVisibleText(node: AccessibilityNodeInfo?, builder: StringBuilder) {
+    private fun collectVisibleText(node: AccessibilityNodeInfo?, builder: StringBuilder, depth: Int) {
         if (node == null) return
+        if (depth > MAX_TRAVERSAL_DEPTH) return
+
+        // Privacy boundary: never read password/credential fields or anything beneath them.
+        if (isSensitiveField(node)) return
 
         // Respect visibility to user
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -50,7 +59,28 @@ object UniversalLinkExtractor {
         val childCount = node.childCount
         for (i in 0 until childCount) {
             val child = node.getChild(i) ?: continue
-            collectVisibleText(child, builder)
+            try {
+                collectVisibleText(child, builder, depth + 1)
+            } finally {
+                recycleQuietly(child)
+            }
+        }
+    }
+
+    private fun isSensitiveField(node: AccessibilityNodeInfo): Boolean {
+        if (node.isPassword) return true
+        val className = node.className?.toString()?.lowercase(Locale.ROOT) ?: return false
+        return className.contains("password")
+    }
+
+    private fun recycleQuietly(node: AccessibilityNodeInfo) {
+        // recycle() is deprecated and a no-op from API 33; only meaningful on older runtimes.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            try {
+                @Suppress("DEPRECATION")
+                node.recycle()
+            } catch (_: Exception) {
+            }
         }
     }
 

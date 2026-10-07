@@ -187,9 +187,9 @@ class ScanHistoryActivity : AppCompatActivity() {
     private fun formatTimestamp(timestampMillis: Long): String =
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(timestampMillis))
 
-    private fun formatNumber(value: Float): String = "%.1f".format(value)
+    private fun formatNumber(value: Float): String = String.format(java.util.Locale.US, "%.1f", value)
 
-    private fun formatPercent(value: Float): String = "%.0f%%".format(value * 100)
+    private fun formatPercent(value: Float): String = String.format(java.util.Locale.US, "%.0f%%", value * 100)
 
     override fun onDestroy() {
         if (repositoryDelegate.isInitialized()) repository.close()

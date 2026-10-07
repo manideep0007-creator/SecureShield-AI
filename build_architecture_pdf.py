@@ -325,7 +325,7 @@ def build_pdf():
       </div>
       <div class="meta-item">
         <div class="meta-label">Automated Verification</div>
-        <div class="meta-value">183 Automated Tests Passing (100% Pass Rate)</div>
+        <div class="meta-value">259 Automated Tests Passing (185 backend + 74 Android)</div>
       </div>
     </div>
   </div>
@@ -1273,7 +1273,7 @@ def build_pdf():
 <h1 style="margin-top: 14px; margin-bottom: 6px;">17. Deployment & Runtime Architecture</h1>
 <ul style="margin: 4px 0 8px 18px; font-size: 11.5px;">
   <li style="margin-bottom: 3px;"><strong>Backend Server:</strong> Python 3.14 running FastAPI under Uvicorn ASGI server. Local development runs on port 8000; production uses reverse-proxy TLS termination (Nginx).</li>
-  <li style="margin-bottom: 3px;"><strong>Android Application:</strong> Minimum SDK 26 (Android 8.0 Oreo), target SDK 34 (Android 14). Configured with AndroidX WorkManager for background threat scans.</li>
+  <li style="margin-bottom: 3px;"><strong>Android Application:</strong> Minimum SDK 24 (Android 7.0 Nougat), target SDK 34 (Android 14). Configured with AndroidX WorkManager for background threat scans.</li>
   <li style="margin-bottom: 3px;"><strong>Configuration:</strong> Backend environment loaded via Pydantic <code>BaseSettings</code> from <code>.env</code> file (API keys, environment mode, port).</li>
 </ul>
 
@@ -1282,7 +1282,7 @@ def build_pdf():
   <div class="callout-title" style="margin-bottom: 4px; font-size: 12px;">Full Production Technology Inventory</div>
   <p style="font-size: 11.5px; margin: 0; line-height: 1.45;">
     <strong>Backend:</strong> Python 3.14.5, FastAPI 0.115, Uvicorn 0.32, Pydantic v2, HTTPX 0.28, OpenCV (`opencv-python-headless`), EasyOCR 1.7, PyTorch, AsyncWHOIS, TLDExtract, Cachetools, Filetype, SQLite3.<br>
-    <strong>Android:</strong> Kotlin 1.9, Retrofit 2.11, OkHttp 3, Gson 2.10, AndroidX WorkManager 2.9, AndroidX NotificationCompat, SQLiteOpenHelper, Google Sign-In SDK, Google Play Services Auth, Google APIs Client for Gmail v1.
+    <strong>Android:</strong> Kotlin 2.2.10, Retrofit 2.9.0, OkHttp 4.12, Gson 2.10, AndroidX WorkManager 2.9, AndroidX NotificationCompat, SQLiteOpenHelper, Google Sign-In SDK, Google Play Services Auth, Google APIs Client for Gmail v1.
   </p>
 </div>
 

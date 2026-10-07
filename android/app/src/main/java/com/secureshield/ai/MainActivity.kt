@@ -3,9 +3,11 @@ package com.secureshield.ai
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.Manifest
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -25,6 +27,7 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -44,6 +47,7 @@ import com.secureshield.ai.feedback.FeedbackSubmissionResult
 import com.secureshield.ai.feedback.FeedbackSubmissionUiPolicy
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.background.BackgroundProtectionManager
+import com.secureshield.ai.background.ProcessedMessageStore
 import com.secureshield.ai.accessibility.UniversalLinkGuardManager
 import com.secureshield.ai.share.ShareDispatchResult
 import com.secureshield.ai.share.SharedFileReadResult
@@ -90,6 +94,17 @@ class MainActivity : AppCompatActivity() {
     private val scanHistoryRepositoryDelegate = lazy { ScanHistoryRepository(applicationContext) }
     private val scanHistoryRepository by scanHistoryRepositoryDelegate
 
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) {
+                Toast.makeText(
+                    this,
+                    "Notifications are off. Threat alerts will not appear until you enable them in system settings.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         var account: GoogleSignInAccount? = null
         var statusCode: Int? = null
@@ -134,6 +149,8 @@ class MainActivity : AppCompatActivity() {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
         }
+
+        ensureNotificationPermission()
 
         btnThumbUp.setOnClickListener { submitFeedback("up") }
         btnThumbDown.setOnClickListener { submitFeedback("down") }
@@ -200,6 +217,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         handleIntent(intent)
+    }
+
+    private fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     private fun submitFeedback(value: String) {
@@ -356,7 +382,13 @@ class MainActivity : AppCompatActivity() {
                         showGmailFetchFailureDialog(msg)
                     }
                     is GmailFetchResult.Messages -> {
+                        var scannedCount = 0
+                        var skippedCount = 0
                         GmailEmailScanDispatcher.dispatch(fetch.emails) { email ->
+                            if (ProcessedMessageStore.isProcessed(applicationContext, email.messageId)) {
+                                skippedCount++
+                                return@dispatch
+                            }
                             textTarget.text = buildString {
                                 appendLine("From: ${email.sender ?: "Unknown sender"}")
                                 email.recipient?.let { appendLine("To: $it") }
@@ -364,7 +396,22 @@ class MainActivity : AppCompatActivity() {
                                 append("Message: ${email.messageId}")
                             }
                             progressBar.visibility = View.VISIBLE
-                            executeScan(email.toScanInput(), "Gmail message scanned", "Email", "gmail").join()
+                            var scanSucceeded = false
+                            executeScan(
+                                input = email.toScanInput(),
+                                notifyTitle = "Gmail message scanned",
+                                categorySuffix = "Email",
+                                sourceType = "gmail",
+                                onScanCompleted = { scanSucceeded = true }
+                            ).join()
+                            if (scanSucceeded) {
+                                scannedCount++
+                                ProcessedMessageStore.markProcessed(applicationContext, email.messageId)
+                            }
+                        }
+                        if (skippedCount > 0 && scannedCount == 0) {
+                            finishGmailFlow("All ${fetch.emails.size} unread messages were already scanned.")
+                            return@launch
                         }
                         finishGmailFlow()
                     }
@@ -596,7 +643,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun executeScan(input: ScanInput, notifyTitle: String, categorySuffix: String, sourceType: String = "unknown"): Job {
+    private fun executeScan(
+        input: ScanInput,
+        notifyTitle: String,
+        categorySuffix: String,
+        sourceType: String = "unknown",
+        onScanCompleted: ((UnifiedScanResponse) -> Unit)? = null
+    ): Job {
         currentResult = null
         layoutFeedback.visibility = View.GONE
         textFeedbackStatus.visibility = View.GONE
@@ -637,7 +690,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         badgeCategory.text = "${result.classification} ($categorySuffix)"
                         val confidencePct = (result.risk_assessment.confidence * 100).toInt()
-                        textScore.text = "Risk Score: ${result.risk_score} / 100 (Conf: ${confidencePct}%)"
+                        textScore.text = "Risk Score: ${formatScore(result.risk_score)} / 100 (Conf: ${confidencePct}%)"
                         val assessment = result.risk_assessment
                         val explanationLines = buildList {
                             addAll(assessment.reasons)
@@ -645,11 +698,23 @@ class MainActivity : AppCompatActivity() {
                             assessment.evidence.forEach { item ->
                                 add(item.description?.takeIf(String::isNotBlank) ?: "${item.key}: ${item.value}")
                             }
+                            result.warnings.forEach { add("Warning: $it") }
                         }.distinct()
                         textReasons.text = if (explanationLines.isNotEmpty()) explanationLines.joinToString("\n• ", prefix = "• ") else "None"
                         textAction.text = result.risk_assessment.recommended_action
-                        
-                        sendPushNotification(notifyTitle, "Risk: ${result.classification}")
+
+                        if (result.warnings.isNotEmpty()) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Some checks were unavailable: ${result.warnings.first()}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+
+                        if (isThreatClassification(result.classification)) {
+                            sendPushNotification(notifyTitle, "Risk: ${result.classification}")
+                        }
+                        onScanCompleted?.invoke(result)
                     } else {
                         badgeCategory.text = "Malformed Response (Empty Body)"
                     }
@@ -738,13 +803,12 @@ class MainActivity : AppCompatActivity() {
                 testButton.isEnabled = false
                 testButton.text = "Testing..."
                 lifecycleScope.launch {
-                    val originalUrl = ApiClient.baseUrl
                     try {
-                        ApiClient.setBaseUrl(candidateUrl)
+                        val probeApi = ApiClient.createProbeApi(candidateUrl)
                         val start = System.currentTimeMillis()
                         val response = withTimeout(10000L) {
                             withContext(Dispatchers.IO) {
-                                ApiClient.api.healthCheck()
+                                probeApi.healthCheck()
                             }
                         }
                         val elapsed = System.currentTimeMillis() - start
@@ -754,7 +818,6 @@ class MainActivity : AppCompatActivity() {
                             Toast.makeText(this@MainActivity, "Server responded with HTTP ${response.code()}", Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
-                        ApiClient.setBaseUrl(originalUrl)
                         Toast.makeText(this@MainActivity, "Connection failed: ${e.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
                     } finally {
                         testButton.isEnabled = true
@@ -787,4 +850,12 @@ class MainActivity : AppCompatActivity() {
             e.printStackTrace()
         }
     }
+
+    private fun isThreatClassification(classification: String): Boolean =
+        classification.equals("Suspicious", ignoreCase = true) ||
+            classification.equals("Deceptive", ignoreCase = true) ||
+            classification.equals("Phishing", ignoreCase = true) ||
+            classification.equals("Malware", ignoreCase = true)
+
+    private fun formatScore(value: Float): String = String.format(java.util.Locale.US, "%.1f", value)
 }

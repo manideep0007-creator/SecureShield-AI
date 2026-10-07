@@ -669,8 +669,8 @@ def build_pdf():
     <div class="tech-category">
       <div class="tech-cat-title">Android Client</div>
       <div class="tech-items">
-        &bull; <strong>Kotlin 1.9:</strong> Modern native client<br>
-        &bull; <strong>Retrofit 2 &amp; OkHttp 3:</strong> REST API<br>
+        &bull; <strong>Kotlin 2.2:</strong> Modern native client<br>
+        &bull; <strong>Retrofit 2 &amp; OkHttp 4:</strong> REST API<br>
         &bull; <strong>WorkManager:</strong> 15m background scans<br>
         &bull; <strong>SQLite:</strong> Sanitized history store<br>
         &bull; <strong>Google Sign-In:</strong> Gmail OAuth

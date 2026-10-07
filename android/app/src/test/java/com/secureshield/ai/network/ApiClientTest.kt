@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.OkHttpClient
 import com.google.gson.stream.MalformedJsonException
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -149,15 +150,146 @@ class ApiClientTest {
     }
 
     @Test
-    fun `file bytes use backend UTF-8 JSON bytes representation`() {
+    fun `file bytes are base64-encoded for the JSON transport`() {
         val content = "plain text: café"
         val encoded = fileBytesAsBackendJsonValue(content.toByteArray(Charsets.UTF_8))
-        assertEquals(content, encoded)
+        assertEquals(
+            java.util.Base64.getEncoder().encodeToString(content.toByteArray(Charsets.UTF_8)),
+            encoded
+        )
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    fun `binary file bytes are rejected instead of corrupted`() {
-        fileBytesAsBackendJsonValue(byteArrayOf(0, 0xC3.toByte(), 0x28))
+    @Test
+    fun `binary file bytes are base64-encoded without corruption`() {
+        val binary = byteArrayOf(0, 0xC3.toByte(), 0x28, 0x89.toByte(), 0x50, 0x4E, 0x47)
+        val encoded = fileBytesAsBackendJsonValue(binary)
+        assertEquals(java.util.Base64.getEncoder().encodeToString(binary), encoded)
+        assertArrayEquals(binary, java.util.Base64.getDecoder().decode(encoded))
+    }
+
+    @Test
+    fun `file bytes contain no base64 line wrapping`() {
+        val large = ByteArray(300) { (it % 256).toByte() }
+        val encoded = fileBytesAsBackendJsonValue(large)
+        assertFalse(encoded.contains("\n"))
+        assertFalse(encoded.contains("\r"))
+        assertArrayEquals(large, java.util.Base64.getDecoder().decode(encoded))
+    }
+
+    @Test
+    fun `scan response warnings are parsed when present`() = runTest {
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("""
+            {
+                "scan_id": "test-uuid-warn",
+                "status": "completed",
+                "total_engines": 2,
+                "completed_engines": 1,
+                "skipped_engines": 0,
+                "risk_score": 12.0,
+                "classification": "Safe",
+                "warnings": ["malware scan unavailable: VT_API_ERROR_429"],
+                "results": [],
+                "risk_assessment": {
+                    "risk_score": 12.0,
+                    "classification": "Safe",
+                    "confidence": 0.8,
+                    "contributing_engines": ["url_engine"],
+                    "ignored_engines": ["malware_engine"],
+                    "flags": [],
+                    "evidence": [],
+                    "reasons": ["No threats found."],
+                    "recommended_action": "Proceed with normal caution."
+                }
+            }
+        """.trimIndent()))
+
+        val response = api.scan(ScanInput(text = "test"))
+        val parsed = UnifiedScanResponseParser.parse(response.body()!!)
+        assertEquals(listOf("malware scan unavailable: VT_API_ERROR_429"), parsed.warnings)
+    }
+
+    @Test
+    fun `scan response without warnings defaults to an empty list`() = runTest {
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("""
+            {
+                "scan_id": "test-uuid-no-warn",
+                "status": "completed",
+                "total_engines": 1,
+                "completed_engines": 1,
+                "skipped_engines": 0,
+                "risk_score": 10.0,
+                "classification": "Safe",
+                "results": [],
+                "risk_assessment": {
+                    "risk_score": 10.0,
+                    "classification": "Safe",
+                    "confidence": 0.9,
+                    "contributing_engines": ["url_engine"],
+                    "ignored_engines": [],
+                    "flags": [],
+                    "evidence": [],
+                    "reasons": [],
+                    "recommended_action": "Proceed."
+                }
+            }
+        """.trimIndent()))
+
+        val response = api.scan(ScanInput(text = "test"))
+        val parsed = UnifiedScanResponseParser.parse(response.body()!!)
+        assertEquals(emptyList<String>(), parsed.warnings)
+    }
+
+    @Test
+    fun `non-string warnings are rejected as malformed`() = runTest {
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("""
+            {
+                "scan_id": "test-uuid-bad-warn",
+                "status": "completed",
+                "total_engines": 1,
+                "completed_engines": 1,
+                "skipped_engines": 0,
+                "risk_score": 10.0,
+                "classification": "Safe",
+                "warnings": [42],
+                "results": [],
+                "risk_assessment": {
+                    "risk_score": 10.0,
+                    "classification": "Safe",
+                    "confidence": 0.9,
+                    "contributing_engines": [],
+                    "ignored_engines": [],
+                    "flags": [],
+                    "evidence": [],
+                    "reasons": [],
+                    "recommended_action": "Proceed."
+                }
+            }
+        """.trimIndent()))
+
+        val response = api.scan(ScanInput(text = "test"))
+        try {
+            UnifiedScanResponseParser.parse(response.body()!!)
+            throw AssertionError("Expected non-string warnings to fail validation")
+        } catch (e: MalformedScanResponseException) {
+            assertTrue(e.message!!.contains("warnings"))
+        }
+    }
+
+    @Test
+    fun `test probe api does not repoint the shared base url`() {
+        val sharedBefore = ApiClient.baseUrl
+        ApiClient.createProbeApi("http://9.9.9.9:8000/")
+        assertEquals(sharedBefore, ApiClient.baseUrl)
+
+        ApiClient.createProbeApi("https://example.invalid/path")
+        assertEquals(sharedBefore, ApiClient.baseUrl)
+    }
+
+    @Test
+    fun `normalizeBaseUrl appends a single trailing slash`() {
+        assertEquals("http://10.0.2.2:8000/", ApiClient.normalizeBaseUrl("http://10.0.2.2:8000"))
+        assertEquals("http://10.0.2.2:8000/", ApiClient.normalizeBaseUrl("http://10.0.2.2:8000/"))
+        assertEquals("http://192.168.1.5:8000/", ApiClient.normalizeBaseUrl("  http://192.168.1.5:8000  "))
     }
 
     @Test

@@ -32,10 +32,12 @@ class UniversalLinkGuardService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val lastWindowContentHashes = ConcurrentHashMap<Int, Int>()
+    private val inFlightUrls = ConcurrentHashMap.newKeySet<String>()
     private val rateLimiter = ScanRateLimiter(maxScansPerMinute = 10)
 
     companion object {
         const val NOTIFICATION_CHANNEL_ID = "SS_ALERTS"
+        private const val MAX_TRACKED_WINDOWS = 32
         private val THREAT_CATEGORIES = setOf("Suspicious", "Deceptive", "Phishing", "Malware")
     }
 
@@ -63,7 +65,8 @@ class UniversalLinkGuardService : AccessibilityService() {
         // 4. Retrieve active window root node (completely app-agnostic)
         val rootNode = rootInActiveWindow ?: event.source ?: return
 
-        // 5. Walk tree and extract visible text
+        // 5. Walk tree and extract visible text (must run on the event thread;
+        //    node trees are only valid during the callback).
         val visibleText = UniversalLinkExtractor.extractAllVisibleText(rootNode)
         if (visibleText.isBlank()) return
 
@@ -73,34 +76,54 @@ class UniversalLinkGuardService : AccessibilityService() {
         if (lastWindowContentHashes[windowId] == contentHash) {
             return
         }
+        // Bound growth: window ids are recycled by the system and would otherwise
+        // accumulate without limit. Clearing is safe; the URL cache still dedupes.
+        if (lastWindowContentHashes.size >= MAX_TRACKED_WINDOWS && !lastWindowContentHashes.containsKey(windowId)) {
+            lastWindowContentHashes.clear()
+        }
         lastWindowContentHashes[windowId] = contentHash
 
-        // 7. Regex extract URLs
+        // 7. Regex extraction and every SharedPreferences read/write happen on the
+        //    IO dispatcher below — this callback runs on the main thread and the
+        //    store re-serializes up to 500 entries per mark, which risks ANRs.
+        serviceScope.launch {
+            processVisibleText(visibleText, sourcePackage)
+        }
+    }
+
+    private suspend fun processVisibleText(visibleText: String, sourcePackage: String) {
         val urls = UniversalLinkExtractor.extractUrlsFromText(visibleText)
         if (urls.isEmpty()) return
 
         android.util.Log.d("UniversalLinkGuard", "Detected ${urls.size} URL(s) in active window of package: $sourcePackage")
 
-        // 8. Deduplicate and Rate-Limit before scanning
         for (url in urls) {
-            // Short-TTL cache: skip if seen within ~10 minutes
-            if (ProcessedMessageStore.isUrlProcessed(applicationContext, url)) {
-                android.util.Log.d("UniversalLinkGuard", "Skipping URL within 10-min cache: $url")
-                continue
+            // In-memory guard closes the gap between event arrival and the disk
+            // cache write, so rapid window-content events cannot double-dispatch.
+            if (!inFlightUrls.add(url)) continue
+            try {
+                // Short-TTL cache: skip if seen within ~10 minutes
+                if (ProcessedMessageStore.isUrlProcessed(applicationContext, url)) {
+                    android.util.Log.d("UniversalLinkGuard", "Skipping URL within 10-min cache: $url")
+                    continue
+                }
+
+                // Hard rate-limit: drop excess scans rather than queuing
+                if (!rateLimiter.tryAcquire()) {
+                    android.util.Log.w("UniversalLinkGuard", "Rate limit exceeded (10 scans/min). Dropping URL: $url")
+                    continue
+                }
+
+                // Mark before scanning to prevent retry storms on failures
+                ProcessedMessageStore.markUrlProcessed(applicationContext, url)
+
+                android.util.Log.i("UniversalLinkGuard", "Dispatching scan to backend for URL: $url (Source: $sourcePackage)")
+                scanAndReport(url, sourcePackage)
+            } finally {
+                // Only now safe to release: markUrlProcessed has populated the cache,
+                // so subsequent events are caught by the 10-minute TTL check above.
+                inFlightUrls.remove(url)
             }
-
-            // Hard rate-limit: drop excess scans rather than queuing
-            if (!rateLimiter.tryAcquire()) {
-                android.util.Log.w("UniversalLinkGuard", "Rate limit exceeded (10 scans/min). Dropping URL: $url")
-                continue
-            }
-
-            // Immediately mark as processed to prevent race conditions from rapid events
-            ProcessedMessageStore.markUrlProcessed(applicationContext, url)
-
-            // Dispatch URL scan asynchronously
-            android.util.Log.i("UniversalLinkGuard", "Dispatching scan to backend for URL: $url (Source: $sourcePackage)")
-            dispatchUrlScan(url, sourcePackage)
         }
     }
 
@@ -111,37 +134,36 @@ class UniversalLinkGuardService : AccessibilityService() {
     override fun onDestroy() {
         serviceScope.cancel()
         lastWindowContentHashes.clear()
+        inFlightUrls.clear()
         super.onDestroy()
     }
 
-    private fun dispatchUrlScan(url: String, sourcePackage: String) {
-        serviceScope.launch {
-            try {
-                val scanInput = ScanInput(
-                    url = url,
-                    source_channel = "universal_guard",
-                    metadata = mapOf(
-                        "source_package" to sourcePackage,
-                        "detector" to "UniversalLinkGuardService"
-                    )
+    private suspend fun scanAndReport(url: String, sourcePackage: String) {
+        try {
+            val scanInput = ScanInput(
+                url = url,
+                source_channel = "universal_guard",
+                metadata = mapOf(
+                    "source_package" to sourcePackage,
+                    "detector" to "UniversalLinkGuardService"
                 )
+            )
 
-                val response = ApiClient.api.scan(scanInput)
-                if (response.isSuccessful) {
-                    val body = response.body() ?: return@launch
-                    val scanResult = UnifiedScanResponseParser.parse(body)
+            val response = ApiClient.api.scan(scanInput)
+            if (response.isSuccessful) {
+                val body = response.body() ?: return
+                val scanResult = UnifiedScanResponseParser.parse(body)
 
-                    // Persist scan result to local scan history
-                    val repo = ScanHistoryRepository(applicationContext)
-                    repo.saveCompletedScan(scanResult, "accessibility_guard")
-                    repo.close()
+                // Persist scan result to local scan history
+                val repo = ScanHistoryRepository(applicationContext)
+                repo.saveCompletedScan(scanResult, "accessibility_guard")
+                repo.close()
 
-                    // Handle verdict
-                    handleScanVerdict(scanResult, sourcePackage, url)
-                }
-            } catch (_: Exception) {
-                // Network or parsing failure; cache & rate-limiter prevent retrying in a storm
+                // Handle verdict
+                handleScanVerdict(scanResult, sourcePackage, url)
             }
+        } catch (_: Exception) {
+            // Network or parsing failure; cache & rate-limiter prevent retrying in a storm
         }
     }
 
