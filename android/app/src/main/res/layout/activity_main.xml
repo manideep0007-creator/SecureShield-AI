@@ -12,6 +12,7 @@
         android:padding="24dp">
 
         <TextView
+            android:id="@+id/text_app_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="SecureShield AI"
@@ -86,13 +87,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Scan History"
-            android:layout_marginBottom="8dp" />
-
-        <Button
-            android:id="@+id/btn_server_settings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="⚙️ Server Settings"
             android:layout_marginBottom="16dp" />
 
         <ProgressBar

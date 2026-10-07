@@ -13,6 +13,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.BadParcelableException
 import android.provider.OpenableColumns
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
@@ -207,15 +209,31 @@ class MainActivity : AppCompatActivity() {
 
         ServerSettings.init(this)
 
+        findViewById<TextView>(R.id.text_app_title)?.setOnLongClickListener {
+            showServerConfigDialog()
+            true
+        }
+
         findViewById<Button>(R.id.btn_scan_history).setOnClickListener {
             startActivity(Intent(this, ScanHistoryActivity::class.java))
         }
 
-        findViewById<Button>(R.id.btn_server_settings)?.setOnClickListener {
-            showServerConfigDialog()
-        }
-
         handleIntent(intent)
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_advanced_settings -> {
+                showServerConfigDialog()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 
     private fun ensureNotificationPermission() {
@@ -775,27 +793,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleServerUnavailable(onRetry: (() -> Unit)? = null) {
-        badgeCategory.text = "Server Unavailable"
-        textScore.text = "SecureShield server is unavailable."
-        textReasons.text = "Tap Server Settings to configure the backend URL, or tap Retry once the server is running."
-        textAction.text = "Check server connection"
-        val errorClick = View.OnClickListener { showServerConfigDialog() }
-        badgeCategory.setOnClickListener(errorClick)
-        textReasons.setOnClickListener(errorClick)
+        badgeCategory.text = "Service Unavailable"
+        textScore.text = "SecureShield protection service is unavailable."
+        textReasons.text = "Please check your connection and try again."
+        textAction.text = "Check connection and retry"
+        badgeCategory.setOnClickListener(null)
+        textReasons.setOnClickListener(null)
         showServerUnavailableDialog(onRetry)
     }
 
     private fun showServerUnavailableDialog(onRetry: (() -> Unit)? = null) {
         AlertDialog.Builder(this)
-            .setTitle("Server Unavailable")
-            .setMessage("SecureShield server is unavailable.")
+            .setTitle("Service Unavailable")
+            .setMessage("SecureShield protection service is unavailable. Please check your connection and try again.")
             .setPositiveButton("Retry") { _, _ ->
                 onRetry?.invoke()
             }
-            .setNeutralButton("Server Settings") { _, _ ->
-                showServerConfigDialog()
-            }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Dismiss", null)
             .show()
     }
 
@@ -811,7 +825,7 @@ class MainActivity : AppCompatActivity() {
         editUrl.setSelection(editUrl.text.length)
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Server Settings")
+            .setTitle("Advanced / Developer Settings")
             .setView(view)
             .setNegativeButton("Cancel", null)
             .create()
