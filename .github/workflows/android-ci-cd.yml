@@ -53,7 +53,7 @@ jobs:
           retention-days: 14
 
       - name: Distribute to Firebase App Distribution
-        if: env.FIREBASE_APP_ID != '' && (env.FIREBASE_TOKEN != '' || env.FIREBASE_SERVICE_CREDENTIALS != '')
+        if: ${{ secrets.FIREBASE_APP_ID != '' && (secrets.FIREBASE_TOKEN != '' || secrets.FIREBASE_SERVICE_CREDENTIALS != '') }}
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
@@ -62,14 +62,8 @@ jobs:
           groups: ${{ secrets.FIREBASE_TESTER_GROUPS || 'internal-testers' }}
           file: android/app/build/outputs/apk/debug/app-debug.apk
           releaseNotes: "Automated test build from GitHub Actions commit ${{ github.sha }}"
-        env:
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          FIREBASE_SERVICE_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_CREDENTIALS }}
 
       - name: Log Firebase Status
-        if: env.FIREBASE_APP_ID == ''
+        if: ${{ secrets.FIREBASE_APP_ID == '' }}
         run: |
           echo "ℹ️ Firebase App Distribution secrets not configured. APK successfully generated and stored in GitHub Actions artifacts."
-        env:
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
