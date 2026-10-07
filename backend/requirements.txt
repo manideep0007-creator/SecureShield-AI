@@ -9,6 +9,6 @@ cachetools
 python-multipart
 asyncwhois
 tldextract
-opencv-python
+opencv-python-headless
 easyocr
 numpy

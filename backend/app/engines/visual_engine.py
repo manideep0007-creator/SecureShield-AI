@@ -1,4 +1,4 @@
-﻿import cv2
+import cv2
 import easyocr
 import numpy as np
 import re
@@ -7,7 +7,13 @@ from app.engines.registry import engine_registry
 from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
 from app.models.scan_input import ScanInput
 
-reader = easyocr.Reader(['en'], gpu=False)
+_reader = None
+
+def get_ocr_reader():
+    global _reader
+    if _reader is None:
+        _reader = easyocr.Reader(['en'], gpu=False)
+    return _reader
 
 def extract_urls(text: str) -> list[str]:
     url_pattern = re.compile(
@@ -55,7 +61,8 @@ class VisualEngine(BaseEngine):
                 else:
                     extracted_text += data + "\n"
 
-            ocr_results = reader.readtext(img)
+            ocr_reader = get_ocr_reader()
+            ocr_results = ocr_reader.readtext(img)
             ocr_texts = [res[1] for res in ocr_results if res[2] > 0.3]
             
             if ocr_texts:
