@@ -41,8 +41,8 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
         env:
-          PROD_BASE_URL: ${{ secrets.PROD_BASE_URL || 'https://secureshield-api.up.railway.app/' }}
-          DEV_BASE_URL: ${{ secrets.DEV_BASE_URL || 'http://10.0.2.2:8000/' }}
+          PROD_BASE_URL: ${{ secrets.PROD_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
+          DEV_BASE_URL: ${{ secrets.DEV_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
