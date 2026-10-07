@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/text_label_backend_url"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Backend URL:"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="#212121"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/edit_server_url"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="http://10.0.2.2:8000/"
+        android:inputType="textUri"
+        android:maxLines="1"
+        android:textSize="15sp"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/text_connection_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="13sp"
+        android:visibility="gone"
+        android:layout_marginBottom="16dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/btn_test_connection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TEST CONNECTION"
+            android:textSize="13sp"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btn_save_settings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SAVE"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+</LinearLayout>

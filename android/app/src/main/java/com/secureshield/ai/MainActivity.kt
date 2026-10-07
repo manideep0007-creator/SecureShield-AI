@@ -35,7 +35,10 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.Scope
 import com.google.api.services.gmail.GmailScopes
+import android.graphics.Color
 import com.secureshield.ai.network.ApiClient
+import com.secureshield.ai.network.ServerSettings
+import com.secureshield.ai.network.ProbeResult
 import com.secureshield.ai.network.ScanInput
 import com.secureshield.ai.network.UnifiedScanResponse
 import com.secureshield.ai.network.FeedbackRequest
@@ -202,11 +205,7 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        val prefs = getSharedPreferences("secureshield_settings", Context.MODE_PRIVATE)
-        val savedUrl = prefs.getString("server_base_url", null)
-        if (!savedUrl.isNullOrBlank()) {
-            ApiClient.setBaseUrl(savedUrl)
-        }
+        ServerSettings.init(this)
 
         findViewById<Button>(R.id.btn_scan_history).setOnClickListener {
             startActivity(Intent(this, ScanHistoryActivity::class.java))
@@ -382,13 +381,28 @@ class MainActivity : AppCompatActivity() {
                         showGmailFetchFailureDialog(msg)
                     }
                     is GmailFetchResult.Messages -> {
+                        val pendingEmails = fetch.emails.filterNot {
+                            ProcessedMessageStore.isProcessed(applicationContext, it.messageId)
+                        }
+
+                        if (pendingEmails.isEmpty()) {
+                            finishGmailFlow("All ${fetch.emails.size} unread messages were already scanned.")
+                            return@launch
+                        }
+
+                        // Pre-flight lightweight availability check using health endpoint
+                        badgeCategory.text = "Checking server connection..."
+                        val serverHealthy = ApiClient.checkHealth()
+                        if (!serverHealthy) {
+                            finishGmailFlow()
+                            handleServerUnavailable(onRetry = {
+                                processUnreadMessages(account)
+                            })
+                            return@launch
+                        }
+
                         var scannedCount = 0
-                        var skippedCount = 0
-                        GmailEmailScanDispatcher.dispatch(fetch.emails) { email ->
-                            if (ProcessedMessageStore.isProcessed(applicationContext, email.messageId)) {
-                                skippedCount++
-                                return@dispatch
-                            }
+                        GmailEmailScanDispatcher.dispatch(pendingEmails) { email ->
                             textTarget.text = buildString {
                                 appendLine("From: ${email.sender ?: "Unknown sender"}")
                                 email.recipient?.let { appendLine("To: $it") }
@@ -408,10 +422,6 @@ class MainActivity : AppCompatActivity() {
                                 scannedCount++
                                 ProcessedMessageStore.markProcessed(applicationContext, email.messageId)
                             }
-                        }
-                        if (skippedCount > 0 && scannedCount == 0) {
-                            finishGmailFlow("All ${fetch.emails.size} unread messages were already scanned.")
-                            return@launch
                         }
                         finishGmailFlow()
                     }
@@ -494,6 +504,16 @@ class MainActivity : AppCompatActivity() {
         )
 
         lifecycleScope.launch {
+            badgeCategory.text = "Checking server connection..."
+            val serverHealthy = ApiClient.checkHealth()
+            if (!serverHealthy) {
+                finishGmailFlow()
+                handleServerUnavailable(onRetry = {
+                    scanDemoGmailMessage()
+                })
+                return@launch
+            }
+
             textTarget.text = buildString {
                 appendLine("From: ${demoEmail.sender}")
                 demoEmail.recipient?.let { appendLine("To: $it") }
@@ -723,26 +743,17 @@ class MainActivity : AppCompatActivity() {
                     badgeCategory.text = "HTTP Error: $sc"
                 }
             } catch (e: ConnectException) {
-                badgeCategory.text = "Connection Failed"
-                textScore.text = "Cannot reach server"
-                textReasons.text = "Could not connect to ${ApiClient.baseUrl}\n1. Check your phone Wi-Fi (must be same network as PC).\n2. Ensure backend server is running.\n\n👉 Tap here to configure Server IP."
-                val errorClick = View.OnClickListener { showServerConfigDialog() }
-                badgeCategory.setOnClickListener(errorClick)
-                textReasons.setOnClickListener(errorClick)
+                handleServerUnavailable(onRetry = {
+                    executeScan(input, notifyTitle, categorySuffix, sourceType, onScanCompleted)
+                })
             } catch (e: TimeoutCancellationException) {
-                badgeCategory.text = "Network Timeout"
-                textScore.text = "Scan took too long"
-                textReasons.text = "Server at ${ApiClient.baseUrl} took over 35s to respond.\nIf scanning a file, ensure external services are reachable.\n\n👉 Tap here to configure Server IP."
-                val errorClick = View.OnClickListener { showServerConfigDialog() }
-                badgeCategory.setOnClickListener(errorClick)
-                textReasons.setOnClickListener(errorClick)
+                handleServerUnavailable(onRetry = {
+                    executeScan(input, notifyTitle, categorySuffix, sourceType, onScanCompleted)
+                })
             } catch (e: SocketTimeoutException) {
-                badgeCategory.text = "Network Timeout"
-                textScore.text = "Connection timed out"
-                textReasons.text = "Socket timed out connecting to ${ApiClient.baseUrl}\nCheck your network connection or PC firewall.\n\n👉 Tap here to configure Server IP."
-                val errorClick = View.OnClickListener { showServerConfigDialog() }
-                badgeCategory.setOnClickListener(errorClick)
-                textReasons.setOnClickListener(errorClick)
+                handleServerUnavailable(onRetry = {
+                    executeScan(input, notifyTitle, categorySuffix, sourceType, onScanCompleted)
+                })
             } catch (e: MalformedScanResponseException) {
                 badgeCategory.text = "Malformed Response: ${e.message}"
             } catch (e: JsonParseException) {
@@ -750,80 +761,108 @@ class MainActivity : AppCompatActivity() {
             } catch (e: MalformedJsonException) {
                 badgeCategory.text = "Malformed Response: Invalid JSON."
             } catch (e: IOException) {
-                badgeCategory.text = "Network Error: ${e.message}"
-                textReasons.text = "Network error connecting to ${ApiClient.baseUrl}\n\n👉 Tap here to configure Server IP."
-                val errorClick = View.OnClickListener { showServerConfigDialog() }
-                badgeCategory.setOnClickListener(errorClick)
-                textReasons.setOnClickListener(errorClick)
+                handleServerUnavailable(onRetry = {
+                    executeScan(input, notifyTitle, categorySuffix, sourceType, onScanCompleted)
+                })
             } catch (e: Exception) {
-                badgeCategory.text = "Network Error: ${e.message}"
+                badgeCategory.text = "Scan Error: ${e.message}"
             } finally {
                 progressBar.visibility = View.GONE
             }
         }
     }
 
+    private fun handleServerUnavailable(onRetry: (() -> Unit)? = null) {
+        badgeCategory.text = "Server Unavailable"
+        textScore.text = "SecureShield server is unavailable."
+        textReasons.text = "Tap Server Settings to configure the backend URL, or tap Retry once the server is running."
+        textAction.text = "Check server connection"
+        val errorClick = View.OnClickListener { showServerConfigDialog() }
+        badgeCategory.setOnClickListener(errorClick)
+        textReasons.setOnClickListener(errorClick)
+        showServerUnavailableDialog(onRetry)
+    }
+
+    private fun showServerUnavailableDialog(onRetry: (() -> Unit)? = null) {
+        AlertDialog.Builder(this)
+            .setTitle("Server Unavailable")
+            .setMessage("SecureShield server is unavailable.")
+            .setPositiveButton("Retry") { _, _ ->
+                onRetry?.invoke()
+            }
+            .setNeutralButton("Server Settings") { _, _ ->
+                showServerConfigDialog()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun showServerConfigDialog() {
-        val input = EditText(this).apply {
-            hint = "http://192.168.x.x:8000/"
-            setText(ApiClient.baseUrl)
-            setSelection(text.length)
-            setPadding(48, 24, 48, 24)
-        }
+        val view = layoutInflater.inflate(R.layout.dialog_server_settings, null)
+        val editUrl = view.findViewById<EditText>(R.id.edit_server_url)
+        val textStatus = view.findViewById<TextView>(R.id.text_connection_status)
+        val btnTest = view.findViewById<Button>(R.id.btn_test_connection)
+        val btnSave = view.findViewById<Button>(R.id.btn_save_settings)
+
+        val currentUrl = ServerSettings.getServerUrl(this)
+        editUrl.setText(currentUrl)
+        editUrl.setSelection(editUrl.text.length)
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Server Connection Settings")
-            .setMessage("Current Base URL:\n${ApiClient.baseUrl}\n\nEnter backend IP and port:")
-            .setView(input)
-            .setPositiveButton("Save") { _, _ ->
-                val newUrl = input.text.toString().trim()
-                if (newUrl.startsWith("http://") || newUrl.startsWith("https://")) {
-                    ApiClient.setBaseUrl(newUrl)
-                    getSharedPreferences("secureshield_settings", Context.MODE_PRIVATE)
-                        .edit()
-                        .putString("server_base_url", ApiClient.baseUrl)
-                        .apply()
-                    Toast.makeText(this, "Server URL updated to: ${ApiClient.baseUrl}", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Invalid URL. Must begin with http:// or https://", Toast.LENGTH_LONG).show()
-                }
-            }
-            .setNeutralButton("Test Connection", null)
+            .setTitle("Server Settings")
+            .setView(view)
             .setNegativeButton("Cancel", null)
             .create()
 
-        dialog.setOnShowListener {
-            val testButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
-            testButton.setOnClickListener {
-                val candidateUrl = input.text.toString().trim()
-                if (!candidateUrl.startsWith("http://") && !candidateUrl.startsWith("https://")) {
-                    Toast.makeText(this, "Enter a valid URL starting with http:// or https://", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                testButton.isEnabled = false
-                testButton.text = "Testing..."
-                lifecycleScope.launch {
-                    try {
-                        val probeApi = ApiClient.createProbeApi(candidateUrl)
-                        val start = System.currentTimeMillis()
-                        val response = withTimeout(10000L) {
-                            withContext(Dispatchers.IO) {
-                                probeApi.healthCheck()
-                            }
+        btnTest.setOnClickListener {
+            val candidateUrl = editUrl.text.toString().trim()
+            if (!ServerSettings.isValidServerUrl(candidateUrl)) {
+                textStatus.visibility = View.VISIBLE
+                textStatus.setTextColor(Color.RED)
+                textStatus.text = "Invalid URL format. Must start with http:// or https://"
+                return@setOnClickListener
+            }
+            btnTest.isEnabled = false
+            btnTest.text = "TESTING..."
+            textStatus.visibility = View.VISIBLE
+            textStatus.setTextColor(Color.DKGRAY)
+            textStatus.text = "Testing connection..."
+
+            lifecycleScope.launch {
+                try {
+                    when (val result = ApiClient.testConnection(candidateUrl)) {
+                        is ProbeResult.Success -> {
+                            textStatus.setTextColor(Color.parseColor("#2E7D32"))
+                            textStatus.text = "✓ Connected! (Latency: ${result.latencyMs}ms)"
                         }
-                        val elapsed = System.currentTimeMillis() - start
-                        if (response.isSuccessful) {
-                            Toast.makeText(this@MainActivity, "Connected! Latency: ${elapsed}ms", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(this@MainActivity, "Server responded with HTTP ${response.code()}", Toast.LENGTH_LONG).show()
+                        is ProbeResult.Failure -> {
+                            textStatus.setTextColor(Color.RED)
+                            textStatus.text = "✗ Connection failed: ${result.message}"
                         }
-                    } catch (e: Exception) {
-                        Toast.makeText(this@MainActivity, "Connection failed: ${e.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
-                    } finally {
-                        testButton.isEnabled = true
-                        testButton.text = "Test Connection"
                     }
+                } finally {
+                    btnTest.isEnabled = true
+                    btnTest.text = "TEST CONNECTION"
                 }
+            }
+        }
+
+        btnSave.setOnClickListener {
+            val candidateUrl = editUrl.text.toString().trim()
+            if (!ServerSettings.isValidServerUrl(candidateUrl)) {
+                textStatus.visibility = View.VISIBLE
+                textStatus.setTextColor(Color.RED)
+                textStatus.text = "Invalid URL. Please enter a valid URL."
+                return@setOnClickListener
+            }
+            val saved = ServerSettings.saveServerUrl(this, candidateUrl)
+            if (saved) {
+                Toast.makeText(this, "Server URL updated to: ${ServerSettings.getServerUrl(this)}", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            } else {
+                textStatus.visibility = View.VISIBLE
+                textStatus.setTextColor(Color.RED)
+                textStatus.text = "Could not save server URL."
             }
         }
 

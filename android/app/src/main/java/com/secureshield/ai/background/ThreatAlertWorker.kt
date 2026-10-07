@@ -16,6 +16,7 @@ import com.secureshield.ai.MainActivity
 import com.secureshield.ai.R
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.network.ApiClient
+import com.secureshield.ai.network.ServerSettings
 import com.secureshield.ai.network.ScanInput
 import com.secureshield.ai.network.UnifiedScanResponse
 import com.secureshield.ai.network.UnifiedScanResponseParser
@@ -28,6 +29,7 @@ class ThreatAlertWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        ServerSettings.init(applicationContext)
         val success = BackgroundScanner.execute(object : BackgroundDependencies {
             override val isEnabled: Boolean
                 get() = BackgroundProtectionManager.isEnabled(applicationContext)

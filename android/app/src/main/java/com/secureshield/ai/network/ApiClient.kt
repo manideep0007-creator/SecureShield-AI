@@ -14,6 +14,9 @@ import retrofit2.http.POST
 import okhttp3.OkHttpClient
 import okio.ByteString.Companion.toByteString
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 data class ScanInput(
     val text: String? = null,
@@ -247,9 +250,54 @@ object ApiClient {
         }
     }
 
+    fun resetBaseUrl() {
+        synchronized(this) {
+            customBaseUrl = null
+            currentApi = null
+        }
+    }
+
     fun normalizeBaseUrl(url: String): String {
         val trimmed = url.trim()
         return if (!trimmed.endsWith("/")) "$trimmed/" else trimmed
+    }
+
+    /**
+     * Performs a lightweight backend availability check using the configured [baseUrl].
+     */
+    suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val response = withTimeout(5000L) {
+                api.healthCheck()
+            }
+            response.isSuccessful
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Probes connectivity against a candidate URL without affecting the active [baseUrl].
+     */
+    suspend fun testConnection(candidateUrl: String): ProbeResult = withContext(Dispatchers.IO) {
+        if (!ServerSettings.isValidServerUrl(candidateUrl)) {
+            return@withContext ProbeResult.Failure("Invalid URL format. Must start with http:// or https://")
+        }
+        val start = System.currentTimeMillis()
+        try {
+            val probeApi = createProbeApi(candidateUrl)
+            val response = withTimeout(5000L) {
+                probeApi.healthCheck()
+            }
+            val elapsed = System.currentTimeMillis() - start
+            if (response.isSuccessful) {
+                ProbeResult.Success(elapsed)
+            } else {
+                ProbeResult.Failure("Server responded with HTTP ${response.code()}")
+            }
+        } catch (e: Exception) {
+            ProbeResult.Failure(e.localizedMessage ?: "Could not connect to server.")
+        }
     }
 
     /**
@@ -265,10 +313,15 @@ object ApiClient {
 
     private val probeOkHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
             .build()
     }
 }
+
+sealed class ProbeResult {
+    data class Success(val latencyMs: Long) : ProbeResult()
+    data class Failure(val message: String) : ProbeResult()
+}

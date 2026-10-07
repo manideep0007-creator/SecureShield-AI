@@ -8,8 +8,16 @@ from app.models.feedback import EvaluationMetrics, FeedbackRequest, FeedbackSubm
 from app.models.scan_input import ScanInput
 from app.models.scan_response import UnifiedScanResponse
 
+from app.config.config import settings
+
 router = APIRouter()
 unified_pipeline = UnifiedScanPipeline()
+
+
+@router.get("/health")
+def api_health():
+    """Lightweight availability health check endpoint."""
+    return {"status": "running", "project": settings.PROJECT_NAME}
 
 
 @router.post("/feedback", response_model=FeedbackSubmissionResponse)

@@ -14,6 +14,7 @@ import com.secureshield.ai.ScanHistoryActivity
 import com.secureshield.ai.background.ProcessedMessageStore
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.network.ApiClient
+import com.secureshield.ai.network.ServerSettings
 import com.secureshield.ai.network.ScanInput
 import com.secureshield.ai.network.UnifiedScanResponse
 import com.secureshield.ai.network.UnifiedScanResponseParser
@@ -140,6 +141,7 @@ class UniversalLinkGuardService : AccessibilityService() {
 
     private suspend fun scanAndReport(url: String, sourcePackage: String) {
         try {
+            ServerSettings.init(applicationContext)
             val scanInput = ScanInput(
                 url = url,
                 source_channel = "universal_guard",

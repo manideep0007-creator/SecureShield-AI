@@ -147,5 +147,15 @@ class TestAPIUnifiedScan(unittest.TestCase):
         self.assertGreaterEqual(data["risk_score"], 50.0)
         self.assertEqual(data["classification"], "Deceptive")
 
+    def test_health_check_endpoints(self):
+        """Verify lightweight health check endpoints return 200 OK with running status."""
+        res_root = client.get("/health")
+        self.assertEqual(res_root.status_code, 200)
+        self.assertEqual(res_root.json()["status"], "running")
+
+        res_api = client.get("/api/health")
+        self.assertEqual(res_api.status_code, 200)
+        self.assertEqual(res_api.json()["status"], "running")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
