@@ -146,7 +146,16 @@ class UniversalLinkGuardService : AccessibilityService() {
             // Optional short suspicious text analysis when no URL is present
             val snippet = UniversalLinkExtractor.extractSuspiciousTextSnippet(visibleText)
             if (snippet != null) {
-                val textKey = "text:${snippet.hashCode()}"
+                // 1. Redact sensitive values (OTPs/long digits, passwords, tokens, phone numbers, emails)
+                val sanitizedSnippet = UniversalLinkExtractor.sanitizeSnippet(snippet)
+
+                // 2. If redaction removes more than half the snippet, skip the scan
+                if (UniversalLinkExtractor.isMostlyRedacted(snippet, sanitizedSnippet)) {
+                    android.util.Log.d("GuardianService", "Snippet mostly redacted (${snippet.length} chars). Skipping scan for privacy.")
+                    return
+                }
+
+                val textKey = "text:${sanitizedSnippet.hashCode()}"
                 if (!inFlightUrls.add(textKey)) return
                 try {
                     if (ProcessedMessageStore.isUrlProcessed(applicationContext, textKey)) {
@@ -157,9 +166,9 @@ class UniversalLinkGuardService : AccessibilityService() {
                     }
                     ProcessedMessageStore.markUrlProcessed(applicationContext, textKey)
 
-                    android.util.Log.i("GuardianService", "Dispatching text scan for snippet (Source: $sourcePackage)")
+                    android.util.Log.i("GuardianService", "Dispatching redacted text scan for snippet (Source: $sourcePackage)")
                     val input = ScanInput(
-                        text = snippet,
+                        text = sanitizedSnippet,
                         source_channel = "guardian",
                         metadata = mapOf(
                             "source_package" to sourcePackage,
@@ -167,7 +176,7 @@ class UniversalLinkGuardService : AccessibilityService() {
                         )
                     )
                     val success = try {
-                        scanAndReport(input, sourcePackage, targetDisplay = snippet)
+                        scanAndReport(input, sourcePackage, targetDisplay = sanitizedSnippet)
                     } catch (e: Exception) {
                         if (e is CancellationException) throw e
                         android.util.Log.e("GuardianService", "Unhandled error during scan: ${e.message}", e)

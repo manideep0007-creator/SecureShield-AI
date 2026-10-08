@@ -184,7 +184,7 @@
                                         android:id="@+id/text_universal_guard_desc"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="On-Screen Threat Interception"
+                                        android:text="@string/accessibility_service_description"
                                         android:textSize="12sp"
                                         android:textColor="@color/text_secondary" />
                                 </LinearLayout>
