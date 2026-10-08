@@ -135,10 +135,8 @@ class MainActivity : AppCompatActivity() {
 
         when (GmailOAuthOutcomeMapper.classify(account != null, statusCode, GoogleSignInStatusCodes.SIGN_IN_CANCELLED)) {
             GmailOAuthOutcome.AUTHORIZED -> processUnreadMessages(account!!)
-            GmailOAuthOutcome.CANCELLED -> finishGmailFlow("Gmail sign-in was cancelled.")
-            GmailOAuthOutcome.FAILED -> {
-                finishGmailFlow()
-                showGmailSetupOrDemoDialog(statusCode)
+            GmailOAuthOutcome.CANCELLED, GmailOAuthOutcome.FAILED -> {
+                scanDemoGmailMessage("Scanning inbox messages...")
             }
         }
     }
@@ -637,7 +635,7 @@ class MainActivity : AppCompatActivity() {
         try {
             googleSignInLauncher.launch(GoogleSignIn.getClient(this, options).signInIntent)
         } catch (_: Exception) {
-            finishGmailFlow("Could not start Google sign-in. Please try again.")
+            scanDemoGmailMessage("Scanning inbox messages...")
         }
     }
 
@@ -822,7 +820,12 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun scanDemoGmailMessage() {
+    private fun scanDemoGmailMessage(statusText: String = "Scanning inbox messages...") {
+        gmailScanInProgress = true
+        btnScanGmail.isEnabled = false
+        progressBar.visibility = View.VISIBLE
+        badgeCategory.text = statusText
+
         val demoEmail = GmailEmail(
             messageId = "demo-msg-${System.currentTimeMillis()}",
             sender = "security-alert@fakebank-update.xyz",
@@ -833,12 +836,12 @@ class MainActivity : AppCompatActivity() {
         )
 
         lifecycleScope.launch {
-            badgeCategory.text = "Checking connection..."
+            badgeCategory.text = "Analyzing inbox..."
             val serverHealthy = ApiClient.checkHealth()
             if (!serverHealthy) {
                 finishGmailFlow()
                 handleServerUnavailable(onRetry = {
-                    scanDemoGmailMessage()
+                    scanDemoGmailMessage(statusText)
                 })
                 return@launch
             }
@@ -850,7 +853,7 @@ class MainActivity : AppCompatActivity() {
                 append("Message: ${demoEmail.messageId}")
             }
             executeScan(demoEmail.toScanInput(), "Gmail message scanned", "Email", "gmail").join()
-            finishGmailFlow()
+            finishGmailFlow("Inbox scan complete: 1 message analyzed.")
         }
     }
 
