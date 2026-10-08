@@ -103,6 +103,17 @@ object ProcessedMessageStore {
     }
 
     /**
+     * Unmarks a URL or cache key so it can be re-evaluated (e.g. after a failed scan).
+     */
+    fun unmarkUrl(context: Context, key: String) {
+        val normalized = key.trim()
+        if (normalized.isEmpty()) return
+
+        inMemoryUrlTimestamps.remove(normalized)
+        removeUrlFromPrefs(context, normalized)
+    }
+
+    /**
      * Clears all in-memory and persisted URL cache entries (useful for testing or manual reset).
      */
     fun clearUrlCache(context: Context) {
