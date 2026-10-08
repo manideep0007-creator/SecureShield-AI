@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
             GmailOAuthOutcome.AUTHORIZED -> processUnreadMessages(account!!)
             GmailOAuthOutcome.CANCELLED -> finishGmailFlow("Gmail sign-in was cancelled.")
             GmailOAuthOutcome.FAILED -> {
-                finishGmailFlow("Gmail authorization failed. Please try again.")
+                finishGmailFlow()
                 showGmailSetupOrDemoDialog(statusCode)
             }
         }
@@ -216,6 +216,10 @@ class MainActivity : AppCompatActivity() {
         btnScanGmail.setOnLongClickListener {
             scanDemoGmailMessage()
             true
+        }
+
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_quick_scan_text)?.setOnClickListener {
+            showCustomInputScanDialog()
         }
 
         btnViewDetails.setOnClickListener {
@@ -720,16 +724,88 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showGmailSetupOrDemoDialog(statusCode: Int?) {
+        val isDeveloperError = statusCode == 10 || statusCode == GoogleSignInStatusCodes.DEVELOPER_ERROR
+        val message = if (isDeveloperError) {
+            "Google Sign-In returned Status 10 (OAuth Configuration Required).\n\n" +
+            "Direct Google OAuth in Android requires registering this APK's SHA-1 fingerprint in the Google Cloud Console for 'com.secureshield.ai'.\n\n" +
+            "You can test SecureShield AI's multi-engine threat detection immediately using the options below:"
+        } else {
+            "Google Sign-In returned status ${statusCode ?: "unknown"}.\n\n" +
+            "You can test threat scanning immediately with a sample phishing email or custom text:"
+        }
+
         AlertDialog.Builder(this)
-            .setTitle("Gmail Authorization Notice")
-            .setMessage(
-                "Google Sign-In returned status ${statusCode ?: "unknown"}.\n\n" +
-                "For local testing and evaluation, SecureShield includes a built-in demo scan."
-            )
-            .setPositiveButton("Scan Demo Message") { _, _ ->
+            .setTitle("Gmail Protection & AI Scanner")
+            .setMessage(message)
+            .setPositiveButton("Scan Phishing Sample") { _, _ ->
                 scanDemoGmailMessage()
             }
-            .setNegativeButton("Dismiss", null)
+            .setNeutralButton("Paste Text / URL") { _, _ ->
+                showCustomInputScanDialog()
+            }
+            .setNegativeButton("OAuth Setup Info") { _, _ ->
+                showOAuthSetupInfoDialog()
+            }
+            .show()
+    }
+
+    private fun showCustomInputScanDialog() {
+        val inputEdit = EditText(this).apply {
+            hint = "Paste email subject & body, SMS, message, or URL..."
+            minLines = 4
+            setPadding(36, 36, 36, 36)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_muted))
+        }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 20, 48, 10)
+            addView(inputEdit)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Custom Threat Analyzer")
+            .setMessage("Enter or paste any suspicious email, link, or message text to analyze with SecureShield AI:")
+            .setView(container)
+            .setPositiveButton("Scan with AI") { _, _ ->
+                val textToScan = inputEdit.text.toString().trim()
+                if (textToScan.isNotEmpty()) {
+                    lifecycleScope.launch {
+                        progressBar.visibility = View.VISIBLE
+                        badgeCategory.text = "Scanning..."
+                        textTarget.text = textToScan.take(120)
+                        val input = if (textToScan.startsWith("http://") || textToScan.startsWith("https://")) {
+                            ScanInput(url = textToScan)
+                        } else {
+                            ScanInput(text = textToScan)
+                        }
+                        executeScan(input, "Custom content scanned", "Custom", "manual").join()
+                        progressBar.visibility = View.GONE
+                    }
+                } else {
+                    Toast.makeText(this, "Please enter some text or URL to scan.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showOAuthSetupInfoDialog() {
+        val sha1 = "7E:66:D5:FD:FA:DF:00:72:A9:5F:CA:1B:0E:63:39:A5:1F:4D:54:8C"
+        val packageName = "com.secureshield.ai"
+        val infoText = "Package Name:\n$packageName\n\nDebug SHA-1:\n$sha1\n\nTo enable live Google Sign-In on your device:\n1. Open Google Cloud Console -> APIs & Services -> Credentials\n2. Create an OAuth 2.0 Client ID for Android with the Package Name and SHA-1 above\n3. Enable the Gmail API (GMAIL_READONLY scope)"
+
+        AlertDialog.Builder(this)
+            .setTitle("OAuth 2.0 Registration Info")
+            .setMessage(infoText)
+            .setPositiveButton("Copy SHA-1") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("SHA-1", sha1)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "SHA-1 copied to clipboard.", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Close", null)
             .show()
     }
 
