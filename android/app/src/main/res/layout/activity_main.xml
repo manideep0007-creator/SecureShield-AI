@@ -307,6 +307,20 @@
                                 android:layout_marginTop="14dp"
                                 app:backgroundTint="@color/btn_gmail_red"
                                 app:cornerRadius="24dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_quick_scan_text"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:text="PASTE SUSPICIOUS TEXT / URL TO SCAN"
+                                android:textColor="@color/cyber_cyan"
+                                app:strokeColor="@color/cyber_cyan"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:letterSpacing="0.03"
+                                android:layout_marginTop="8dp"
+                                app:cornerRadius="22dp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
