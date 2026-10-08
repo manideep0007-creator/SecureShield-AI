@@ -25,6 +25,7 @@ jobs:
     env:
       PROD_BASE_URL: ${{ secrets.PROD_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
       DEV_BASE_URL: ${{ secrets.DEV_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
+      SECURESHIELD_API_KEY: ${{ secrets.SECURESHIELD_API_KEY || secrets.API_KEY || '' }}
       FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
       FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
       FIREBASE_SERVICE_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_CREDENTIALS }}

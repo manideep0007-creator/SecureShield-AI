@@ -15,7 +15,7 @@ data class GmailEmail(
     val bodyText: String,
     val embeddedUrls: List<String>
 ) {
-    fun toScanInput(): ScanInput {
+    fun toScanInput(clientId: String? = null): ScanInput {
         val displayText = buildList {
             subject?.let { add("Subject: $it") }
             sender?.let { add("From: $it") }
@@ -34,7 +34,8 @@ data class GmailEmail(
             url = embeddedUrls.firstOrNull(),
             sender_id = sender,
             source_channel = "gmail",
-            metadata = metadata
+            metadata = metadata,
+            client_id = clientId
         )
     }
 }

@@ -45,6 +45,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.api.services.gmail.GmailScopes
 import android.graphics.Color
 import com.secureshield.ai.network.ApiClient
+import com.secureshield.ai.network.ClientIdProvider
 import com.secureshield.ai.network.ServerSettings
 import com.secureshield.ai.network.ProbeResult
 import com.secureshield.ai.network.ScanInput
@@ -996,6 +997,11 @@ class MainActivity : AppCompatActivity() {
         sourceType: String = "unknown",
         onScanCompleted: ((UnifiedScanResponse) -> Unit)? = null
     ): Job {
+        val resolvedInput = if (input.client_id.isNullOrBlank()) {
+            input.copy(client_id = ClientIdProvider.getClientId(applicationContext))
+        } else {
+            input
+        }
         currentResult = null
         layoutFeedback.visibility = View.GONE
         textFeedbackStatus.visibility = View.GONE
@@ -1008,9 +1014,17 @@ class MainActivity : AppCompatActivity() {
         textReasons.setOnClickListener(null)
         return lifecycleScope.launch {
             try {
+                if (!ApiClient.isServerAwake) {
+                    badgeCategory.visibility = View.VISIBLE
+                    badgeCategory.text = "Waking server..."
+                    textReasons.text = "Connecting to server (Render free tier waking from sleep)..."
+                    ApiClient.wakeServerIfNeeded()
+                    badgeCategory.text = "Scanning..."
+                }
+
                 val response = withTimeout(35000L) {
                     withContext(Dispatchers.IO) {
-                        ApiClient.api.scan(input)
+                        ApiClient.api.scan(resolvedInput)
                     }
                 }
                 
@@ -1080,15 +1094,15 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: ConnectException) {
                 handleServerUnavailable(onRetry = {
-                    executeScan(input, notifyTitle, categorySuffix, sourceType, onScanCompleted)
+                    executeScan(resolvedInput, notifyTitle, categorySuffix, sourceType, onScanCompleted)
                 })
             } catch (e: TimeoutCancellationException) {
                 handleServerUnavailable(onRetry = {
-                    executeScan(input, notifyTitle, categorySuffix, sourceType, onScanCompleted)
+                    executeScan(resolvedInput, notifyTitle, categorySuffix, sourceType, onScanCompleted)
                 })
             } catch (e: SocketTimeoutException) {
                 handleServerUnavailable(onRetry = {
-                    executeScan(input, notifyTitle, categorySuffix, sourceType, onScanCompleted)
+                    executeScan(resolvedInput, notifyTitle, categorySuffix, sourceType, onScanCompleted)
                 })
             } catch (e: MalformedScanResponseException) {
                 badgeCategory.text = "Malformed Response: ${e.message}"
@@ -1098,7 +1112,7 @@ class MainActivity : AppCompatActivity() {
                 badgeCategory.text = "Malformed Response: Invalid JSON."
             } catch (e: IOException) {
                 handleServerUnavailable(onRetry = {
-                    executeScan(input, notifyTitle, categorySuffix, sourceType, onScanCompleted)
+                    executeScan(resolvedInput, notifyTitle, categorySuffix, sourceType, onScanCompleted)
                 })
             } catch (e: Exception) {
                 badgeCategory.text = "Scan Error: ${e.message}"

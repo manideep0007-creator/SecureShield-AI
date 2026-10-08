@@ -27,7 +27,8 @@ data class ScanInput(
     val file_bytes: String? = null,
     val image_bytes: String? = null,
     val metadata: Map<String, Any> = emptyMap(),
-    val classification_profile: String? = null
+    val classification_profile: String? = null,
+    val client_id: String? = null
 )
 
 data class EvidenceItem(
@@ -216,11 +217,23 @@ object ApiClient {
     @Volatile
     private var customBaseUrl: String? = null
 
+    @Volatile
+    var isServerAwake: Boolean = false
+
     val baseUrl: String
         get() = customBaseUrl ?: BuildConfig.BASE_URL
 
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val apiKey = BuildConfig.API_KEY
+                val builder = request.newBuilder()
+                if (apiKey.isNotBlank()) {
+                    builder.header("X-API-Key", apiKey)
+                }
+                chain.proceed(builder.build())
+            }
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(35, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -247,6 +260,7 @@ object ApiClient {
         synchronized(this) {
             customBaseUrl = sanitized
             currentApi = null
+            isServerAwake = false
         }
     }
 
@@ -254,6 +268,7 @@ object ApiClient {
         synchronized(this) {
             customBaseUrl = null
             currentApi = null
+            isServerAwake = false
         }
     }
 
@@ -270,10 +285,26 @@ object ApiClient {
             val response = withTimeout(5000L) {
                 api.healthCheck()
             }
-            response.isSuccessful
+            val healthy = response.isSuccessful
+            if (healthy) {
+                isServerAwake = true
+            }
+            healthy
         } catch (_: Exception) {
             false
         }
+    }
+
+    /**
+     * Pings /health if server hasn't been confirmed awake, displaying a waking state callback.
+     */
+    suspend fun wakeServerIfNeeded(onWaking: (() -> Unit)? = null): Boolean = withContext(Dispatchers.IO) {
+        if (isServerAwake) return@withContext true
+        try {
+            onWaking?.invoke()
+        } catch (_: Exception) {
+        }
+        checkHealth()
     }
 
     /**
@@ -313,6 +344,15 @@ object ApiClient {
 
     private val probeOkHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val apiKey = BuildConfig.API_KEY
+                val builder = request.newBuilder()
+                if (apiKey.isNotBlank()) {
+                    builder.header("X-API-Key", apiKey)
+                }
+                chain.proceed(builder.build())
+            }
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(5, TimeUnit.SECONDS)
             .writeTimeout(5, TimeUnit.SECONDS)

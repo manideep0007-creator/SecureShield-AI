@@ -14,6 +14,7 @@ import com.secureshield.ai.ScanHistoryActivity
 import com.secureshield.ai.background.ProcessedMessageStore
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.network.ApiClient
+import com.secureshield.ai.network.ClientIdProvider
 import com.secureshield.ai.network.ServerSettings
 import com.secureshield.ai.network.ScanInput
 import com.secureshield.ai.network.UnifiedScanResponse
@@ -217,9 +218,14 @@ class UniversalLinkGuardService : AccessibilityService() {
         }
 
         val api = apiOverride ?: ApiClient.api
+        val resolvedInput = if (scanInput.client_id.isNullOrBlank()) {
+            scanInput.copy(client_id = ClientIdProvider.getClientId(applicationContext))
+        } else {
+            scanInput
+        }
 
         // 1. Initial attempt
-        val firstOutcome = executeSingleScan(api, scanInput, sourcePackage, targetDisplay)
+        val firstOutcome = executeSingleScan(api, resolvedInput, sourcePackage, targetDisplay)
         if (firstOutcome is ScanAttemptOutcome.Success) {
             return true
         }
@@ -245,7 +251,7 @@ class UniversalLinkGuardService : AccessibilityService() {
         }
 
         // 3. Retry attempt
-        val retryOutcome = executeSingleScan(api, scanInput, sourcePackage, targetDisplay)
+        val retryOutcome = executeSingleScan(api, resolvedInput, sourcePackage, targetDisplay)
         return if (retryOutcome is ScanAttemptOutcome.Success) {
             android.util.Log.i("GuardianService", "Retry scan succeeded for: $targetDisplay")
             true

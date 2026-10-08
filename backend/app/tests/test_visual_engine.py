@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 import asyncio
 import cv2
 import numpy as np
@@ -81,6 +81,27 @@ class TestVisualEngine(unittest.IsolatedAsyncioTestCase):
         res = await self.engine.analyze(ScanInput(image_bytes=buffer.tobytes()))
         self.assertEqual(res.status, "success")
         self.assertIn("visual_credential_prompt", res.flags)
-        
+
+    async def test_ocr_library_failure_returns_skipped_not_safe(self):
+        from unittest.mock import patch
+        img = np.zeros((100, 400, 3), dtype=np.uint8)
+        cv2.putText(img, 'Some Text', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        _, buffer = cv2.imencode('.png', img)
+
+        with patch("app.engines.visual_engine.get_ocr_reader", side_effect=RuntimeError("EasyOCR library failed to load")):
+            res = await self.engine.analyze(ScanInput(image_bytes=buffer.tobytes()))
+            self.assertEqual(res.status, "skipped")
+            self.assertIn("Visual OCR unavailable", res.error_message)
+
+    async def test_memory_exhaustion_returns_skipped_not_safe(self):
+        from unittest.mock import patch
+        img = np.zeros((100, 400, 3), dtype=np.uint8)
+        _, buffer = cv2.imencode('.png', img)
+
+        with patch("cv2.imdecode", side_effect=MemoryError("Out of memory on Render free tier")):
+            res = await self.engine.analyze(ScanInput(image_bytes=buffer.tobytes()))
+            self.assertEqual(res.status, "skipped")
+            self.assertIn("memory exhausted", res.error_message)
+
 if __name__ == '__main__':
     unittest.main()

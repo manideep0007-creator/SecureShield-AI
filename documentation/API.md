@@ -6,13 +6,12 @@ The SecureShield AI intelligence backend is a high-performance Python FastAPI se
 
 ## Base Endpoints
 
-| Method | Path | Description | Authentication |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/health` | Service health & environment probe | None |
-| `POST` | `/api/scan` | Unified multi-engine threat scan | Optional API Key |
-| `POST` | `/api/feedback` | User verdict feedback submission | None |
-| `GET` | `/api/evaluation/metrics` | Read-only aggregate feedback metrics | None |
-| `GET` | `/api/threat-history` | Paginated threat scan history | None |
+| Method | Path | Description | Authentication | Rate Limit |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/health` or `/` | Service health & environment probe | None | None |
+| `POST` | `/api/scan` | Unified multi-engine threat scan | `X-API-Key` header (if configured) | 30 req/min |
+| `POST` | `/api/feedback` | User verdict feedback submission | `X-API-Key` header (if configured) | 30 req/min |
+| `GET` | `/api/evaluation/metrics` | Read-only aggregate feedback metrics | `X-API-Key` header (if configured) | 30 req/min |
 
 ---
 

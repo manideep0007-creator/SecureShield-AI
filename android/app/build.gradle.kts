@@ -23,6 +23,12 @@ val prodBaseUrl = System.getenv("PROD_BASE_URL")
     ?: localProperties.getProperty("PROD_BASE_URL")
     ?: defaultProdUrl
 
+val apiKey = System.getenv("SECURESHIELD_API_KEY")
+    ?: System.getenv("API_KEY")
+    ?: localProperties.getProperty("SECURESHIELD_API_KEY")
+    ?: localProperties.getProperty("API_KEY")
+    ?: ""
+
 android {
     namespace = "com.secureshield.ai"
     compileSdk = 34
@@ -35,6 +41,7 @@ android {
         versionName = "1.0"
         
         buildConfigField("String", "BASE_URL", "\"${devBaseUrl}\"")
+        buildConfigField("String", "API_KEY", "\"${apiKey}\"")
     }
 
     signingConfigs {
