@@ -47,11 +47,8 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Run Unit Tests
-        run: ./gradlew test --stacktrace
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Run Unit Tests & Build Debug APK
+        run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
