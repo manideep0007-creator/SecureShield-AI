@@ -17,6 +17,12 @@ jobs:
   build-and-test:
     name: Build, Test & Distribute APK
     runs-on: ubuntu-latest
+    env:
+      PROD_BASE_URL: ${{ secrets.PROD_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
+      DEV_BASE_URL: ${{ secrets.DEV_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
+      FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+      FIREBASE_SERVICE_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_CREDENTIALS }}
     defaults:
       run:
         working-directory: android
@@ -40,9 +46,6 @@ jobs:
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
-        env:
-          PROD_BASE_URL: ${{ secrets.PROD_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
-          DEV_BASE_URL: ${{ secrets.DEV_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
@@ -53,7 +56,7 @@ jobs:
           retention-days: 14
 
       - name: Distribute to Firebase App Distribution
-        if: ${{ secrets.FIREBASE_APP_ID != '' && (secrets.FIREBASE_TOKEN != '' || secrets.FIREBASE_SERVICE_CREDENTIALS != '') }}
+        if: env.FIREBASE_APP_ID != '' && (env.FIREBASE_TOKEN != '' || env.FIREBASE_SERVICE_CREDENTIALS != '')
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
@@ -64,6 +67,7 @@ jobs:
           releaseNotes: "Automated test build from GitHub Actions commit ${{ github.sha }}"
 
       - name: Log Firebase Status
-        if: ${{ secrets.FIREBASE_APP_ID == '' }}
+        if: env.FIREBASE_APP_ID == ''
         run: |
           echo "ℹ️ Firebase App Distribution secrets not configured. APK successfully generated and stored in GitHub Actions artifacts."
+
