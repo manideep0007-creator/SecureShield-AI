@@ -24,8 +24,9 @@ android/build/
 android/app/build/
 android/.kotlin/
 local.properties
-android/local.properties
 *.keystore
+!android/app/debug.keystore
+
 
 # Databases and temporary files
 *.db
