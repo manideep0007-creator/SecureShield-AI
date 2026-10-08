@@ -58,6 +58,16 @@ class ProcessedMessageStoreUrlTest {
     }
 
     @Test
+    fun unmarkUrl_removesFromMemoryAndPrefs() {
+        val url = "https://scan-failed-link.xyz/retry"
+        ProcessedMessageStore.markUrlProcessed(context, url)
+        assertTrue(ProcessedMessageStore.isUrlProcessed(context, url))
+
+        ProcessedMessageStore.unmarkUrl(context, url)
+        assertFalse("Unmarked URL should not be treated as processed", ProcessedMessageStore.isUrlProcessed(context, url))
+    }
+
+    @Test
     fun clearUrlCache_removesAllEntries() {
         val url = "https://sample.com"
         ProcessedMessageStore.markUrlProcessed(context, url)

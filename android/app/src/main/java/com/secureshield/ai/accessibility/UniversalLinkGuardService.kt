@@ -18,10 +18,12 @@ import com.secureshield.ai.network.ServerSettings
 import com.secureshield.ai.network.ScanInput
 import com.secureshield.ai.network.UnifiedScanResponse
 import com.secureshield.ai.network.UnifiedScanResponseParser
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
@@ -31,10 +33,12 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class UniversalLinkGuardService : AccessibilityService() {
 
-    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    internal var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val lastWindowContentHashes = ConcurrentHashMap<Int, Int>()
     private val inFlightUrls = ConcurrentHashMap.newKeySet<String>()
-    private val rateLimiter = ScanRateLimiter(maxScansPerMinute = 10)
+    internal var rateLimiter = ScanRateLimiter(maxScansPerMinute = 10)
+    internal var retryDelayMillis: Long = 3000L
+    internal var apiOverride: com.secureshield.ai.network.SecureShieldApi? = null
 
     companion object {
         const val NOTIFICATION_CHANNEL_ID = "SS_ALERTS"
@@ -92,7 +96,7 @@ class UniversalLinkGuardService : AccessibilityService() {
         }
     }
 
-    private suspend fun processVisibleText(visibleText: String, sourcePackage: String) {
+    internal suspend fun processVisibleText(visibleText: String, sourcePackage: String) {
         val urls = UniversalLinkExtractor.extractUrlsFromText(visibleText)
         if (urls.isNotEmpty()) {
             android.util.Log.d("GuardianService", "Detected ${urls.size} URL(s) in active window of package: $sourcePackage")
@@ -122,7 +126,18 @@ class UniversalLinkGuardService : AccessibilityService() {
                             "detector" to "SecureShieldGuardianService"
                         )
                     )
-                    scanAndReport(input, sourcePackage, targetDisplay = url)
+                    val success = try {
+                        scanAndReport(input, sourcePackage, targetDisplay = url)
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        android.util.Log.e("GuardianService", "Unhandled error during scan: ${e.message}", e)
+                        false
+                    }
+
+                    if (!success) {
+                        android.util.Log.w("GuardianService", "Scan failed for URL: $url. Unmarking to allow future scans.")
+                        ProcessedMessageStore.unmarkUrl(applicationContext, url)
+                    }
                 } finally {
                     inFlightUrls.remove(url)
                 }
@@ -151,7 +166,18 @@ class UniversalLinkGuardService : AccessibilityService() {
                             "detector" to "SecureShieldGuardianService"
                         )
                     )
-                    scanAndReport(input, sourcePackage, targetDisplay = snippet)
+                    val success = try {
+                        scanAndReport(input, sourcePackage, targetDisplay = snippet)
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        android.util.Log.e("GuardianService", "Unhandled error during scan: ${e.message}", e)
+                        false
+                    }
+
+                    if (!success) {
+                        android.util.Log.w("GuardianService", "Scan failed for textKey: $textKey. Unmarking to allow future scans.")
+                        ProcessedMessageStore.unmarkUrl(applicationContext, textKey)
+                    }
                 } finally {
                     inFlightUrls.remove(textKey)
                 }
@@ -170,26 +196,113 @@ class UniversalLinkGuardService : AccessibilityService() {
         super.onDestroy()
     }
 
-    private suspend fun scanAndReport(scanInput: ScanInput, sourcePackage: String, targetDisplay: String) {
+    internal suspend fun scanAndReport(
+        scanInput: ScanInput,
+        sourcePackage: String,
+        targetDisplay: String
+    ): Boolean {
         try {
             ServerSettings.init(applicationContext)
-
-            val response = ApiClient.api.scan(scanInput)
-            if (response.isSuccessful) {
-                val body = response.body() ?: return
-                val scanResult = UnifiedScanResponseParser.parse(body)
-
-                // Persist scan result to local scan history
-                val repo = ScanHistoryRepository(applicationContext)
-                repo.saveCompletedScan(scanResult, "accessibility_guard")
-                repo.close()
-
-                // Handle verdict
-                handleScanVerdict(scanResult, sourcePackage, targetDisplay)
-            }
         } catch (_: Exception) {
-            // Fail-safe: Network or parsing failure; do not claim safe, do not crash service.
+            // Best effort settings init
         }
+
+        val api = apiOverride ?: ApiClient.api
+
+        // 1. Initial attempt
+        val firstOutcome = executeSingleScan(api, scanInput, sourcePackage, targetDisplay)
+        if (firstOutcome is ScanAttemptOutcome.Success) {
+            return true
+        }
+
+        // Do not retry on 4xx client errors or non-retryable failures
+        if (firstOutcome is ScanAttemptOutcome.NonRetryableFailure) {
+            android.util.Log.w("GuardianService", "Scan failed non-retryably for $targetDisplay: ${firstOutcome.reason}")
+            return false
+        }
+
+        // 2. Retryable failure (5xx or connection/timeout) - backoff before retry
+        val retryReason = (firstOutcome as? ScanAttemptOutcome.RetryableFailure)?.reason ?: "unknown"
+        android.util.Log.w("GuardianService", "Scan attempt 1 failed ($retryReason) for $targetDisplay. Backing off for ${retryDelayMillis}ms before retry...")
+
+        if (retryDelayMillis > 0) {
+            delay(retryDelayMillis)
+        }
+
+        // Keep existing rate limiter in force across retries
+        if (!rateLimiter.tryAcquire()) {
+            android.util.Log.w("GuardianService", "Rate limiter blocked retry scan for $targetDisplay")
+            return false
+        }
+
+        // 3. Retry attempt
+        val retryOutcome = executeSingleScan(api, scanInput, sourcePackage, targetDisplay)
+        return if (retryOutcome is ScanAttemptOutcome.Success) {
+            android.util.Log.i("GuardianService", "Retry scan succeeded for: $targetDisplay")
+            true
+        } else {
+            val failureReason = when (retryOutcome) {
+                is ScanAttemptOutcome.RetryableFailure -> retryOutcome.reason
+                is ScanAttemptOutcome.NonRetryableFailure -> retryOutcome.reason
+                else -> "unknown"
+            }
+            android.util.Log.w("GuardianService", "Retry scan failed for $targetDisplay: $failureReason")
+            false
+        }
+    }
+
+    private suspend fun executeSingleScan(
+        api: com.secureshield.ai.network.SecureShieldApi,
+        scanInput: ScanInput,
+        sourcePackage: String,
+        targetDisplay: String
+    ): ScanAttemptOutcome {
+        return try {
+            val response = api.scan(scanInput)
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body == null) {
+                    ScanAttemptOutcome.NonRetryableFailure("Null response body")
+                } else {
+                    try {
+                        val scanResult = UnifiedScanResponseParser.parse(body)
+                        try {
+                            val repo = ScanHistoryRepository(applicationContext)
+                            repo.saveCompletedScan(scanResult, "accessibility_guard")
+                            repo.close()
+                        } catch (e: Exception) {
+                            android.util.Log.e("GuardianService", "Failed to save scan history: ${e.message}")
+                        }
+                        try {
+                            handleScanVerdict(scanResult, sourcePackage, targetDisplay)
+                        } catch (e: Exception) {
+                            android.util.Log.e("GuardianService", "Failed to handle scan verdict: ${e.message}")
+                        }
+                        ScanAttemptOutcome.Success
+                    } catch (e: Exception) {
+                        ScanAttemptOutcome.NonRetryableFailure("Malformed scan response: ${e.message}")
+                    }
+                }
+            } else {
+                val code = response.code()
+                if (code in 400..499) {
+                    ScanAttemptOutcome.NonRetryableFailure("HTTP $code")
+                } else if (code >= 500) {
+                    ScanAttemptOutcome.RetryableFailure("HTTP $code")
+                } else {
+                    ScanAttemptOutcome.NonRetryableFailure("HTTP $code")
+                }
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            ScanAttemptOutcome.RetryableFailure("Connection failure: ${e.javaClass.simpleName}: ${e.message}")
+        }
+    }
+
+    private sealed class ScanAttemptOutcome {
+        object Success : ScanAttemptOutcome()
+        data class RetryableFailure(val reason: String?) : ScanAttemptOutcome()
+        data class NonRetryableFailure(val reason: String?) : ScanAttemptOutcome()
     }
 
     private fun handleScanVerdict(result: UnifiedScanResponse, sourcePackage: String, targetDisplay: String) {
