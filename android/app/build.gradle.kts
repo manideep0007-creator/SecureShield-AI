@@ -37,8 +37,21 @@ android {
         buildConfigField("String", "BASE_URL", "\"${devBaseUrl}\"")
     }
 
+    signingConfigs {
+        getByName("debug") {
+            val keystoreFile = file("debug.keystore")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         debug {
+            signingConfig = signingConfigs.getByName("debug")
             buildConfigField("String", "BASE_URL", "\"${devBaseUrl}\"")
         }
         release {
