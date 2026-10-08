@@ -264,4 +264,22 @@ class UniversalLinkGuardServiceTest {
             mockWebServer.requestCount
         )
     }
+
+    @Test
+    fun textSnippet_withVerificationCodeAndPin_uploadedAsRedacted() = runTest {
+        val snippetText = "Your verification code is 483920. ATM PIN is 4821. Confirm identity."
+
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(validSafeScanJson))
+
+        service.processVisibleText(snippetText, "com.bank.app")
+
+        assertEquals(1, mockWebServer.requestCount)
+        val recordedRequest = mockWebServer.takeRequest()
+        val requestBody = recordedRequest.body.readUtf8()
+
+        // Digits must be redacted
+        assertFalse(requestBody.contains("483920"))
+        assertFalse(requestBody.contains("4821"))
+        assertTrue(requestBody.contains("[redacted]"))
+    }
 }

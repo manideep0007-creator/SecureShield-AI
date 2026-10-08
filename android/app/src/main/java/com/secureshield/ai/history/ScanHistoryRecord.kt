@@ -29,7 +29,10 @@ object ScanHistorySanitizer {
     private val urlPattern = Regex("(?i)\\b(?:https?://|www\\.)[^\\s<>]+")
     private val emailPattern = Regex("(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b")
     private val phonePattern = Regex("(?<!\\w)(?:\\+?\\d[\\d ().-]{6,}\\d)(?!\\w)")
-    private val secretPattern = Regex("(?i)\\b(password|passcode|otp|one[- ]time code|token|api key)\\b\\s*(?:is\\s+|[:=]\\s*|\\s*(?=\\d{4,}))[^\\s,;]+")
+    private val secretPattern = Regex(
+        "(?i)\\b(password|passcode|otp|one[- ]time code|verification code|login code|security code|auth(?:entication)? code|pin|cvv|cvc|token|api key)\\b\\s*(?:is\\s+|[:=]\\s*|\\s*(?=\\d{3,}))[^\\s,;]+"
+    )
+    private val standaloneDigitsPattern = Regex("\\b\\d{4,8}\\b")
     private val longTokenPattern = Regex("\\b[A-Za-z0-9_+/=-]{32,}\\b")
     private val safeKeyPattern = Regex("[^A-Za-z0-9_.()\\-]")
     private val classifications = setOf("Safe", "Suspicious", "Deceptive", "Phishing", "Malware")
@@ -86,6 +89,7 @@ object ScanHistorySanitizer {
         .replace(emailPattern, "[address]")
         .replace(phonePattern, "[number]")
         .replace(longTokenPattern, "[redacted]")
+        .replace(standaloneDigitsPattern, "[number]")
         .filter { it == '\n' || it == '\t' || it >= ' ' }
         .trim()
         .take(MAX_TEXT_LENGTH)
