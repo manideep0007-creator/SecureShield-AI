@@ -86,4 +86,19 @@ object UniversalLinkGuardManager {
         }
         context.startActivity(intent)
     }
+
+    /**
+     * Launches the Application Details (App Info) screen where users on Android 13/14/15
+     * can tap the 3 dots (⋮) in the top-right corner and select 'Allow restricted settings'.
+     */
+    fun openAppInfoSettings(context: Context) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = android.net.Uri.fromParts("package", context.packageName, null)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) {}
+    }
 }
+

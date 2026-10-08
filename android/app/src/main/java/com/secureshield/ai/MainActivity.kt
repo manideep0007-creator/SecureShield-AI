@@ -601,14 +601,19 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Enable Guardian Mode")
             .setMessage(
-                "To monitor on-screen text and links across WhatsApp, Instagram, browsers, and all apps in real time, enable the Accessibility Service:\n\n" +
-                "1. Tap 'Open Settings' below.\n" +
-                "2. Tap 'Downloaded apps' (or 'Installed services').\n" +
-                "3. Select 'SecureShield Universal Link Guard' (Guardian Mode).\n" +
-                "4. Turn the switch ON and tap 'Allow'."
+                "Guardian Mode scans on-screen links and messages in real time across WhatsApp, Instagram, browsers, and all apps.\n\n" +
+                "How to enable:\n" +
+                "1. Tap 'Open Accessibility' -> 'Downloaded apps' -> 'SecureShield Universal Link Guard' -> Turn ON.\n\n" +
+                "⚠️ If Android says 'App was denied access' (Restricted Settings):\n" +
+                "• Tap 'Allow in App Info' below.\n" +
+                "• Tap the 3 dots (⋮) in the top-right corner.\n" +
+                "• Tap 'Allow restricted settings', then return here and enable Accessibility."
             )
-            .setPositiveButton("Open Settings") { _, _ ->
+            .setPositiveButton("Open Accessibility") { _, _ ->
                 UniversalLinkGuardManager.openAccessibilitySettings(this)
+            }
+            .setNeutralButton("Allow in App Info") { _, _ ->
+                UniversalLinkGuardManager.openAppInfoSettings(this)
             }
             .setNegativeButton("Cancel", null)
             .show()
