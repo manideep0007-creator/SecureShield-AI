@@ -2,7 +2,7 @@ name: Android CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, feature/**, fix/** ]
+    branches: [ main, develop ]
     tags:
       - 'v*'
     paths:
