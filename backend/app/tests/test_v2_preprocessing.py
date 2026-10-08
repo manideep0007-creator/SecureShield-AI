@@ -316,11 +316,21 @@ class TestV2Preprocessing(unittest.TestCase):
             self.assertIn("Unexpected text failure", res.error_message)
             self.assertTrue(any("preprocessing_error" in w for w in res.warnings))
 
+    def test_client_id_preservation(self):
+        """Verify client_id is preserved and stripped cleanly across preprocessing."""
+        input_data = ScanInput(
+            text="Suspicious text here",
+            client_id="  client-device-uuid-555  "
+        )
+        res = self.preprocessor.preprocess(input_data)
+        self.assertEqual(res.status, PreprocessingStatus.SUCCESS)
+        self.assertEqual(res.normalized_input.client_id, "client-device-uuid-555")
+
 
 class TestV2PipelineAndAPIRegression(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.pipeline = UnifiedScanPipeline()
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers={"X-API-Key": "test-api-key"})
 
     # 19. Android/API regression compatibility
     def test_android_api_regression_compatibility(self):
@@ -384,3 +394,4 @@ class TestV2PipelineAndAPIRegression(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

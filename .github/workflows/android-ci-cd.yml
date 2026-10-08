@@ -2,7 +2,7 @@ name: Android CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, feature/**, fix/** ]
+    branches: [ main, develop ]
     tags:
       - 'v*'
     paths:
@@ -25,6 +25,7 @@ jobs:
     env:
       PROD_BASE_URL: ${{ secrets.PROD_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
       DEV_BASE_URL: ${{ secrets.DEV_BASE_URL || 'https://secureshield-ai-yzn2.onrender.com/' }}
+      SECURESHIELD_API_KEY: ${{ secrets.SECURESHIELD_API_KEY || secrets.API_KEY || '' }}
       FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
       FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
       FIREBASE_SERVICE_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_CREDENTIALS }}
@@ -46,11 +47,8 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Run Unit Tests
-        run: ./gradlew test --stacktrace
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Run Unit Tests & Build Debug APK
+        run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4

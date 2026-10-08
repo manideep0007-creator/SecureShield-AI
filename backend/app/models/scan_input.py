@@ -75,6 +75,7 @@ class ScanInput(BaseModel):
     image_bytes: bytes | None = Field(default=None, description="Raw image payload for OCR/vision analysis (base64 over JSON)")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional arbitrary context or metadata")
     classification_profile: str | None = Field(default=None, description="Optional classification profile ('default', 'strict', 'enterprise')")
+    client_id: str | None = Field(default=None, description="Client/tenant identifier (random UUID generated on device)")
 
     @field_validator("file_bytes", "image_bytes", mode="before")
     @classmethod

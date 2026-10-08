@@ -75,4 +75,57 @@ class UniversalLinkExtractorTest {
         org.junit.Assert.assertNotNull(snippet)
         assertTrue(snippet!!.contains("Security Alert"))
     }
+
+    @Test
+    fun sanitizeSnippet_redactsOtpsAndPasscodes() {
+        val snippet = "Your OTP is 483920, password reset"
+        val sanitized = UniversalLinkExtractor.sanitizeSnippet(snippet)
+        org.junit.Assert.assertFalse("Should not contain plain OTP digits", sanitized.contains("483920"))
+        assertEquals("Your OTP: [redacted], password reset", sanitized)
+    }
+
+    @Test
+    fun sanitizeSnippet_cleanPhishingMessage_remainsUnchanged() {
+        val clean = "Security alert: Unusual activity detected. Verify your account immediately."
+        val sanitized = UniversalLinkExtractor.sanitizeSnippet(clean)
+        assertEquals(clean, sanitized)
+    }
+
+    @Test
+    fun sanitizeSnippet_extendedKeywordsAndDigits_removesAllDigits() {
+        val testCases = listOf(
+            "your verification code is 483920" to "483920",
+            "login code 771204" to "771204",
+            "ATM PIN is 4821" to "4821",
+            "cvv 123" to "123"
+        )
+
+        for ((input, rawDigits) in testCases) {
+            val sanitized = UniversalLinkExtractor.sanitizeSnippet(input)
+            org.junit.Assert.assertFalse(
+                "Output for '$input' must not contain raw digits '$rawDigits'. Got: '$sanitized'",
+                sanitized.contains(rawDigits)
+            )
+            org.junit.Assert.assertFalse(
+                "Output for '$input' must not contain any digits. Got: '$sanitized'",
+                sanitized.any { it.isDigit() }
+            )
+        }
+
+        // Clean phishing sentence must remain unchanged
+        val cleanPhishing = "URGENT: Your account is suspended due to unauthorized activity. Confirm your identity."
+        val sanitizedClean = UniversalLinkExtractor.sanitizeSnippet(cleanPhishing)
+        assertEquals(cleanPhishing, sanitizedClean)
+    }
+
+    @Test
+    fun isMostlyRedacted_identifiesHeavyRedaction() {
+        val mostlyRedacted = "OTP: 123456. Token: abcdef1234567890abcdef1234567890"
+        val sanitized = UniversalLinkExtractor.sanitizeSnippet(mostlyRedacted)
+        assertTrue(UniversalLinkExtractor.isMostlyRedacted(mostlyRedacted, sanitized))
+
+        val barelyRedacted = "Your OTP is 483920, password reset"
+        val sanitizedBarely = UniversalLinkExtractor.sanitizeSnippet(barelyRedacted)
+        org.junit.Assert.assertFalse(UniversalLinkExtractor.isMostlyRedacted(barelyRedacted, sanitizedBarely))
+    }
 }

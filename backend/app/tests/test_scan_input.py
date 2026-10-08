@@ -20,12 +20,14 @@ class TestScanInput(unittest.TestCase):
         self.assertIsNone(data.file_bytes)
         self.assertIsNone(data.image_bytes)
         self.assertEqual(data.metadata, {})
+        self.assertIsNone(data.client_id)
 
     def test_partial_initialization(self):
         """Test that partial assignment correctly reflects in the model."""
-        data = ScanInput(text="Suspicious text here", url="http://malicious.example.com")
+        data = ScanInput(text="Suspicious text here", url="http://malicious.example.com", client_id="device-uuid-1234")
         self.assertEqual(data.text, "Suspicious text here")
         self.assertEqual(data.url, "http://malicious.example.com")
+        self.assertEqual(data.client_id, "device-uuid-1234")
         self.assertIsNone(data.sender_id)
         self.assertEqual(data.metadata, {})
 
@@ -39,13 +41,16 @@ class TestScanInput(unittest.TestCase):
             file_name="fake_invoice.pdf",
             file_bytes=b"dummy file bytes",
             image_bytes=b"dummy image representation",
-            metadata={"origin_ip": "192.168.1.1", "urgency": "high"}
+            metadata={"origin_ip": "192.168.1.1", "urgency": "high"},
+            client_id="custom-client-uuid-999"
         )
         self.assertEqual(data.text, "Please see the attached invoice")
         self.assertEqual(data.source_channel, "gmail")
         self.assertEqual(data.file_bytes, b"dummy file bytes")
         self.assertEqual(data.metadata["origin_ip"], "192.168.1.1")
+        self.assertEqual(data.client_id, "custom-client-uuid-999")
 
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

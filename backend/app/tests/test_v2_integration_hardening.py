@@ -41,7 +41,7 @@ from app.preprocessing.v2_preprocessor import (
 
 class TestV2IntegrationHardening(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers={"X-API-Key": "test-api-key"})
         self.pipeline = UnifiedScanPipeline()
 
     def test_e2e_text_scan_success(self):

@@ -15,7 +15,7 @@ This document provides a comprehensive guide for deploying the **SecureShield AI
                    ▼                                         ▼
    ┌───────────────────────────────┐         ┌───────────────────────────────┐
    │  Backend CI/CD Workflow       │         │  Android CI/CD Workflow       │
-   │  • Run Pytest (186 tests)     │         │  • Run Unit Tests             │
+   │  • Run Pytest (199 tests)     │         │  • Run Unit Tests (120 tests) │
    │  • Build & Test Docker Image  │         │  • Build Debug & Release APKs │
    │  • Auto-Deploy to Railway     │         │  • Upload GitHub Artifacts    │
    └───────────────┬───────────────┘         │  • Firebase App Distribution  │
@@ -39,6 +39,7 @@ This document provides a comprehensive guide for deploying the **SecureShield AI
 3. Set the **Root Directory** to `/backend`.
 4. Railway automatically detects `Dockerfile` and `railway.json`.
 5. Under **Variables**, add:
+   * `API_KEY`: `your_secure_random_api_key_here` *(Required: Secures /api/* endpoints against unauthenticated access)*
    * `ENVIRONMENT`: `production`
    * `PORT`: `8000` *(Railway provides this automatically)*
    * `GOOGLE_SAFE_BROWSING_API_KEY`: *(Optional: Your Google Safe Browsing Key)*
@@ -54,7 +55,24 @@ This document provides a comprehensive guide for deploying the **SecureShield AI
    * **Environment:** `Docker` (or `Python 3`)
    * **Build Command:** `pip install -r requirements.txt`
    * **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Render will generate a public HTTPS URL (e.g., `https://secureshield-ai.onrender.com`).
+4. Under **Environment Variables**, add:
+   * `API_KEY`: `your_secure_random_api_key_here`
+   * `DATA_DIR`: `/var/data` *(or mount directory of persistent disk)*
+   * `ENVIRONMENT`: `production`
+   * `GOOGLE_SAFE_BROWSING_API_KEY`: *(Optional)*
+   * `VIRUSTOTAL_API_KEY`: *(Optional)*
+5. Render will generate a public HTTPS URL (e.g., `https://secureshield-ai.onrender.com`).
+
+> [!WARNING]
+> **Ephemeral Disk on Free Tier Cloud Hosts (Render / Railway)**:
+> Render's free tier uses an ephemeral filesystem. On every cold start, spin-down, or redeployment, local SQLite files (`sender_behavior.db` and `feedback.db`) are wiped.
+> * **Data lost on restart**:
+>   1. `sender_behavior.db`: Sender interaction history, domain frequency baselines, and display-name spoof tracking.
+>   2. `feedback.db`: User accuracy ratings/feedback submissions and aggregated evaluation metrics.
+> * **Persistence Solution**:
+>   - Attach a **Render Persistent Disk** mounted to the path specified in `DATA_DIR` (e.g., `DATA_DIR=/var/data`).
+>   - Alternatively, configure an external database (e.g., managed PostgreSQL/Turso/Supabase) for long-term data retention.
+>   - The backend automatically boots cleanly with fresh tables if starting with an empty disk.
 
 ---
 
@@ -83,6 +101,7 @@ In your GitHub repository, navigate to **Settings** → **Secrets and variables*
 
 | Secret Name | Required For | Description |
 | :--- | :--- | :--- |
+| `API_KEY` / `SECURESHIELD_API_KEY` | Backend & Android Build | Shared secret API key matching the backend's `API_KEY` env var for `X-API-Key` client authentication. |
 | `RAILWAY_TOKEN` | Backend Auto-Deploy | Railway Account / Project Token for automated redeployment on push to `main`. |
 | `PROD_BASE_URL` | Android Release APK | The public HTTPS backend URL (e.g. `https://secureshield-production.up.railway.app/`). |
 | `FIREBASE_APP_ID` | Test Distribution *(Optional)* | Firebase Android App ID (e.g. `1:123456789:android:abcdef`). |
@@ -97,7 +116,7 @@ In your GitHub repository, navigate to **Settings** → **Secrets and variables*
 * **Trigger:** Any push or pull request touching `backend/**`.
 * **Execution:**
   1. Sets up Python 3.11 with system graphics dependencies (`libgl1`, `libglib2.0-0`).
-  2. Installs requirements and runs the 186-test pytest suite.
+  2. Installs requirements and runs the 199-test pytest suite.
   3. **Quality Gate:** If any test fails, deployment is aborted.
   4. If tests pass on branch `main`, automatically deploys the latest version to Railway.
 

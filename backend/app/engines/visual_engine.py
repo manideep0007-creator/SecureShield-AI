@@ -1,5 +1,4 @@
 import cv2
-import easyocr
 import numpy as np
 import re
 from app.engines.base_engine import BaseEngine
@@ -8,12 +7,28 @@ from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
 from app.models.scan_input import ScanInput
 
 _reader = None
+_reader_init_failed = False
+_reader_error = ""
 
 def get_ocr_reader():
-    global _reader
-    if _reader is None:
+    """
+    Lazy initialization for easyocr.Reader.
+    Avoids loading PyTorch and vision models at application import/startup time.
+    """
+    global _reader, _reader_init_failed, _reader_error
+    if _reader is not None:
+        return _reader
+    if _reader_init_failed:
+        raise RuntimeError(_reader_error)
+
+    try:
+        import easyocr
         _reader = easyocr.Reader(['en'], gpu=False)
-    return _reader
+        return _reader
+    except Exception as e:
+        _reader_init_failed = True
+        _reader_error = f"OCR engine initialization failed: {e}"
+        raise RuntimeError(_reader_error) from e
 
 def extract_urls(text: str) -> list[str]:
     url_pattern = re.compile(
@@ -61,9 +76,18 @@ class VisualEngine(BaseEngine):
                 else:
                     extracted_text += data + "\n"
 
-            ocr_reader = get_ocr_reader()
-            ocr_results = ocr_reader.readtext(img)
-            ocr_texts = [res[1] for res in ocr_results if res[2] > 0.3]
+            ocr_texts = []
+            try:
+                ocr_reader = get_ocr_reader()
+                ocr_results = ocr_reader.readtext(img)
+                ocr_texts = [res[1] for res in ocr_results if res[2] > 0.3]
+            except (ImportError, MemoryError, RuntimeError, OSError) as ocr_err:
+                # When OCR libraries fail to load or memory is exhausted, skip OCR
+                if not flags:
+                    return EngineResult.skipped(
+                        self.name,
+                        f"Visual OCR unavailable or memory exhausted: {ocr_err}"
+                    )
             
             if ocr_texts:
                 flags.append("ocr_text_extracted")
@@ -143,6 +167,8 @@ class VisualEngine(BaseEngine):
                 metadata=metadata
             )
 
+        except (MemoryError, ImportError) as mem_err:
+            return EngineResult.skipped(self.name, f"Vision libraries unavailable or memory exhausted: {mem_err}")
         except Exception as e:
             return EngineResult.error(self.name, f"Vision processing error: {str(e)}")
 

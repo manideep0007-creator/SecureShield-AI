@@ -3,8 +3,20 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
-DB_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
-DB_PATH = os.path.join(DB_DIR, "feedback.db")
+from app.config.config import settings
+
+_DEFAULT_FEEDBACK_DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "feedback.db"))
+DB_PATH = _DEFAULT_FEEDBACK_DB_PATH
+
+def get_db_path(custom_path: str | None = None) -> str:
+    if custom_path:
+        return custom_path
+    if DB_PATH != _DEFAULT_FEEDBACK_DB_PATH and DB_PATH != os.path.join(settings.resolved_data_dir, "feedback.db"):
+        os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
+        return DB_PATH
+    data_dir = settings.resolved_data_dir
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, "feedback.db")
 
 
 @contextmanager
@@ -21,7 +33,7 @@ def _connection(path: str):
 
 
 def init_db(db_path: str | None = None) -> None:
-    path = db_path or DB_PATH
+    path = get_db_path(db_path)
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with _connection(path) as conn:
         conn.execute('''CREATE TABLE IF NOT EXISTS feedback (
@@ -69,7 +81,7 @@ def init_db(db_path: str | None = None) -> None:
 
 def save_feedback(record, db_path: str | None = None) -> tuple[bool, str]:
     """Persist only the normalized scan ID and scan-time evaluation fields."""
-    path = db_path or DB_PATH
+    path = get_db_path(db_path)
     init_db(path)
     timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     legacy_value = "up" if record.user_feedback == "positive" else "down"
@@ -99,7 +111,7 @@ def save_feedback(record, db_path: str | None = None) -> tuple[bool, str]:
 
 def read_feedback_records(db_path: str | None = None) -> list[dict]:
     """Read normalized feedback only; legacy target values are never returned."""
-    path = db_path or DB_PATH
+    path = get_db_path(db_path)
     init_db(path)
     with _connection(path) as conn:
         conn.row_factory = sqlite3.Row

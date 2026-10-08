@@ -16,6 +16,7 @@ import com.secureshield.ai.MainActivity
 import com.secureshield.ai.R
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.network.ApiClient
+import com.secureshield.ai.network.ClientIdProvider
 import com.secureshield.ai.network.ServerSettings
 import com.secureshield.ai.network.ScanInput
 import com.secureshield.ai.network.UnifiedScanResponse
@@ -57,7 +58,12 @@ class ThreatAlertWorker(
             }
 
             override suspend fun scan(input: ScanInput): UnifiedScanResponse? {
-                val response = ApiClient.api.scan(input)
+                val resolvedInput = if (input.client_id.isNullOrBlank()) {
+                    input.copy(client_id = ClientIdProvider.getClientId(applicationContext))
+                } else {
+                    input
+                }
+                val response = ApiClient.api.scan(resolvedInput)
                 if (response.isSuccessful) {
                     val body = response.body() ?: return null
                     return UnifiedScanResponseParser.parse(body)
