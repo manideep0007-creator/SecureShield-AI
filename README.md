@@ -1,165 +1,230 @@
 # SecureShield AI
 
-SecureShield AI is an end-to-end mobile security platform consisting of an Android client application and a modular Python (FastAPI) intelligence backend. It scans shared URLs/files and user-authorized unread Gmail messages through a highly modular threat-detection pipeline.
+SecureShield AI is an intelligent mobile and email security platform consisting of a native Android client application and a modular FastAPI threat-detection backend. It provides multi-layered threat detection for shared URLs, uploaded files, real-time screen content (Guardian Mode), and user-authorized Gmail messages.
 
-## Current Features
-*   **Android Share Protocol Integration**: The Android app acts as a global implicit intent receiver for text and files, scanning inputs seamlessly.
-*   **Gmail Intelligence**: Users can authorize Google OAuth to scan unread messages on demand, extracting headers, MIME text, and embedded URLs safely.
-*   **Modular Detection Pipeline**: 
-    *   **Lexical & URL Engine**: Applies offline heuristic checks and queries Google Safe Browsing API.
-    *   **Malware Engine**: Identifies file type spoofing via Magic Bytes and hashes payloads against VirusTotal API v3.
-    *   **NLP Engine**: Classifies raw message text using category patterns focusing on Social Engineering constraints.
-    *   **Sender Behavior Engine**: A stateful anomaly tracker (via SQLite) identifying unusual sending patterns.
-    *   **Header Analysis Engine**: Analyzes email header metadata for inconsistencies (SPF/DKIM/DMARC logic, mismatching Return-Paths).
-    *   **Attachment Behavior Engine**: Performs safe static analysis of attachments (magic-byte validation, extension/type mismatch, double extensions, executable/script detection, Office macros, embedded scripts, and archive safety/expansion inspection) without execution or persistence.
-*   **Fusion & Explainability Layer**: Calculates confidence-weighted averages to assign scores (0-100) and distinct categories: Safe, Suspicious, Deceptive, Phishing, Malware. Translates flags into human-readable actions.
-*   **Feedback Evaluation**: Scan-bound positive/negative feedback is stored locally in SQLite and summarized through read-only evaluation metrics. Metrics are measurement data, not a model-accuracy claim or automatic retuning signal.
-*   **Secure Scan History**: Completed scan result metadata is stored locally for paginated browsing, details, and local deletion; scans still use the existing backend pipeline.
+---
 
-## Project Structure
-```text
-SecureShield AI/
-├── documentation/       # Architecture maps, release readiness, and specifications
-├── backend/             # Python FastAPI backend
-│   ├── app/             # V2 Application core 
-│   │   ├── api/         # FastAPI router and endpoints
-│   │   ├── classification/ # Dynamic classification profiles (Phase 19)
-│   │   ├── config/      # Settings and environment configs
-│   │   ├── database/    # SQLite persistence logic
-│   │   ├── engines/     # Detection modules 
-│   │   ├── evaluation/  # Feedback evaluation metrics
-│   │   ├── explainability/ # Narrative logic and action recommendations (Phase 8)
-│   │   ├── fusion/      # Risk aggregation (Phase 7)
-│   │   ├── models/      # Engine interfaces and Pydantic models
-│   │   ├── preprocessing/ # V2 Preprocessor, sanitization, and URL resolution
-│   │   └── tests/       # Pipeline and regression test suites
-│   ├── data/            # Local SQLite database files
-│   └── main.py          # Uvicorn entry point
-├── android/             # Kotlin Android client application
-│   └── app/             # Application source (Activities, Network models, XML layouts)
-└── .env.example         # Environment variable template
+## 1. Project Overview
+
+SecureShield AI protects users against phishing, malware, deceptive messaging, and email spoofing. It combines lightweight client-side protection with a multi-engine backend analysis pipeline, aggregating threat signals into clear risk scores (0–100), classifications, explainable reasons, and actionable security recommendations.
+
+---
+
+## 2. Main Capabilities
+
+- **Global Share Target**: Accepts text, links, and files shared directly from any Android app via system share sheets.
+- **Guardian Mode**: Accessibility-powered real-time protection detecting suspicious links and malicious content in active apps.
+- **Gmail Intelligence**: On-demand and background scanning of unread Gmail messages using read-only Google OAuth scopes.
+- **Background Protection**: Privacy-conscious background inbox monitoring via Android `WorkManager` with actionable alerts.
+- **Multi-Engine Detection**: 7 specialized detection engines analyzing URLs, file payloads, text semantics, sender patterns, headers, attachments, and visual brand spoofing.
+- **Fusion & Explainability**: Weighted risk score aggregation (0–100), categorical classification, evidence summaries, and clear mitigation advice.
+- **Local Scan History**: Fully offline local SQLite storage for past scan results with filtering and deletion support.
+- **User Feedback & Evaluation**: Anonymous scan-bound feedback reporting to track aggregate system performance metrics.
+
+---
+
+## 3. Architecture Overview
+
+```mermaid
+graph TD
+    subgraph Android Client
+        A[User Input / Share Sheet] --> G[MainActivity / ShareActivity]
+        B[Active Apps] --> H[GuardianAccessibilityService]
+        C[Gmail Inbox] --> I[GmailSyncWorker / WorkManager]
+        G & H & I --> J[ApiClient]
+    end
+
+    subgraph FastAPI Backend
+        J --> K["/api/scan Endpoint"]
+        K --> L[V2 Preprocessor & Normalizer]
+        L --> M[Concurrent Detection Engines]
+        
+        subgraph Detection Engines
+            M --> E1[Lexical & URL Engine]
+            M --> E2[Malware Engine]
+            M --> E3[NLP Engine]
+            M --> E4[Sender Behavior Engine]
+            M --> E5[Header Analysis Engine]
+            M --> E6[Attachment Engine]
+            M --> E7[Visual Engine]
+        end
+        
+        E1 & E2 & E3 & E4 & E5 & E6 & E7 --> N[Risk Fusion Layer]
+        N --> O[Dynamic Classification Profile]
+        O --> P[Explainability Generator]
+        P --> Q[Unified Scan Response]
+    end
+
+    Q --> J
 ```
 
-## How to Run Backend
-1. Ensure Python 3.10+ is installed.
-2. Navigate to the backend directory:
+---
+
+## 4. Android Application
+
+The Android client is built with Kotlin and target SDK 34 (Android 14), with support back to Android 7.0 (API 24).
+
+### Key Components
+- **`MainActivity`**: Primary dashboard for direct URL/text scanning, scan results display, and navigation.
+- **`ShareActivity`**: Global intent filter (`android.intent.action.SEND`) handling links and file shares from third-party apps.
+- **`GuardianAccessibilityService`**: Real-time overlay alert system scanning URLs surfaced in active apps.
+- **`GmailSyncWorker`**: WorkManager background job running periodic scans on new unread messages.
+- **`ScanHistoryManager`**: Local SQLite database (`secure_scan_history.db`) for offline history viewing.
+- **`ApiClient`**: Network client interacting with the FastAPI `/api/scan` and `/api/feedback` endpoints.
+
+---
+
+## 5. FastAPI Backend
+
+The backend is built with Python 3.10+ and FastAPI, designed for high-concurrency asynchronous evaluation.
+
+### Core Modules
+- **`app/api/`**: API routes including `/api/scan`, `/api/feedback`, `/api/evaluation/metrics`, and `/health`.
+- **`app/preprocessing/`**: Input sanitization, Unicode NFKC normalization, URL unshortening, and file bounds enforcement.
+- **`app/engines/`**: 7 independent threat detection engine implementations.
+- **`app/fusion/`**: Risk fusion algorithm calculating weighted threat scores and confidence levels.
+- **`app/classification/`**: Dynamic classification profiles (`default`, `strict`, `enterprise`) mapping risk scores to categories: `Safe`, `Suspicious`, `Deceptive`, `Phishing`, `Malware`.
+- **`app/explainability/`**: Rule-based narrative engine converting technical flags into user-friendly explanations.
+
+---
+
+## 6. Detection Engines
+
+| Engine | Primary Function | Data Sources / Techniques |
+| :--- | :--- | :--- |
+| **Lexical & URL** | URL structure and reputation analysis | Heuristics, entropy analysis, Google Safe Browsing API |
+| **Malware** | File payload inspection | Magic bytes validation, hash extraction, VirusTotal API |
+| **NLP** | Social engineering & phishing intent | Urgency detection, credential lure patterns, keyword matching |
+| **Sender Behavior** | Anomaly detection in sender behavior | Privacy-preserving SQLite behavioral state, frequency checks |
+| **Header Analysis** | Email authentication and spoofing | SPF, DKIM, DMARC verification, Received hop analysis |
+| **Attachment** | Static attachment safety | Static structure inspection, double-extension & RTLO detection, macro check |
+| **Visual** | Phishing brand impersonation | Visual DOM similarity and favicon/brand impersonation heuristics |
+
+---
+
+## 7. How to Run Locally
+
+### Backend Setup
+1. **Prerequisites**: Python 3.10+ installed.
+2. **Navigate to backend**:
    ```bash
    cd backend
    ```
-3. Prepare the environment (optional but recommended):
+3. **Create & activate virtual environment**:
    ```bash
    python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   # Windows:
+   .venv\Scripts\activate
+   # Linux / macOS:
+   source .venv/bin/activate
    ```
-4. Install dependencies:
+4. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
-5. Configure environment variables (see below).
-6. Start the development server:
+5. **Configure environment variables**:
+   Create a `.env` file from `.env.example`:
+   ```env
+   GOOGLE_SAFE_BROWSING_API_KEY=your_key_here  # Optional (graceful fallback)
+   VIRUSTOTAL_API_KEY=your_key_here            # Optional (graceful fallback)
+   ENVIRONMENT=development
+   ```
+6. **Start the backend server**:
    ```bash
    uvicorn main:app --reload --host 0.0.0.0 --port 8000
    ```
+   Or use the root convenience script: `.\start_backend.bat` (Windows).
 
-## How to Run Android App
-1. Open the `/android` directory in Android Studio.
-2. Ensure you have the SDK for Android 14 (API 34) installed.
-3. Sync Gradle files.
-4. Set up an emulator or connect a physical device (min SDK 24).
-5. Ensure your backend is running. If running the emulator, the app defaults to `http://10.0.2.2:8000/`. If running on a physical device, define your backend's local network IP in `android/local.properties` (e.g., `BASE_URL="http://192.168.x.x:8000/"`).
-6. Click **Run** in Android Studio to build and deploy the APK.
+### Android Client Setup
+1. Open the `android/` directory in Android Studio.
+2. Ensure Android 14 (API 34) SDK is installed.
+3. Set the backend URL in `android/local.properties` (or use default `http://10.0.2.2:8000/` for emulator):
+   ```properties
+   BASE_URL="http://10.0.2.2:8000/"
+   ```
+4. Build and run on an Android device or emulator:
+   ```bash
+   cd android
+   .\gradlew assembleDebug
+   ```
 
-## Gmail Intelligence Setup
-1. In Google Cloud Console, create or select a project and enable the Gmail API.
-2. Configure the OAuth consent screen for the intended test or production audience. Add only the Gmail read-only scope: `https://www.googleapis.com/auth/gmail.readonly`.
-3. Create an Android OAuth client for package `com.secureshield.ai`. Register the SHA-1 signing certificate used by the installation; for local debug builds, obtain it with `cd android` then `gradlew signingReport`.
-4. Install the app and choose **Connect Gmail & Scan Inbox**. Google Sign-In requests the Gmail read-only permission, fetches up to 20 unread messages, and passes each supported message through the existing `/api/scan` client.
+---
 
-The app does not store OAuth tokens or client secrets itself. Google Play Services and `GoogleAccountCredential` manage the signed-in account and refreshable authorization. SecureShield requests full message text and headers only; it does not mark messages as read, download attachments, or request send/modify Gmail scopes. Messages without a supported readable body are skipped and reported.
+## 8. Production & Cloud Backend
 
-Gmail parsing, OAuth outcome mapping, unread-fetch behavior, and one-scan-per-message dispatch have local JVM tests with fake Gmail API responses. They do not require a Google account or credentials:
+- **Live Production URL**: `https://secureshield-ai-production.up.railway.app`
+- **Health Endpoint**: `https://secureshield-ai-production.up.railway.app/health`
+- **Deployment Platform**: Railway (auto-deployed on push to `main`).
+- **CI/CD**: GitHub Actions workflow (`.github/workflows/android-ci.yml`) automatically builds the Android APK and runs test suites on every pull request and push.
 
+---
+
+## 9. Testing
+
+### Running Backend Tests
+```bash
+cd backend
+python -m pytest app/tests -v --tb=short
+```
+
+### Running Android Tests
 ```bash
 cd android
-gradlew test
-gradlew clean test assembleDebug
+.\gradlew test
 ```
 
-## Phase 12 Feedback and Evaluation
-After a scan completes, the existing thumbs controls submit only the scan UUID, positive/negative choice, classification, risk score, confidence, and source type (`url`, `file`, `share`, `gmail`, or `unknown`). The feedback is tied to that exact scan; duplicate submissions are blocked in the app and rejected by a unique SQLite scan-ID index. A failed submission leaves the scan result and feedback controls available for retry. The API accepts the earlier Phase 9 feedback request shape only when its `analyzed_target` is a scan UUID.
-
-Feedback extends the existing `backend/data/feedback.db` table with normalized scan-time fields. The legacy `target` column receives only the scan UUID for new records. Email bodies, URLs, file contents, attachments, OAuth data, credentials, and tokens are not included in feedback requests. Existing legacy rows are preserved and are not returned by metrics.
-
-`POST /api/feedback` validates and stores a record, returning HTTP 409 for duplicate scan IDs. `GET /api/evaluation/metrics` returns aggregate counts/rates, counts by classification and source, per-classification positive/negative summaries, and average risk scores split by feedback value. It returns zero counts and rates for an empty database. The endpoint does not expose scan IDs or content. Feedback metrics measure user responses and do not establish detection accuracy or modify risk scoring/classification.
-
-Run backend tests from `backend/` with `python -m pytest app/tests`. Android feedback tests use local fake responses and can be run from `android/` with `gradlew test`; no Gmail account or live backend is required.
-
-## Phase 13 Scan History
-History is a local Android `SQLiteOpenHelper` database (`secure_scan_history.db`) written asynchronously after a valid `/api/scan` response. It stores only scan ID, timestamp, source type, classification, risk score, confidence, recommended action, sanitized reasons, machine flags/evidence keys, and an optional local feedback state. It does not store input text, Gmail content, URLs, file/attachment bytes, evidence values, credentials, or tokens. History remains available when the backend is offline.
-
-The history screen loads 25 newest records at a time, with additional pages on request. Classification/source filters and scan-ID lookup are supported by the local repository. Deleting one or all history rows affects only `secure_scan_history.db`; Phase 12 feedback remains independently stored in the backend feedback database and evaluation metrics. A feedback marker in history is only a local display association and is removed with its history row; deleting history never deletes or changes the backend feedback record.
-
-SQLite schema upgrades are additive and preserve existing local tables/rows. Scan IDs are unique, timestamp/classification/source indexes support retrieval, and malformed summary JSON is ignored safely. JVM tests use a fake store for repository behavior and SQLite JDBC to execute the production schema/migration SQL against a local test file; no accounts or external services are used. Run them with `cd android && gradlew clean test assembleDebug`; run backend regressions separately with `cd backend && python -m pytest app/tests`.
-
-## Phase 14 Background Protection and Threat Alerts
-The app provides a privacy-conscious Background Protection toggle that enables periodic background threat checks of newly received, unread Gmail messages using Android's `WorkManager`. Execution timing is controlled by Android/WorkManager and not guaranteed to be continuous. The application utilizes the existing read-only Google OAuth scope without requesting new permissions or persisting OAuth secrets. The background task executes a scan exactly once per message by retaining a bounded subset of scanned `messageIds` inside isolated SharedPreferences. Duplicate notification flooding is avoided because subsequent scans strictly filter processed IDs. Scans resulting in `Phishing` or `Malware` classifications fire an actionable Android notification that directly opens the result. 
-
-Run Android background logic tests with:
+### Full Clean Build Verification
 ```bash
 cd android
-gradlew test --tests "*background*"
+.\gradlew clean test assembleDebug
 ```
 
-## Phase 15 Sender Behavior Intelligence
-The Sender Behavior Engine applies deterministic anomaly rules against a localized, privacy-preserving profile to track sending patterns. The engine enforces a strict cold-start policy requiring sufficient observed history prior to escalating risk scores for unusual volumes or times. Sender anomalies are behavioral signals and do not by themselves prove malicious activity. Raw email content, passwords, attachments, or OAuth tokens are NEVER persisted; state is managed securely with a parameterized SQLite schema using purely additive migrations. The engine executes concurrently alongside the V2 detection pipeline and contributes its bounded `EngineResult` securely to risk fusion.
+---
 
-Run backend tests from `backend/` with `python -m pytest app/tests`.
+## 10. Project Structure
 
-## Phase 16 Header Analysis Intelligence
-The Header Analysis Engine evaluates normalized email headers (e.g. SPF/DKIM/DMARC results, Reply-To mismatches, Message-ID anomalies, timestamps, and Received chains) for structural inconsistencies and spoofing indicators. 
-
-**Privacy Boundary**: Analysis is aggressively metadata-only. The engine gracefully skips missing headers and uses deterministic scoring that avoids causing a high-risk misclassification from a single weak signal. Raw email bodies, HTML, attachments, OAuth tokens, and passwords are never processed, retained, or stored by this engine.
-
-## Phase 17 Attachment Behavior Intelligence
-The Attachment Behavior Engine performs safe static analysis of attachments without execution or persistence. It evaluates:
-- Magic-byte file format verification and extension mismatch detection
-- Deceptive double extensions and right-to-left override (RTLO) manipulation
-- High-risk script formats and direct binary executables
-- Embedded Office VBA macros and active scripts
-- Bounded archive structural inspection (ZIP and TAR) enforcing safety limits (`MAX_ARCHIVE_ENTRIES = 200`, `MAX_UNCOMPRESSED_ARCHIVE_SIZE = 50 MB`, `MAX_EXPANSION_RATIO = 50:1`)
-- Suspicious social engineering lure keywords in filenames
-
-**Safety Boundary**: Static analysis only. Files are never executed, extracted to the host filesystem, or persisted to disk. Suspicious attachment characteristics alone cannot trigger a `Malware` classification without an authentic malware signal.
-
-## Phase 18 V2 Preprocessing & Input Normalization
-A centralized, deterministic preprocessing layer executes prior to detection engines:
-- **Text Normalization**: Unicode NFKC decomposition, control character stripping, whitespace normalization, and strict 50,000-character bounding.
-- **URL Normalization**: Scheme/host lowercasing, default port removal, credential stripping, path normalization, and rejection of dangerous pseudo-schemes (`javascript:`, `data:`, `vbscript:`).
-- **File Normalization**: Enforcement of the strict 10 MB limit, filename sanitization, and path traversal stripping.
-- **Header Normalization**: RFC-compliant header folding, hop limiting (`MAX_RECEIVED_HOPS = 30`), and authentication result extraction.
-
-## Phase 19 V2 Dynamic Risk Classification & Context Profiles
-Separates numerical risk scoring (Phase 7 Risk Fusion, 0–100) from discrete categorization policy:
-- **`default`**: Safe (<20), Suspicious (<45), Deceptive (<70), Phishing (<90), Malware (≥90 + verified malware signal).
-- **`strict`**: Heightened sensitivity profile for elevated-risk contexts (Safe <15, Suspicious <35, Deceptive <55, Phishing <80).
-- **`enterprise`**: Zero-trust profile with aggressive suspicion thresholds (Safe <10, Suspicious <30, Deceptive <50, Phishing <75).
-- **Malware Safeguard**: High risk score alone never yields `Malware` without an authentic Phase 7 malware signal (`MALWARE`, `malware_detected`, `vt_malicious`, `vt_suspicious`).
-- **Feedback Boundary**: User feedback cannot dynamically retune security thresholds at runtime (`apply_feedback_tuning()` raises `PermissionError`).
-
-## Phase 20 Final Integration, Hardening & Release Readiness
-Comprehensive end-to-end integration and release hardening across backend and Android:
-- End-to-end V2 pipeline verification across all communication channels.
-- Full contract parity between Android (`ApiClient`, `UnifiedScanResponseParser`) and FastAPI (`/api/scan`, `/api/feedback`).
-- Complete regression test suite verifying resource safety limits, graceful degradation, and sensitive data isolation.
-- Verified release readiness documented in `documentation/RELEASE_READINESS_V2.md`.
-
-## Environment Variables Required
-To run the backend engines with full functionality, create a `.env` file in the root or `backend/` directory by copying `.env.example`:
-
-```env
-GOOGLE_SAFE_BROWSING_API_KEY=your_google_safe_browsing_key_here
-VIRUSTOTAL_API_KEY=your_virustotal_key_here
-ENVIRONMENT=development
+```text
+SecureShield-AI/
+├── .github/
+│   └── workflows/
+│       └── android-ci.yml        # CI build and automated test workflow
+├── android/
+│   ├── app/                      # Android application module (Kotlin)
+│   │   ├── src/main/java/com/secureshield/ai/
+│   │   │   ├── accessibility/    # Guardian Mode accessibility service
+│   │   │   ├── background/       # WorkManager background Gmail scanning
+│   │   │   ├── feedback/         # User feedback submission logic
+│   │   │   ├── history/          # Local SQLite scan history repository
+│   │   │   ├── network/          # Retrofit / ApiClient network layer
+│   │   │   └── share/            # Android Share Target intent receiver
+│   │   └── build.gradle.kts      # Android app build configuration
+│   └── build.gradle.kts          # Top-level Gradle configuration
+├── backend/
+│   ├── app/
+│   │   ├── api/                  # FastAPI endpoints & routes
+│   │   ├── classification/       # Dynamic risk classification profiles
+│   │   ├── config/               # Settings & environment configuration
+│   │   ├── database/             # SQLite state & database access
+│   │   ├── engines/              # 7 modular detection engines
+│   │   ├── evaluation/           # Feedback & evaluation metrics
+│   │   ├── explainability/       # Human-readable explanation generation
+│   │   ├── fusion/               # Risk score fusion algorithms
+│   │   ├── models/               # Pydantic data schemas & interfaces
+│   │   ├── preprocessing/        # Input sanitization & normalization
+│   │   └── tests/                # Pytest unit & integration test suite
+│   ├── data/                     # SQLite database storage directory
+│   ├── main.py                   # FastAPI application entry point
+│   └── requirements.txt          # Python dependencies
+├── documentation/
+│   ├── API.md                    # REST API endpoint reference & schemas
+│   ├── ARCHITECTURE.md           # Detailed architecture & engine pipeline
+│   ├── DEPLOYMENT.md             # Cloud deployment & CI/CD guides
+│   └── DEVELOPMENT.md            # Local setup, testing & signing guide
+├── .env.example                  # Environment variable template
+├── .gitignore                    # Git ignore rules
+├── DEMO_SCRIPT.md                # Demonstration script for evaluations
+├── DEPLOYMENT.md                 # Root deployment summary
+├── README.md                     # Project overview & quick start guide
+├── start_backend.bat             # Windows batch startup script
+└── start_backend.ps1             # PowerShell startup script
 ```
-*(Note: If API keys are omitted, the engines degrade gracefully and bypass the external lookups without crashing the pipeline.)*
-
