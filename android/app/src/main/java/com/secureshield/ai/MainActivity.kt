@@ -89,7 +89,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textReasons: TextView
     private lateinit var textAction: TextView
     private lateinit var progressBar: ProgressBar
-    private lateinit var btnScanGmail: Button
+    private lateinit var btnScanGmail: View
     
     private lateinit var layoutFeedback: LinearLayout
     private lateinit var btnThumbUp: View
@@ -121,6 +121,12 @@ class MainActivity : AppCompatActivity() {
                 ).show()
             }
         }
+
+    private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            processSelectedFile(uri)
+        }
+    }
 
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         var account: GoogleSignInAccount? = null
@@ -217,8 +223,12 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_quick_scan_text)?.setOnClickListener {
+        findViewById<View>(R.id.btn_quick_scan_text)?.setOnClickListener {
             showCustomInputScanDialog()
+        }
+
+        findViewById<View>(R.id.btn_quick_scan_file)?.setOnClickListener {
+            filePickerLauncher.launch("*/*")
         }
 
         btnViewDetails.setOnClickListener {
@@ -793,6 +803,28 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun processSelectedFile(uri: Uri) {
+        progressBar.visibility = View.VISIBLE
+        layoutFeedback.visibility = View.GONE
+        textFeedbackStatus.visibility = View.GONE
+        badgeCategory.text = "Analyzing file..."
+        lifecycleScope.launch {
+            when (val result = readSharedFile(uri.toString())) {
+                is SharedFileReadResult.Success -> {
+                    textTarget.text = "File: ${result.fileName}"
+                    textTarget.visibility = View.VISIBLE
+                    val input = ScanInput(file_name = result.fileName, file_bytes = result.content)
+                    executeScan(input, "File payload scanned", "File", "file")
+                }
+                is SharedFileReadResult.Failure -> {
+                    progressBar.visibility = View.GONE
+                    badgeCategory.text = "Error"
+                    Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     private fun showOAuthSetupInfoDialog() {
