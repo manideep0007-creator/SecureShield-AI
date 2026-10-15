@@ -9,7 +9,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from fastapi.testclient import TestClient
 from main import app
 
-client = TestClient(app)
+os.environ["API_KEY"] = "test-api-key"
+client = TestClient(app, headers={"X-API-Key": "test-api-key"})
 
 class TestAPIUnifiedScan(unittest.TestCase):
     def test_invalid_empty_input(self):

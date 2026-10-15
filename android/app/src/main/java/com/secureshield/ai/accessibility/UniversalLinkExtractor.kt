@@ -166,6 +166,19 @@ object UniversalLinkExtractor {
         val trimmed = text.toString().trim()
         return if (trimmed.length > 300) trimmed.take(300) + "..." else trimmed
     }
+
+    /**
+     * Sanitizes sensitive information (OTPs, passwords, tokens, phone numbers, emails, links)
+     * using the same privacy redaction rules as ScanHistorySanitizer.
+     */
+    fun sanitizeSnippet(snippet: String): String =
+        com.secureshield.ai.history.ScanHistorySanitizer.sanitizeDisplayText(snippet)
+
+    /**
+     * Checks if redaction removed more than half the snippet content.
+     */
+    fun isMostlyRedacted(original: String, sanitized: String): Boolean =
+        com.secureshield.ai.history.ScanHistorySanitizer.isMostlyRedacted(original, sanitized)
 }
 
 

@@ -40,7 +40,12 @@ class ExplainabilityEngine:
         "SUSPICIOUS_ARCHIVE": "The attachment archive exhibits suspicious structural characteristics or payloads.",
         "ARCHIVE_DEPTH_ANOMALY": "The archive structure exceeds safe nesting depth limits.",
         "ARCHIVE_EXPANSION_ANOMALY": "The archive exhibits an unusually large compression expansion ratio.",
-        "SUSPICIOUS_FILENAME": "The attachment filename matches deceptive phishing or malware lure patterns."
+        "SUSPICIOUS_FILENAME": "The attachment filename matches deceptive phishing or malware lure patterns.",
+        "known_malicious_url": "The URL is flagged on active global cybersecurity threat intelligence feeds.",
+        "urlhaus_malicious": "URLhaus threat intelligence confirmed this URL distributes active malware.",
+        "openphish_phishing": "OpenPhish threat intelligence confirmed this site is an active phishing portal.",
+        "malwarebazaar_verified": "The binary hash matches verified malware in the global MalwareBazaar registry.",
+        "whitelisted_trusted_domain": "The domain is verified on global top trusted website whitelists."
     }
 
 
@@ -62,6 +67,9 @@ class ExplainabilityEngine:
                 reasons.append(f"Natural language processing found signs of {category}.")
             elif flag.startswith("high_hyphen_count"):
                 reasons.append("The URL contains an unusual number of hyphens, often used to spoof domains.")
+            elif flag.startswith("threat_family:"):
+                family = flag.replace("threat_family:", "")
+                reasons.append(f"Confirmed malware payload belonging to the {family} family.")
             else:
                 explanation = cls.FLAG_EXPLANATIONS.get(flag)
                 if explanation:

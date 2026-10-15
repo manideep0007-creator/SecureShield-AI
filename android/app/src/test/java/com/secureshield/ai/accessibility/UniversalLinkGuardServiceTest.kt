@@ -205,4 +205,81 @@ class UniversalLinkGuardServiceTest {
             ProcessedMessageStore.isUrlProcessed(context, targetUrl)
         )
     }
+
+    @Test
+    fun textSnippet_withOtpAndSecrets_uploadedAsRedacted() = runTest {
+        val snippetText = "Your OTP is 483920, password reset"
+
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(validSafeScanJson))
+
+        service.processVisibleText(snippetText, "com.sms.app")
+
+        assertEquals(1, mockWebServer.requestCount)
+        val recordedRequest = mockWebServer.takeRequest()
+        val requestBody = recordedRequest.body.readUtf8()
+
+        // Sensitive OTP digits must NOT be sent over the wire
+        assertFalse(
+            "Raw OTP digits 483920 must not be present in uploaded request body",
+            requestBody.contains("483920")
+        )
+
+        // The text must be redacted before upload
+        assertTrue(
+            "Request body should contain redacted snippet",
+            requestBody.contains("Your OTP: [redacted], password reset")
+        )
+    }
+
+    @Test
+    fun textSnippet_cleanPhishingStyle_passesThroughUnchanged() = runTest {
+        val cleanPhishing = "URGENT: Your account is suspended due to unauthorized activity. Confirm your identity."
+
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(validSafeScanJson))
+
+        service.processVisibleText(cleanPhishing, "com.email.app")
+
+        assertEquals(1, mockWebServer.requestCount)
+        val recordedRequest = mockWebServer.takeRequest()
+        val requestBody = recordedRequest.body.readUtf8()
+
+        // Clean phishing text with no OTPs/passwords/tokens must pass through untouched
+        assertTrue(
+            "Clean phishing text should pass through unchanged in request body",
+            requestBody.contains(cleanPhishing)
+        )
+    }
+
+    @Test
+    fun textSnippet_mostlyRedacted_skipsScan() = runTest {
+        // Snippet composed almost entirely of sensitive tokens / numbers (>50% redacted)
+        val mostlySensitive = "OTP: 123456. Token: abcdef1234567890abcdef1234567890. Password: secretpassword"
+
+        service.processVisibleText(mostlySensitive, "com.chat.app")
+
+        // Should skip scanning completely instead of uploading mostly empty text
+        assertEquals(
+            "Scan must be skipped when snippet is mostly redacted",
+            0,
+            mockWebServer.requestCount
+        )
+    }
+
+    @Test
+    fun textSnippet_withVerificationCodeAndPin_uploadedAsRedacted() = runTest {
+        val snippetText = "Your verification code is 483920. ATM PIN is 4821. Confirm identity."
+
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(validSafeScanJson))
+
+        service.processVisibleText(snippetText, "com.bank.app")
+
+        assertEquals(1, mockWebServer.requestCount)
+        val recordedRequest = mockWebServer.takeRequest()
+        val requestBody = recordedRequest.body.readUtf8()
+
+        // Digits must be redacted
+        assertFalse(requestBody.contains("483920"))
+        assertFalse(requestBody.contains("4821"))
+        assertTrue(requestBody.contains("[redacted]"))
+    }
 }

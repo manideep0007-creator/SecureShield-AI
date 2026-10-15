@@ -318,7 +318,7 @@ class TestV2Classification(unittest.TestCase):
 
     # 16. API response compatibility
     def test_api_response_compatibility(self):
-        client = TestClient(app)
+        client = TestClient(app, headers={"X-API-Key": "test-api-key"})
 
         # Standard scan uses default profile
         res_default = client.post("/api/scan", json={"text": "Test message"})
@@ -425,7 +425,7 @@ class TestV2PipelineClassificationIntegration(unittest.IsolatedAsyncioTestCase):
 
 class TestV2ClassificationPR17Recovery(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers={"X-API-Key": "test-api-key"})
 
     def test_default_profile_works_when_no_profile_supplied(self):
         # 1. Direct from_results check

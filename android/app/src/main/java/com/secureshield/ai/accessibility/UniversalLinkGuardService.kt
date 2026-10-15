@@ -11,9 +11,11 @@ import android.view.accessibility.AccessibilityEvent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.secureshield.ai.ScanHistoryActivity
+import com.secureshield.ai.GuardianInterceptActivity
 import com.secureshield.ai.background.ProcessedMessageStore
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.network.ApiClient
+import com.secureshield.ai.network.ClientIdProvider
 import com.secureshield.ai.network.ServerSettings
 import com.secureshield.ai.network.ScanInput
 import com.secureshield.ai.network.UnifiedScanResponse
@@ -146,7 +148,16 @@ class UniversalLinkGuardService : AccessibilityService() {
             // Optional short suspicious text analysis when no URL is present
             val snippet = UniversalLinkExtractor.extractSuspiciousTextSnippet(visibleText)
             if (snippet != null) {
-                val textKey = "text:${snippet.hashCode()}"
+                // 1. Redact sensitive values (OTPs/long digits, passwords, tokens, phone numbers, emails)
+                val sanitizedSnippet = UniversalLinkExtractor.sanitizeSnippet(snippet)
+
+                // 2. If redaction removes more than half the snippet, skip the scan
+                if (UniversalLinkExtractor.isMostlyRedacted(snippet, sanitizedSnippet)) {
+                    android.util.Log.d("GuardianService", "Snippet mostly redacted (${snippet.length} chars). Skipping scan for privacy.")
+                    return
+                }
+
+                val textKey = "text:${sanitizedSnippet.hashCode()}"
                 if (!inFlightUrls.add(textKey)) return
                 try {
                     if (ProcessedMessageStore.isUrlProcessed(applicationContext, textKey)) {
@@ -157,9 +168,9 @@ class UniversalLinkGuardService : AccessibilityService() {
                     }
                     ProcessedMessageStore.markUrlProcessed(applicationContext, textKey)
 
-                    android.util.Log.i("GuardianService", "Dispatching text scan for snippet (Source: $sourcePackage)")
+                    android.util.Log.i("GuardianService", "Dispatching redacted text scan for snippet (Source: $sourcePackage)")
                     val input = ScanInput(
-                        text = snippet,
+                        text = sanitizedSnippet,
                         source_channel = "guardian",
                         metadata = mapOf(
                             "source_package" to sourcePackage,
@@ -167,7 +178,7 @@ class UniversalLinkGuardService : AccessibilityService() {
                         )
                     )
                     val success = try {
-                        scanAndReport(input, sourcePackage, targetDisplay = snippet)
+                        scanAndReport(input, sourcePackage, targetDisplay = sanitizedSnippet)
                     } catch (e: Exception) {
                         if (e is CancellationException) throw e
                         android.util.Log.e("GuardianService", "Unhandled error during scan: ${e.message}", e)
@@ -208,9 +219,14 @@ class UniversalLinkGuardService : AccessibilityService() {
         }
 
         val api = apiOverride ?: ApiClient.api
+        val resolvedInput = if (scanInput.client_id.isNullOrBlank()) {
+            scanInput.copy(client_id = ClientIdProvider.getClientId(applicationContext))
+        } else {
+            scanInput
+        }
 
         // 1. Initial attempt
-        val firstOutcome = executeSingleScan(api, scanInput, sourcePackage, targetDisplay)
+        val firstOutcome = executeSingleScan(api, resolvedInput, sourcePackage, targetDisplay)
         if (firstOutcome is ScanAttemptOutcome.Success) {
             return true
         }
@@ -236,7 +252,7 @@ class UniversalLinkGuardService : AccessibilityService() {
         }
 
         // 3. Retry attempt
-        val retryOutcome = executeSingleScan(api, scanInput, sourcePackage, targetDisplay)
+        val retryOutcome = executeSingleScan(api, resolvedInput, sourcePackage, targetDisplay)
         return if (retryOutcome is ScanAttemptOutcome.Success) {
             android.util.Log.i("GuardianService", "Retry scan succeeded for: $targetDisplay")
             true
@@ -339,10 +355,14 @@ class UniversalLinkGuardService : AccessibilityService() {
         val topReason = scanResult.risk_assessment.reasons.firstOrNull()
             ?: scanResult.risk_assessment.recommended_action.ifBlank { "Potential threat detected on screen" }
 
-        // Tapping notification opens the result in ScanHistoryActivity
-        val intent = Intent(applicationContext, ScanHistoryActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        // Tapping notification opens the HUD overlay in GuardianInterceptActivity
+        val intent = Intent(applicationContext, GuardianInterceptActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("scan_id", scanResult.scan_id)
+            putExtra("target_url", targetDisplay)
+            putExtra("classification", scanResult.classification)
+            putExtra("score", scanResult.risk_score.toInt())
+            putExtra("source_app", appLabel)
         }
         val pendingIntent = PendingIntent.getActivity(
             applicationContext,

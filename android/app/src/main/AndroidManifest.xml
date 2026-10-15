@@ -42,6 +42,10 @@
         <activity
             android:name=".ScanHistoryActivity"
             android:exported="false" />
+        <activity
+            android:name=".GuardianInterceptActivity"
+            android:theme="@style/Theme.SecureShield.Translucent"
+            android:exported="false" />
 
         <!-- Universal App-Agnostic Link Threat Detector Accessibility Service -->
         <service

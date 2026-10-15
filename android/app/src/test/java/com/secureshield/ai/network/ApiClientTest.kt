@@ -361,4 +361,81 @@ class ApiClientTest {
             assertTrue(e.message!!.contains("classification"))
         }
     }
+
+    @Test
+    fun `test api client transmits X-API-Key header when key is present`() = runTest {
+        ApiClient.setBaseUrl(mockWebServer.url("/").toString())
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("{\"status\":\"ok\"}"))
+        
+        ApiClient.api.healthCheck()
+        val recorded = mockWebServer.takeRequest()
+        if (com.secureshield.ai.BuildConfig.API_KEY.isNotBlank()) {
+            assertEquals(com.secureshield.ai.BuildConfig.API_KEY, recorded.getHeader("X-API-Key"))
+        }
+    }
+
+    @Test
+    fun `test wakeServerIfNeeded pings health when server is not awake and marks awake`() = runTest {
+        ApiClient.setBaseUrl(mockWebServer.url("/").toString())
+        assertFalse(ApiClient.isServerAwake)
+
+        var wakingCallbackInvoked = false
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("{\"status\":\"running\"}"))
+
+        val awake = ApiClient.wakeServerIfNeeded {
+            wakingCallbackInvoked = true
+        }
+
+        assertTrue(awake)
+        assertTrue(wakingCallbackInvoked)
+        assertTrue(ApiClient.isServerAwake)
+
+        // Second call should return immediately without re-invoking waking callback
+        var secondCallbackInvoked = false
+        val stillAwake = ApiClient.wakeServerIfNeeded {
+            secondCallbackInvoked = true
+        }
+        assertTrue(stillAwake)
+        assertFalse(secondCallbackInvoked)
+    }
+
+    @Test
+    fun `test client_id is transmitted in scan request payload`() = runTest {
+        val dummyResponse = """
+            {
+                "scan_id": "scan-1234",
+                "status": "completed",
+                "total_engines": 1,
+                "completed_engines": 1,
+                "skipped_engines": 0,
+                "risk_score": 10.0,
+                "classification": "Safe",
+                "results": [],
+                "risk_assessment": {
+                    "risk_score": 10.0,
+                    "classification": "Safe",
+                    "confidence": 0.8,
+                    "contributing_engines": ["sender_engine"],
+                    "ignored_engines": [],
+                    "flags": [],
+                    "evidence": [],
+                    "reasons": ["Sender is recognized."],
+                    "recommended_action": "Safe to open."
+                }
+            }
+        """.trimIndent()
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(dummyResponse))
+
+        val input = ScanInput(
+            sender_id = "trusted@company.com",
+            client_id = "test-client-uuid-9999"
+        )
+        val response = api.scan(input)
+        assertTrue(response.isSuccessful)
+
+        val recorded = mockWebServer.takeRequest()
+        val bodyUtf8 = recorded.body.readUtf8()
+        assertTrue(bodyUtf8.contains("\"client_id\":\"test-client-uuid-9999\""))
+        assertTrue(bodyUtf8.contains("\"sender_id\":\"trusted@company.com\""))
+    }
 }

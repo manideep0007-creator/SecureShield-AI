@@ -17,7 +17,8 @@ class TestFeedbackEvaluationAPI(unittest.TestCase):
         self.db_path = os.path.join(self.temp_dir.name, "feedback.db")
         self.db_path_patch = patch("app.database.feedback.DB_PATH", self.db_path)
         self.db_path_patch.start()
-        self.client = TestClient(app)
+        os.environ["API_KEY"] = "test-api-key"
+        self.client = TestClient(app, headers={"X-API-Key": "test-api-key"})
 
     def tearDown(self):
         self.client.close()

@@ -5,40 +5,115 @@
     android:layout_height="wrap_content"
     android:background="@color/bg_dark"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="20dp">
+
+    <!-- Header with Cyber Icon -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="16dp">
+
+        <ImageView
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_nav_settings"
+            android:layout_marginEnd="10dp"
+            app:tint="@color/cyber_cyan" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Neural AI Endpoint"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Real-time multi-engine backend host"
+                android:textSize="11sp"
+                android:textColor="@color/text_muted" />
+        </LinearLayout>
+    </LinearLayout>
 
     <TextView
         android:id="@+id/text_label_backend_url"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Backend URL:"
-        android:textSize="15sp"
+        android:text="ENDPOINT URI"
+        android:textSize="10sp"
         android:textStyle="bold"
-        android:textColor="@color/text_primary"
-        android:layout_marginBottom="8dp" />
+        android:textColor="@color/text_muted"
+        android:letterSpacing="0.08"
+        android:layout_marginBottom="6dp" />
 
     <EditText
         android:id="@+id/edit_server_url"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="http://10.0.2.2:8000/"
+        android:hint="https://api.secureshield.ai/v2"
         android:textColorHint="@color/text_muted"
-        android:textColor="@color/text_primary"
-        android:background="@drawable/bg_card_cyber_elevated"
+        android:textColor="@color/cyber_cyan"
+        android:fontFamily="monospace"
+        android:background="@drawable/bg_code_preview"
         android:inputType="textUri"
         android:maxLines="1"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:padding="12dp"
-        android:layout_marginBottom="12dp" />
+        android:layout_marginBottom="10dp" />
+
+    <!-- Quick Presets -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_use_cloud"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="38dp"
+            android:text="☁️ Use Cloud Backend"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="@color/cyber_cyan"
+            app:backgroundTint="@color/bg_dark_card"
+            app:strokeColor="@color/cyber_cyan"
+            app:strokeWidth="1dp"
+            android:layout_marginEnd="8dp"
+            app:cornerRadius="19dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_reset_default"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:text="Reset"
+            android:textSize="11sp"
+            android:textColor="@color/text_muted" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/text_connection_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text=""
-        android:textSize="13sp"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
         android:visibility="gone"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="14dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -48,21 +123,26 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_test_connection"
-            style="@style/Widget.Material3.Button.TonalButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="TEST CONNECTION"
+            android:layout_height="44dp"
+            android:text="Ping Health Check"
+            android:textColor="@color/cyber_cyan"
+            app:strokeColor="@color/cyber_cyan"
             android:textSize="12sp"
             android:layout_marginEnd="8dp"
-            app:cornerRadius="20dp" />
+            app:cornerRadius="22dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_save_settings"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="SAVE"
+            android:layout_height="44dp"
+            android:text="Save Endpoint"
+            android:textColor="@color/bg_dark"
+            app:backgroundTint="@color/cyber_cyan"
+            android:textStyle="bold"
             android:textSize="12sp"
-            app:cornerRadius="20dp" />
+            app:cornerRadius="22dp" />
     </LinearLayout>
 
 </LinearLayout>

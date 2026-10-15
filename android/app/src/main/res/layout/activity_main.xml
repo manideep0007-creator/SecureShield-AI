@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_dark">
@@ -10,7 +11,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Top Cyber App Bar -->
+        <!-- Top Cyber App Bar (Obsidian Cyber Aegis Header) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -29,40 +30,77 @@
                 android:gravity="center_vertical">
 
                 <ImageView
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
                     android:src="@drawable/ic_shield_protected"
-                    android:layout_marginEnd="10dp" />
+                    android:layout_marginEnd="10dp"
+                    app:tint="@color/cyber_cyan" />
 
-                <TextView
-                    android:id="@+id/text_app_title"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="SecureShield AI"
-                    android:textSize="20sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:letterSpacing="0.02" />
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/text_app_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="SecureShield AI"
+                        android:textSize="19sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"
+                        android:letterSpacing="0.02" />
+
+                    <!-- Live Online Status Pill -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/bg_status_pill_online"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="2dp"
+                        android:layout_marginTop="2dp">
+
+                        <View
+                            android:id="@+id/view_sys_dot"
+                            android:layout_width="6dp"
+                            android:layout_height="6dp"
+                            android:background="@drawable/bg_badge_safe"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:id="@+id/text_sys_status"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SYS ONLINE // 99.98%"
+                            android:textSize="9sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/threat_safe"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.04" />
+                    </LinearLayout>
+                </LinearLayout>
             </LinearLayout>
 
             <ImageView
                 android:id="@+id/btn_top_settings"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:padding="6dp"
+                android:padding="8dp"
                 android:src="@drawable/ic_nav_settings"
                 app:tint="@color/text_secondary"
                 android:contentDescription="Settings" />
         </LinearLayout>
 
-        <!-- Main Content Area with ViewFlipper / Tabs -->
+        <!-- Main Content Area with Tabs -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
 
-            <!-- TAB 1: HOME DASHBOARD -->
+            <!-- TAB 1: HOME DASHBOARD (Obsidian Cyber Aegis Layout) -->
             <ScrollView
                 android:id="@+id/layout_home_tab"
                 android:layout_width="match_parent"
@@ -77,54 +115,130 @@
                     android:paddingHorizontal="16dp"
                     android:paddingBottom="24dp">
 
-                    <!-- HERO SHIELD STATUS CARD -->
-                    <LinearLayout
+                    <!-- HERO HOLOGRAPHIC RADAR SHIELD SECTION -->
+                    <com.google.android.material.card.MaterialCardView
                         android:id="@+id/layout_hero_section"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:gravity="center_horizontal"
-                        android:paddingTop="12dp"
-                        android:paddingBottom="20dp">
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="12dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="18dp"
+                        app:cardElevation="0dp">
 
-                        <FrameLayout
-                            android:layout_width="140dp"
-                            android:layout_height="140dp"
-                            android:layout_marginBottom="12dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center_horizontal"
+                            android:paddingHorizontal="16dp"
+                            android:paddingTop="18dp"
+                            android:paddingBottom="16dp">
 
-                            <ImageView
-                                android:id="@+id/img_hero_shield_glow"
+                            <!-- Holographic Radar Component with Orbit Rings -->
+                            <FrameLayout
                                 android:layout_width="140dp"
                                 android:layout_height="140dp"
-                                android:src="@drawable/bg_shield_glow_safe" />
+                                android:layout_marginBottom="12dp">
 
-                            <ImageView
-                                android:id="@+id/img_hero_shield"
-                                android:layout_width="80dp"
-                                android:layout_height="80dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_shield_protected" />
-                        </FrameLayout>
+                                <!-- Outer Dashed Concentric Orbit Ring -->
+                                <View
+                                    android:layout_width="140dp"
+                                    android:layout_height="140dp"
+                                    android:background="@drawable/bg_radar_orbit" />
 
-                        <TextView
-                            android:id="@+id/text_hero_title"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="PROTECTION ACTIVE"
-                            android:textSize="22sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/text_primary"
-                            android:letterSpacing="0.05" />
+                                <!-- Ambient Pulsing Shield Glow Layer -->
+                                <ImageView
+                                    android:id="@+id/img_hero_shield_glow"
+                                    android:layout_width="120dp"
+                                    android:layout_height="120dp"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/bg_shield_glow_safe" />
 
-                        <TextView
-                            android:id="@+id/text_hero_subtitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Real-time on-screen &amp; inbox protection active"
-                            android:textSize="13sp"
-                            android:textColor="@color/text_secondary"
-                            android:layout_marginTop="4dp" />
-                    </LinearLayout>
+                                <!-- Central Holographic Core Shield -->
+                                <ImageView
+                                    android:id="@+id/img_hero_shield"
+                                    android:layout_width="64dp"
+                                    android:layout_height="64dp"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/ic_shield_protected" />
+                            </FrameLayout>
+
+                            <!-- Active Capsule Badge -->
+                            <TextView
+                                android:id="@+id/text_hero_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_status_pill_active"
+                                android:paddingHorizontal="14dp"
+                                android:paddingVertical="4dp"
+                                android:text="PROTECTION ACTIVE"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/threat_safe"
+                                android:letterSpacing="0.06" />
+
+                            <TextView
+                                android:id="@+id/text_hero_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Real-time on-screen radar &amp; zero-touch threat isolation active"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"
+                                android:gravity="center"
+                                android:layout_marginTop="8dp" />
+
+                            <!-- Quick Telemetry Metrics Strip -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center"
+                                android:layout_marginTop="14dp">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_telemetry_pill"
+                                    android:padding="6dp"
+                                    android:gravity="center"
+                                    android:text="24 AUDITED"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/text_secondary"
+                                    android:fontFamily="monospace"
+                                    android:layout_marginEnd="6dp" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_telemetry_pill"
+                                    android:padding="6dp"
+                                    android:gravity="center"
+                                    android:text="0 THREATS"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/threat_safe"
+                                    android:fontFamily="monospace"
+                                    android:layout_marginEnd="6dp" />
+
+                                <TextView
+                                    android:id="@+id/text_telemetry_ping"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_telemetry_pill"
+                                    android:padding="6dp"
+                                    android:gravity="center"
+                                    android:text="42ms PING"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/cyber_cyan"
+                                    android:fontFamily="monospace" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
 
                     <!-- Scanning Progress Bar -->
                     <ProgressBar
@@ -134,14 +248,182 @@
                         android:layout_width="match_parent"
                         android:layout_height="4dp"
                         android:visibility="gone"
-                        android:layout_marginBottom="16dp" />
+                        android:layout_marginBottom="12dp" />
 
-                    <!-- GUARDIAN MODE CARD -->
+                    <!-- QUICK ACTIONS DOCK (3 Tactical Cards Grid) -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="QUICK SECURITY ACTIONS"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_muted"
+                        android:letterSpacing="0.08"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="14dp">
+
+                        <!-- Action 1: Inspect Link / Text -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/btn_quick_scan_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="6dp"
+                            app:cardBackgroundColor="@color/bg_dark_card"
+                            app:strokeColor="@color/bg_dark_card_stroke"
+                            app:strokeWidth="1dp"
+                            app:cardCornerRadius="14dp"
+                            app:cardElevation="0dp"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:gravity="center"
+                                android:padding="12dp">
+
+                                <ImageView
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp"
+                                    android:src="@drawable/ic_action_inspect_link"
+                                    android:layout_marginBottom="6dp" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Inspect Link"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="URL / Text"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/text_muted"
+                                    android:layout_marginTop="2dp" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <!-- Action 2: Scan File Payload -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/btn_quick_scan_file"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="6dp"
+                            app:cardBackgroundColor="@color/bg_dark_card"
+                            app:strokeColor="@color/bg_dark_card_stroke"
+                            app:strokeWidth="1dp"
+                            app:cardCornerRadius="14dp"
+                            app:cardElevation="0dp"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:gravity="center"
+                                android:padding="12dp">
+
+                                <ImageView
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp"
+                                    android:src="@drawable/ic_action_scan_file"
+                                    android:layout_marginBottom="6dp" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Scan File"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Sandbox"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/text_muted"
+                                    android:layout_marginTop="2dp" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <!-- Action 3: Sync Gmail Inbox -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/btn_scan_gmail"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            app:cardBackgroundColor="@color/bg_dark_card"
+                            app:strokeColor="@color/bg_dark_card_stroke"
+                            app:strokeWidth="1dp"
+                            app:cardCornerRadius="14dp"
+                            app:cardElevation="0dp"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:gravity="center"
+                                android:padding="12dp">
+
+                                <ImageView
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp"
+                                    android:src="@drawable/ic_action_sync_gmail"
+                                    android:layout_marginBottom="6dp" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Sync Gmail"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Zero-Storage"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/text_muted"
+                                    android:layout_marginTop="2dp" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+
+                    <!-- ACTIVE DEFENSE SUBSYSTEMS HEADER -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ACTIVE DEFENSE SUBSYSTEMS"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_muted"
+                        android:letterSpacing="0.08"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- MODULE 1: GUARDIAN MODE CARD -->
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/card_guardian"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
+                        android:layout_marginBottom="10dp"
                         app:cardBackgroundColor="@color/bg_dark_card"
                         app:strokeColor="@color/bg_dark_card_stroke"
                         app:strokeWidth="1dp"
@@ -175,8 +457,8 @@
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Guardian Mode"
-                                        android:textSize="16sp"
+                                        android:text="Live Screen Guardian"
+                                        android:textSize="15sp"
                                         android:textStyle="bold"
                                         android:textColor="@color/text_primary" />
 
@@ -184,9 +466,10 @@
                                         android:id="@+id/text_universal_guard_desc"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="On-Screen Threat Interception"
+                                        android:text="Accessibility link interceptor telemetry"
                                         android:textSize="12sp"
-                                        android:textColor="@color/text_secondary" />
+                                        android:textColor="@color/text_secondary"
+                                        android:layout_marginTop="2dp" />
                                 </LinearLayout>
 
                                 <androidx.appcompat.widget.SwitchCompat
@@ -195,12 +478,11 @@
                                     android:layout_height="wrap_content" />
                             </LinearLayout>
 
-                            <!-- Status text indicator -->
                             <TextView
                                 android:id="@+id/text_universal_guard_status"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Guardian active (Accessibility enabled)"
+                                android:text="Guardian Active (Monitoring apps)"
                                 android:textSize="12sp"
                                 android:textColor="@color/threat_safe"
                                 android:layout_marginTop="8dp" />
@@ -237,12 +519,12 @@
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
-                    <!-- GMAIL / INBOX SCANNING CARD -->
+                    <!-- MODULE 2: GMAIL / INBOX SCANNING CARD -->
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/card_gmail"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
+                        android:layout_marginBottom="14dp"
                         app:cardBackgroundColor="@color/bg_dark_card"
                         app:strokeColor="@color/bg_dark_card_stroke"
                         app:strokeWidth="1dp"
@@ -276,8 +558,8 @@
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Inbox Protection"
-                                        android:textSize="16sp"
+                                        android:text="Background Inbox Shield"
+                                        android:textSize="15sp"
                                         android:textStyle="bold"
                                         android:textColor="@color/text_primary" />
 
@@ -285,9 +567,10 @@
                                         android:id="@+id/text_background_status"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Background Protection inactive"
+                                        android:text="WorkManager 15-minute polling active"
                                         android:textSize="12sp"
-                                        android:textColor="@color/text_secondary" />
+                                        android:textColor="@color/text_secondary"
+                                        android:layout_marginTop="2dp" />
                                 </LinearLayout>
 
                                 <androidx.appcompat.widget.SwitchCompat
@@ -295,36 +578,10 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content" />
                             </LinearLayout>
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btn_scan_gmail"
-                                android:layout_width="match_parent"
-                                android:layout_height="48dp"
-                                android:text="CONNECT GMAIL &amp; SCAN INBOX"
-                                android:textStyle="bold"
-                                android:textSize="13sp"
-                                android:letterSpacing="0.05"
-                                android:layout_marginTop="14dp"
-                                app:backgroundTint="@color/btn_gmail_red"
-                                app:cornerRadius="24dp" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btn_quick_scan_text"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="match_parent"
-                                android:layout_height="44dp"
-                                android:text="PASTE SUSPICIOUS TEXT / URL TO SCAN"
-                                android:textColor="@color/cyber_cyan"
-                                app:strokeColor="@color/cyber_cyan"
-                                android:textSize="12sp"
-                                android:textStyle="bold"
-                                android:letterSpacing="0.03"
-                                android:layout_marginTop="8dp"
-                                app:cornerRadius="22dp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
-                    <!-- LATEST SCAN VERDICT CARD -->
+                    <!-- LATEST THREAT VERDICT REPORT CARD -->
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/layout_verdict_card"
                         android:layout_width="match_parent"
@@ -347,16 +604,17 @@
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal"
                                 android:gravity="center_vertical"
-                                android:layout_marginBottom="8dp">
+                                android:layout_marginBottom="10dp">
 
                                 <TextView
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
-                                    android:text="Latest Threat Analysis"
+                                    android:text="Latest Threat Verdict"
                                     android:textSize="13sp"
                                     android:textStyle="bold"
                                     android:textColor="@color/text_muted"
+                                    android:letterSpacing="0.04"
                                     android:textAllCaps="true" />
 
                                 <TextView
@@ -365,9 +623,11 @@
                                     android:layout_height="wrap_content"
                                     android:background="@drawable/bg_badge_neutral"
                                     android:text="Awaiting Scan"
-                                    android:textSize="12sp"
+                                    android:textSize="11sp"
                                     android:textStyle="bold"
-                                    android:textColor="@color/text_primary" />
+                                    android:textColor="@color/text_primary"
+                                    android:paddingHorizontal="10dp"
+                                    android:paddingVertical="3dp" />
                             </LinearLayout>
 
                             <TextView
@@ -378,35 +638,42 @@
                                 android:textSize="15sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary"
-                                android:layout_marginBottom="4dp" />
+                                android:layout_marginBottom="6dp" />
 
-                            <TextView
-                                android:id="@+id/text_reasons"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Your on-screen links and messages will be analyzed here."
-                                android:textSize="12sp"
-                                android:textColor="@color/text_secondary"
-                                android:maxLines="2"
-                                android:ellipsize="end"
-                                android:layout_marginBottom="8dp" />
-
+                            <!-- Intercepted Target Monospaced Box -->
                             <TextView
                                 android:id="@+id/text_target"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:text=""
                                 android:textSize="11sp"
-                                android:textColor="@color/text_muted"
-                                android:maxLines="1"
+                                android:textColor="@color/cyber_cyan"
+                                android:fontFamily="monospace"
+                                android:background="@drawable/bg_code_preview"
+                                android:padding="10dp"
+                                android:maxLines="2"
                                 android:ellipsize="end"
-                                android:visibility="gone" />
+                                android:visibility="gone"
+                                android:layout_marginBottom="8dp" />
+
+                            <TextView
+                                android:id="@+id/text_reasons"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Your on-screen links, uploaded files, and emails will be audited here."
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"
+                                android:maxLines="3"
+                                android:ellipsize="end"
+                                android:layout_marginBottom="8dp" />
 
                             <TextView
                                 android:id="@+id/text_action"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:text=""
+                                android:textColor="@color/threat_warning"
+                                android:textSize="12sp"
                                 android:visibility="gone" />
 
                             <!-- Feedback Controls -->
@@ -416,7 +683,7 @@
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal"
                                 android:gravity="center_vertical"
-                                android:layout_marginTop="6dp"
+                                android:layout_marginTop="8dp"
                                 android:visibility="gone">
 
                                 <TextView
@@ -461,15 +728,15 @@
                                 style="@style/Widget.Material3.Button.TextButton"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:text="View Full Evidence &amp; Details →"
+                                android:text="View 7-Engine Forensic Evidence →"
                                 android:textColor="@color/cyber_cyan"
                                 android:textSize="12sp"
-                                android:layout_marginTop="4dp"
+                                android:layout_marginTop="6dp"
                                 android:visibility="gone" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
-                    <!-- Hidden Button to keep compatibility with any legacy test references -->
+                    <!-- Hidden Button to keep compatibility with test references -->
                     <Button
                         android:id="@+id/btn_scan_history"
                         android:layout_width="0dp"
@@ -479,7 +746,274 @@
                 </LinearLayout>
             </ScrollView>
 
-            <!-- TAB 2: HISTORY TAB -->
+            <!-- TAB: INBOX PROTECTION TAB (GMAIL SENTINEL) -->
+            <ScrollView
+                android:id="@+id/layout_inbox_tab"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingBottom="24dp">
+
+                    <!-- Inbox Header with OAuth Status -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="12dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Inbox Sentinel"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary" />
+
+                            <TextView
+                                android:id="@+id/text_inbox_account"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Zero-Knowledge In-Memory Audit"
+                                android:textSize="11sp"
+                                android:textColor="@color/text_muted" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_status_pill_active"
+                            android:text="OAUTH 2.0 • IN-MEMORY"
+                            android:textSize="9sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/threat_safe"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="3dp" />
+                    </LinearLayout>
+
+                    <!-- WorkManager Active Tactical Loop Card -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="6dp">
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="15-Min WorkManager Sentinel"
+                                        android:textSize="14sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/text_primary" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Active Tactical Background Loop"
+                                        android:textSize="10sp"
+                                        android:textColor="@color/threat_safe"
+                                        android:fontFamily="monospace" />
+                                </LinearLayout>
+
+                                <androidx.appcompat.widget.SwitchCompat
+                                    android:id="@+id/switch_inbox_tab_protection"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Scans unread messages in memory without downloading attachments or writing message bodies to disk."
+                                android:textSize="11sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginBottom="12dp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_telemetry_pill"
+                                    android:padding="6dp"
+                                    android:gravity="center"
+                                    android:text="28 AUDITED"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/text_secondary"
+                                    android:fontFamily="monospace"
+                                    android:layout_marginEnd="6dp" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_telemetry_pill"
+                                    android:padding="6dp"
+                                    android:gravity="center"
+                                    android:text="1 THREAT"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/threat_critical"
+                                    android:fontFamily="monospace"
+                                    android:layout_marginEnd="6dp" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_telemetry_pill"
+                                    android:padding="6dp"
+                                    android:gravity="center"
+                                    android:text="0 STORED"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/threat_safe"
+                                    android:fontFamily="monospace" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Triaged Stream Section Header -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="TRIAGED STREAM • RECENT AUDITS"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_muted"
+                        android:letterSpacing="0.08"
+                        android:layout_marginBottom="10dp" />
+
+                    <!-- Email Threat Card 1 (Sample / Active Feed) -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="10dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/threat_critical"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="14dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="4dp">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="service@account-security-notice.cc"
+                                    android:textSize="11sp"
+                                    android:textColor="@color/text_muted"
+                                    android:fontFamily="monospace" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_badge_threat"
+                                    android:text="PHISHING (88/100)"
+                                    android:textSize="9sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary"
+                                    android:paddingHorizontal="6dp"
+                                    android:paddingVertical="2dp" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="URGENT: Suspicious sign-in detected on your account"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary"
+                                android:layout_marginBottom="6dp" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_code_preview"
+                                android:padding="8dp"
+                                android:text="FORENSIC INTERCEPT: SPF SoftFail (~all), urgent credential harvesting lure, deceptive host."
+                                android:textSize="10sp"
+                                android:textColor="@color/threat_warning"
+                                android:fontFamily="monospace"
+                                android:layout_marginBottom="10dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_inbox_card_scan_demo"
+                                style="@style/Widget.Material3.Button.TonalButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="38dp"
+                                android:text="Audit This Threat Pattern"
+                                android:textSize="11sp"
+                                app:cornerRadius="19dp" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Sticky Bottom Action Button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_inbox_sync_now"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:text="⚡ Sync &amp; Scan Unread Inbox Now"
+                        android:textStyle="bold"
+                        android:textSize="13sp"
+                        android:textColor="@color/bg_dark"
+                        app:backgroundTint="@color/cyber_cyan"
+                        app:cornerRadius="25dp"
+                        android:layout_marginTop="8dp" />
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- TAB 2: HISTORY TAB (INCIDENT VAULT) -->
             <LinearLayout
                 android:id="@+id/layout_history_tab"
                 android:layout_width="match_parent"
@@ -499,7 +1033,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Local Scan Log"
+                        android:text="Incident Vault"
                         android:textSize="18sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary" />
@@ -509,7 +1043,7 @@
                         style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Clear Log"
+                        android:text="Purge Log"
                         android:textColor="@color/threat_critical"
                         android:textSize="12sp" />
                 </LinearLayout>
@@ -520,7 +1054,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:padding="32dp"
-                    android:text="No threat records yet.\nScanned links &amp; emails will appear here."
+                    android:text="No threat records yet.\nScanned links, files &amp; emails will appear here."
                     android:textColor="@color/text_muted"
                     android:textSize="14sp"
                     android:visibility="gone" />
@@ -557,7 +1091,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Protection Settings"
+                        android:text="Shield Settings"
                         android:textSize="18sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary"
@@ -582,7 +1116,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="System Permissions"
+                                android:text="System Privileges"
                                 android:textSize="14sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary"
@@ -613,7 +1147,7 @@
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Enables real-time on-screen protection"
+                                        android:text="Real-time on-screen radar &amp; link interceptor"
                                         android:textColor="@color/text_muted"
                                         android:textSize="12sp" />
                                 </LinearLayout>
@@ -648,14 +1182,14 @@
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Threat Notifications"
+                                        android:text="Tactical Notifications"
                                         android:textColor="@color/text_primary"
                                         android:textSize="14sp" />
 
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Instant alerts when threats are identified"
+                                        android:text="Instant alerts when critical threats are identified"
                                         android:textColor="@color/text_muted"
                                         android:textSize="12sp" />
                                 </LinearLayout>
@@ -687,7 +1221,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Advanced / Developer"
+                                android:text="Neural AI Endpoint"
                                 android:textSize="14sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary"
@@ -751,7 +1285,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="About SecureShield"
+                                android:text="About SecureShield AI"
                                 android:textSize="14sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary"
@@ -760,7 +1294,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Version 1.0 • Multi-Engine AI Security Platform"
+                                android:text="v2.0 Tactical Build • Multi-Engine Defense Suite"
                                 android:textColor="@color/text_muted"
                                 android:textSize="12sp" />
                         </LinearLayout>

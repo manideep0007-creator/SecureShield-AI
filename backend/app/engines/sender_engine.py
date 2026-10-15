@@ -8,45 +8,130 @@ from app.engines.registry import engine_registry
 from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
 from app.models.scan_input import ScanInput
 
-DB_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
-os.makedirs(DB_DIR, exist_ok=True)
-DB_PATH = os.path.join(DB_DIR, "sender_behavior.db")
+from app.config.config import settings
 
-def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS senders (
-                        sender_id TEXT PRIMARY KEY,
-                        message_count INTEGER DEFAULT 0,
-                        link_count INTEGER DEFAULT 0,
-                        file_count INTEGER DEFAULT 0
-                      )''')
+_DEFAULT_SENDER_DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "sender_behavior.db"))
+DB_PATH = _DEFAULT_SENDER_DB_PATH
+
+def get_sender_db_path(custom_path: str | None = None) -> str:
+    if custom_path:
+        return custom_path
+    if DB_PATH != _DEFAULT_SENDER_DB_PATH and DB_PATH != os.path.join(settings.resolved_data_dir, "sender_behavior.db"):
+        os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
+        return DB_PATH
+    data_dir = settings.resolved_data_dir
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, "sender_behavior.db")
+
+def init_db(db_path: str | None = None):
+    path = get_sender_db_path(db_path)
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with sqlite3.connect(path, timeout=5.0) as conn:
         cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(senders)")
-        columns = [col[1] for col in cursor.fetchall()]
         
-        if "first_seen" not in columns:
-            cursor.execute("ALTER TABLE senders ADD COLUMN first_seen REAL DEFAULT 0.0")
-        if "last_seen" not in columns:
-            cursor.execute("ALTER TABLE senders ADD COLUMN last_seen REAL DEFAULT 0.0")
-        if "time_buckets" not in columns:
-            cursor.execute("ALTER TABLE senders ADD COLUMN time_buckets TEXT DEFAULT '{}'")
-        if "last_domain" not in columns:
-            cursor.execute("ALTER TABLE senders ADD COLUMN last_domain TEXT DEFAULT ''")
-        if "recent_count" not in columns:
-            cursor.execute("ALTER TABLE senders ADD COLUMN recent_count INTEGER DEFAULT 0")
-        if "recent_window_start" not in columns:
-            cursor.execute("ALTER TABLE senders ADD COLUMN recent_window_start REAL DEFAULT 0.0")
-            
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_last_seen ON senders(last_seen)")
+        # Check senders table and migrate to compound primary key (client_id, sender_id)
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='senders'")
+        senders_exists = cursor.fetchone() is not None
+        if not senders_exists:
+            cursor.execute('''CREATE TABLE senders (
+                            client_id TEXT NOT NULL DEFAULT 'anonymous',
+                            sender_id TEXT NOT NULL,
+                            message_count INTEGER DEFAULT 0,
+                            link_count INTEGER DEFAULT 0,
+                            file_count INTEGER DEFAULT 0,
+                            first_seen REAL DEFAULT 0.0,
+                            last_seen REAL DEFAULT 0.0,
+                            time_buckets TEXT DEFAULT '{}',
+                            last_domain TEXT DEFAULT '',
+                            recent_count INTEGER DEFAULT 0,
+                            recent_window_start REAL DEFAULT 0.0,
+                            PRIMARY KEY (client_id, sender_id)
+                          )''')
+        else:
+            cursor.execute("PRAGMA table_info(senders)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if "client_id" not in columns:
+                cursor.execute('''CREATE TABLE senders_v2 (
+                                client_id TEXT NOT NULL DEFAULT 'anonymous',
+                                sender_id TEXT NOT NULL,
+                                message_count INTEGER DEFAULT 0,
+                                link_count INTEGER DEFAULT 0,
+                                file_count INTEGER DEFAULT 0,
+                                first_seen REAL DEFAULT 0.0,
+                                last_seen REAL DEFAULT 0.0,
+                                time_buckets TEXT DEFAULT '{}',
+                                last_domain TEXT DEFAULT '',
+                                recent_count INTEGER DEFAULT 0,
+                                recent_window_start REAL DEFAULT 0.0,
+                                PRIMARY KEY (client_id, sender_id)
+                              )''')
+                cursor.execute('''INSERT INTO senders_v2 (
+                                client_id, sender_id, message_count, link_count, file_count,
+                                first_seen, last_seen, time_buckets, last_domain, recent_count, recent_window_start
+                              ) SELECT 'anonymous', sender_id, message_count, link_count, file_count,
+                                       first_seen, last_seen, time_buckets, last_domain, recent_count, recent_window_start
+                                FROM senders''')
+                cursor.execute("DROP TABLE senders")
+                cursor.execute("ALTER TABLE senders_v2 RENAME TO senders")
+            else:
+                if "first_seen" not in columns:
+                    cursor.execute("ALTER TABLE senders ADD COLUMN first_seen REAL DEFAULT 0.0")
+                if "last_seen" not in columns:
+                    cursor.execute("ALTER TABLE senders ADD COLUMN last_seen REAL DEFAULT 0.0")
+                if "time_buckets" not in columns:
+                    cursor.execute("ALTER TABLE senders ADD COLUMN time_buckets TEXT DEFAULT '{}'")
+                if "last_domain" not in columns:
+                    cursor.execute("ALTER TABLE senders ADD COLUMN last_domain TEXT DEFAULT ''")
+                if "recent_count" not in columns:
+                    cursor.execute("ALTER TABLE senders ADD COLUMN recent_count INTEGER DEFAULT 0")
+                if "recent_window_start" not in columns:
+                    cursor.execute("ALTER TABLE senders ADD COLUMN recent_window_start REAL DEFAULT 0.0")
 
-        conn.execute('''CREATE TABLE IF NOT EXISTS sender_name_history (
-                        display_name TEXT PRIMARY KEY,
-                        last_domain TEXT DEFAULT '',
-                        last_email TEXT DEFAULT '',
-                        last_seen REAL DEFAULT 0.0,
-                        count INTEGER DEFAULT 0
-                      )''')
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_name_last_seen ON sender_name_history(last_seen)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_last_seen ON senders(client_id, last_seen)")
+
+        # Check sender_name_history table and migrate to compound primary key (client_id, display_name)
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sender_name_history'")
+        name_exists = cursor.fetchone() is not None
+        if not name_exists:
+            cursor.execute('''CREATE TABLE sender_name_history (
+                            client_id TEXT NOT NULL DEFAULT 'anonymous',
+                            display_name TEXT NOT NULL,
+                            last_domain TEXT DEFAULT '',
+                            last_email TEXT DEFAULT '',
+                            last_seen REAL DEFAULT 0.0,
+                            count INTEGER DEFAULT 0,
+                            PRIMARY KEY (client_id, display_name)
+                          )''')
+        else:
+            cursor.execute("PRAGMA table_info(sender_name_history)")
+            name_columns = [col[1] for col in cursor.fetchall()]
+            if "client_id" not in name_columns:
+                cursor.execute('''CREATE TABLE sender_name_history_v2 (
+                                client_id TEXT NOT NULL DEFAULT 'anonymous',
+                                display_name TEXT NOT NULL,
+                                last_domain TEXT DEFAULT '',
+                                last_email TEXT DEFAULT '',
+                                last_seen REAL DEFAULT 0.0,
+                                count INTEGER DEFAULT 0,
+                                PRIMARY KEY (client_id, display_name)
+                              )''')
+                cursor.execute('''INSERT INTO sender_name_history_v2 (
+                                client_id, display_name, last_domain, last_email, last_seen, count
+                              ) SELECT 'anonymous', display_name, last_domain, last_email, last_seen, count
+                                FROM sender_name_history''')
+                cursor.execute("DROP TABLE sender_name_history")
+                cursor.execute("ALTER TABLE sender_name_history_v2 RENAME TO sender_name_history")
+            else:
+                if "last_domain" not in name_columns:
+                    cursor.execute("ALTER TABLE sender_name_history ADD COLUMN last_domain TEXT DEFAULT ''")
+                if "last_email" not in name_columns:
+                    cursor.execute("ALTER TABLE sender_name_history ADD COLUMN last_email TEXT DEFAULT ''")
+                if "last_seen" not in name_columns:
+                    cursor.execute("ALTER TABLE sender_name_history ADD COLUMN last_seen REAL DEFAULT 0.0")
+                if "count" not in name_columns:
+                    cursor.execute("ALTER TABLE sender_name_history ADD COLUMN count INTEGER DEFAULT 0")
+
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_name_last_seen ON sender_name_history(client_id, last_seen)")
     conn.close()
 
 init_db()
@@ -57,12 +142,12 @@ def _prune_tables(cursor):
     cursor.execute("SELECT count(*) FROM senders")
     count = cursor.fetchone()[0] or 0
     if count > MAX_RECORDS:
-        cursor.execute("DELETE FROM senders WHERE sender_id IN (SELECT sender_id FROM senders ORDER BY last_seen ASC LIMIT 500)")
+        cursor.execute("DELETE FROM senders WHERE (client_id, sender_id) IN (SELECT client_id, sender_id FROM senders ORDER BY last_seen ASC LIMIT 500)")
         
     cursor.execute("SELECT count(*) FROM sender_name_history")
     name_count = cursor.fetchone()[0] or 0
     if name_count > MAX_RECORDS:
-        cursor.execute("DELETE FROM sender_name_history WHERE display_name IN (SELECT display_name FROM sender_name_history ORDER BY last_seen ASC LIMIT 500)")
+        cursor.execute("DELETE FROM sender_name_history WHERE (client_id, display_name) IN (SELECT client_id, display_name FROM sender_name_history ORDER BY last_seen ASC LIMIT 500)")
 
 def _normalize_sender(raw_sender: str, metadata: dict):
     if not raw_sender:
@@ -82,24 +167,35 @@ def _normalize_sender(raw_sender: str, metadata: dict):
     profile_key = email if email else raw_sender.strip().lower()
     return profile_key, email, domain or "", name
 
-def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: bool = False, metadata: dict = None) -> dict:
+def _analyze_sender_internal(
+    sender_id: str,
+    has_link: bool = False,
+    has_file: bool = False,
+    metadata: dict | None = None,
+    client_id: str | None = None,
+) -> dict:
     if not sender_id:
         return {}
         
     metadata = metadata or {}
     now = metadata.get("timestamp", time.time())
     profile_key, email, domain, display_name = _normalize_sender(sender_id, metadata)
-    
     if not profile_key:
         profile_key = sender_id
     
-    conn = sqlite3.connect(DB_PATH, timeout=5.0)
+    cid = (client_id or "").strip() if (client_id and isinstance(client_id, str)) else ""
+    if not cid:
+        cid = "anonymous"
+    
+    db_file = get_sender_db_path()
+    init_db(db_file)
+    conn = sqlite3.connect(db_file, timeout=5.0)
     try:
         cursor = conn.cursor()
         cursor.execute('''SELECT message_count, link_count, file_count, 
                           first_seen, last_seen, time_buckets, last_domain, 
                           recent_count, recent_window_start 
-                          FROM senders WHERE sender_id=?''', (profile_key,))
+                          FROM senders WHERE client_id=? AND sender_id=?''', (cid, profile_key))
         row = cursor.fetchone()
         
         flags = []
@@ -116,11 +212,11 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
             
             new_buckets = {current_hour: 1}
             cursor.execute('''INSERT INTO senders (
-                              sender_id, message_count, link_count, file_count,
+                              client_id, sender_id, message_count, link_count, file_count,
                               first_seen, last_seen, time_buckets, last_domain,
                               recent_count, recent_window_start
-                              ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, 1, ?)''',
-                           (profile_key, 1 if has_link else 0, 1 if has_file else 0,
+                              ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, 1, ?)''',
+                           (cid, profile_key, 1 if has_link else 0, 1 if has_file else 0,
                             now, now, json.dumps(new_buckets), domain, now))
         else:
             (msg_count, link_count, file_count, first_seen, last_seen, 
@@ -177,13 +273,13 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
                               last_domain=?,
                               recent_count=?,
                               recent_window_start=?
-                              WHERE sender_id=?''',
-                           (new_links, new_files, max(last_seen, now), json.dumps(time_buckets), domain, recent_count, recent_window_start, profile_key))
+                              WHERE client_id=? AND sender_id=?''',
+                           (new_links, new_files, max(last_seen, now), json.dumps(time_buckets), domain, recent_count, recent_window_start, cid, profile_key))
 
         # Check separate lightweight display-name/domain history mechanism for sender_change detection
         if display_name:
             cursor.execute('''SELECT last_domain, last_email, last_seen, count 
-                              FROM sender_name_history WHERE display_name=?''', (display_name,))
+                              FROM sender_name_history WHERE client_id=? AND display_name=?''', (cid, display_name))
             name_row = cursor.fetchone()
             if name_row:
                 prev_name_domain, prev_name_email, prev_name_last_seen, prev_name_count = name_row
@@ -204,13 +300,13 @@ def _analyze_sender_internal(sender_id: str, has_link: bool = False, has_file: b
                                   last_email=?, 
                                   last_seen=?, 
                                   count=count+1 
-                                  WHERE display_name=?''',
-                               (target_domain, email, max(prev_name_last_seen, now), display_name))
+                                  WHERE client_id=? AND display_name=?''',
+                               (target_domain, email, max(prev_name_last_seen, now), cid, display_name))
             else:
                 cursor.execute('''INSERT INTO sender_name_history (
-                                  display_name, last_domain, last_email, last_seen, count
-                                  ) VALUES (?, ?, ?, ?, 1)''',
-                               (display_name, domain, email, now))
+                                  client_id, display_name, last_domain, last_email, last_seen, count
+                                  ) VALUES (?, ?, ?, ?, ?, 1)''',
+                               (cid, display_name, domain, email, now))
                                
         score = min(score, 1.0)
         _prune_tables(cursor)
@@ -239,8 +335,18 @@ class SenderEngine(BaseEngine):
         has_link = bool(input_data.url)
         has_file = bool(input_data.file_bytes) or bool(input_data.file_name)
         
+        client_id = input_data.client_id
+        if not client_id and isinstance(input_data.metadata, dict):
+            client_id = input_data.metadata.get("client_id")
+        
         try:
-            res = _analyze_sender_internal(sender_id, has_link, has_file, metadata=input_data.metadata)
+            res = _analyze_sender_internal(
+                sender_id,
+                has_link,
+                has_file,
+                metadata=input_data.metadata,
+                client_id=client_id,
+            )
         except Exception as e:
             return EngineResult.error(self.name, f"Database error: {str(e)}")
         

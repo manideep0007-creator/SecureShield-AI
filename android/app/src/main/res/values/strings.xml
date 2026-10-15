@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">SecureShield AI</string>
     <string name="universal_link_guard_name">SecureShield Universal Link Guard</string>
-    <string name="accessibility_service_description">Scans visible on-screen text across all apps to detect malicious, phishing, and deceptive links in real time.</string>
+    <string name="accessibility_service_description">Reads on-screen text to find dangerous links. Short suspicious messages may be sent to the SecureShield server for analysis; nothing is stored.</string>
 </resources>

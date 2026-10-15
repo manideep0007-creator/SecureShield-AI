@@ -4,14 +4,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_dark"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:orientation="vertical">
 
+    <!-- Top Cyber Header Bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="16dp"
         android:paddingBottom="12dp">
 
         <com.google.android.material.button.MaterialButton
@@ -22,40 +24,166 @@
             android:text="← Back"
             android:textColor="@color/text_primary" />
 
-        <TextView
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:gravity="center"
-            android:text="Scan History"
-            android:textColor="@color/text_primary"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Incident Vault"
+                android:textColor="@color/text_primary"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.02" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Encrypted SQLite • Zero Cloud Leak"
+                android:textColor="@color/text_muted"
+                android:textSize="10sp" />
+        </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/scan_history_clear_all"
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Clear all"
-            android:textColor="@color/threat_critical" />
+            android:text="Purge Log"
+            android:textColor="@color/threat_critical"
+            android:textSize="12sp" />
     </LinearLayout>
 
+    <!-- Encrypted Vault Metrics Strip -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_telemetry_pill"
+            android:padding="8dp"
+            android:gravity="center"
+            android:text="42 EVENTS"
+            android:textSize="10sp"
+            android:textColor="@color/text_secondary"
+            android:fontFamily="monospace"
+            android:layout_marginEnd="6dp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_telemetry_pill"
+            android:padding="8dp"
+            android:gravity="center"
+            android:text="AES-256 CIPHER"
+            android:textSize="10sp"
+            android:textColor="@color/threat_safe"
+            android:fontFamily="monospace"
+            android:layout_marginEnd="6dp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_telemetry_pill"
+            android:padding="8dp"
+            android:gravity="center"
+            android:text="LOCAL STORAGE"
+            android:textSize="10sp"
+            android:textColor="@color/cyber_cyan"
+            android:fontFamily="monospace" />
+    </LinearLayout>
+
+    <!-- Live Interceptor Active Banner -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="12dp"
+        app:cardBackgroundColor="@color/bg_dark_card"
+        app:strokeColor="@color/bg_dark_card_stroke"
+        app:strokeWidth="1dp"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="12dp">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_guardian_radar"
+                android:layout_marginEnd="10dp"
+                app:tint="@color/cyber_cyan" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Autonomous Guard Active"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Real-time heuristics • Intercept engine v4.9"
+                    android:textSize="10sp"
+                    android:textColor="@color/text_muted" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_status_pill_active"
+                android:text="LIVE"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:textColor="@color/threat_safe"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Empty Message -->
     <TextView
         android:id="@+id/scan_history_empty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:padding="32dp"
-        android:text="No local scan history yet.\nThreat scans will appear here."
+        android:text="No threat records in local vault yet.\nScanned links, files &amp; emails will appear here."
         android:textColor="@color/text_muted"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:visibility="gone" />
 
+    <!-- History Feed Scroll View -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:paddingHorizontal="16dp"
         android:scrollbars="none">
 
         <LinearLayout
@@ -66,12 +194,14 @@
             android:paddingBottom="16dp" />
     </ScrollView>
 
+    <!-- Load More Button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/scan_history_load_more"
         style="@style/Widget.Material3.Button.TonalButton"
         android:layout_width="match_parent"
         android:layout_height="44dp"
-        android:text="Load more"
+        android:layout_margin="16dp"
+        android:text="Load More Events"
         android:textSize="13sp"
         android:visibility="gone"
         app:cornerRadius="22dp" />

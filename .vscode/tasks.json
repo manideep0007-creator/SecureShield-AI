@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Android assemble and unit tests",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				".\\android\\gradlew.bat",
+				"assembleDebug",
+				"testDebugUnitTest"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

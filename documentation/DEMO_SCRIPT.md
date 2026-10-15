@@ -15,7 +15,7 @@
 **Presenter**: "Here is a classic phishing text targeting your Amazon account. Users don't need to copy/paste; they just use the native Android Share menu."
 *Action: Tap and hold the message -> Share -> Select 'SecureShield AI'*
 
-**Presenter**: "The text and URL are instantly routed to our backend `/analyze/message` endpoint. Our lexical heuristic engine spots the injected credentials (the `@` symbol in the URL) and the IP-based host routing, while the NLP engine catches the urgent language ('locked')."
+**Presenter**: "The text and URL are instantly routed to our backend `/api/scan` endpoint. Our lexical heuristic engine spots the injected credentials (the `@` symbol in the URL) and the IP-based host routing, while the NLP engine catches the urgent language ('locked')."
 
 *Action: Show the Android Screen pop up with a red 'Deceptive/Phishing' badge, Score: 85/100, and the plain-language reason list.*
 **Presenter**: "The fusion engine aggregates these red flags, bypassing typical default responses, and gives clear instructions to the user: 'Block this sender and delete the message.'"

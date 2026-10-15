@@ -359,6 +359,12 @@ class V2Preprocessor:
             )
             warnings.extend(meta_warnings)
 
+            clean_client_id = (
+                input_data.client_id.strip()
+                if input_data.client_id and isinstance(input_data.client_id, str)
+                else input_data.client_id
+            )
+
             normalized_input = ScanInput(
                 text=norm_text,
                 url=norm_url,
@@ -369,6 +375,7 @@ class V2Preprocessor:
                 image_bytes=input_data.image_bytes,
                 metadata=norm_meta,
                 classification_profile=input_data.classification_profile,
+                client_id=clean_client_id,
             )
 
             # 5. Check if normalized_input contains scannable data

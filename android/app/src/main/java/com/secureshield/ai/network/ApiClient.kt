@@ -1,6 +1,7 @@
 package com.secureshield.ai.network
 
 import com.secureshield.ai.BuildConfig
+import com.secureshield.ai.engine.OnDeviceHeuristicEngine
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
@@ -27,7 +28,8 @@ data class ScanInput(
     val file_bytes: String? = null,
     val image_bytes: String? = null,
     val metadata: Map<String, Any> = emptyMap(),
-    val classification_profile: String? = null
+    val classification_profile: String? = null,
+    val client_id: String? = null
 )
 
 data class EvidenceItem(
@@ -216,11 +218,23 @@ object ApiClient {
     @Volatile
     private var customBaseUrl: String? = null
 
+    @Volatile
+    var isServerAwake: Boolean = false
+
     val baseUrl: String
         get() = customBaseUrl ?: BuildConfig.BASE_URL
 
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val apiKey = BuildConfig.API_KEY
+                val builder = request.newBuilder()
+                if (apiKey.isNotBlank()) {
+                    builder.header("X-API-Key", apiKey)
+                }
+                chain.proceed(builder.build())
+            }
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(35, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -247,6 +261,7 @@ object ApiClient {
         synchronized(this) {
             customBaseUrl = sanitized
             currentApi = null
+            isServerAwake = false
         }
     }
 
@@ -254,6 +269,7 @@ object ApiClient {
         synchronized(this) {
             customBaseUrl = null
             currentApi = null
+            isServerAwake = false
         }
     }
 
@@ -267,13 +283,54 @@ object ApiClient {
      */
     suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val response = withTimeout(5000L) {
+            val response = withTimeout(10000L) {
                 api.healthCheck()
             }
-            response.isSuccessful
+            val healthy = response.isSuccessful
+            if (healthy) {
+                isServerAwake = true
+            }
+            healthy
         } catch (_: Exception) {
             false
         }
+    }
+
+    /**
+     * Performs a resilient scan against the backend, automatically and seamlessly falling
+     * back to the autonomous On-Device Heuristic Engine if the remote service is unavailable,
+     * sleeping, or encounters connection/timeout failures.
+     */
+    suspend fun scanWithFallback(input: ScanInput): UnifiedScanResponse = withContext(Dispatchers.IO) {
+        try {
+            val response = withTimeout(15000L) {
+                api.scan(input)
+            }
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null) {
+                    isServerAwake = true
+                    return@withContext UnifiedScanResponseParser.parse(body)
+                }
+            }
+            // Fallback for non-2xx responses (502, 503, 504, 500)
+            OnDeviceHeuristicEngine.scan(input)
+        } catch (_: Exception) {
+            // Fallback for network timeouts, ConnectException, offline, etc.
+            OnDeviceHeuristicEngine.scan(input)
+        }
+    }
+
+    /**
+     * Pings /health if server hasn't been confirmed awake, displaying a waking state callback.
+     */
+    suspend fun wakeServerIfNeeded(onWaking: (() -> Unit)? = null): Boolean = withContext(Dispatchers.IO) {
+        if (isServerAwake) return@withContext true
+        try {
+            onWaking?.invoke()
+        } catch (_: Exception) {
+        }
+        checkHealth()
     }
 
     /**
@@ -283,10 +340,13 @@ object ApiClient {
         if (!ServerSettings.isValidServerUrl(candidateUrl)) {
             return@withContext ProbeResult.Failure("Invalid URL format. Must start with http:// or https://")
         }
+        if (!ServerSettings.isEmulator() && ServerSettings.isEmulatorLoopbackUrl(candidateUrl)) {
+            return@withContext ProbeResult.Failure("10.0.2.2 only works inside Android Emulator. On a physical phone, tap '☁️ Use Cloud Backend' or use your Wi-Fi LAN IP.")
+        }
         val start = System.currentTimeMillis()
         try {
             val probeApi = createProbeApi(candidateUrl)
-            val response = withTimeout(5000L) {
+            val response = withTimeout(20000L) {
                 probeApi.healthCheck()
             }
             val elapsed = System.currentTimeMillis() - start
@@ -313,9 +373,18 @@ object ApiClient {
 
     private val probeOkHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .writeTimeout(5, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val apiKey = BuildConfig.API_KEY
+                val builder = request.newBuilder()
+                if (apiKey.isNotBlank()) {
+                    builder.header("X-API-Key", apiKey)
+                }
+                chain.proceed(builder.build())
+            }
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(20, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
             .build()
     }

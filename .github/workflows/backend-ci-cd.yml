@@ -46,6 +46,8 @@ jobs:
       - name: Run Pytest Suite
         run: |
           python -m pytest app/tests -v --tb=short
+        env:
+          API_KEY: ${{ secrets.API_KEY || 'test-api-key' }}
 
   deploy:
     name: Deploy to Cloud (Railway)

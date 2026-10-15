@@ -29,7 +29,10 @@ object ScanHistorySanitizer {
     private val urlPattern = Regex("(?i)\\b(?:https?://|www\\.)[^\\s<>]+")
     private val emailPattern = Regex("(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b")
     private val phonePattern = Regex("(?<!\\w)(?:\\+?\\d[\\d ().-]{6,}\\d)(?!\\w)")
-    private val secretPattern = Regex("(?i)\\b(password|passcode|otp|one[- ]time code|token|api key)\\b\\s*[:=]?\\s*[^\\s,;]+")
+    private val secretPattern = Regex(
+        "(?i)\\b(password|passcode|otp|one[- ]time code|verification code|login code|security code|auth(?:entication)? code|pin|cvv|cvc|token|api key)\\b\\s*(?:is\\s+|[:=]\\s*|\\s*(?=\\d{3,}))[^\\s,;]+"
+    )
+    private val standaloneDigitsPattern = Regex("\\b\\d{4,8}\\b")
     private val longTokenPattern = Regex("\\b[A-Za-z0-9_+/=-]{32,}\\b")
     private val safeKeyPattern = Regex("[^A-Za-z0-9_.()\\-]")
     private val classifications = setOf("Safe", "Suspicious", "Deceptive", "Phishing", "Malware")
@@ -80,15 +83,33 @@ object ScanHistorySanitizer {
         emptyList()
     }
 
-    private fun sanitizeDisplayText(value: String): String = value
+    fun sanitizeDisplayText(value: String): String = value
         .replace(secretPattern, "$1: [redacted]")
         .replace(urlPattern, "[link]")
         .replace(emailPattern, "[address]")
         .replace(phonePattern, "[number]")
         .replace(longTokenPattern, "[redacted]")
+        .replace(standaloneDigitsPattern, "[number]")
         .filter { it == '\n' || it == '\t' || it >= ' ' }
         .trim()
         .take(MAX_TEXT_LENGTH)
+
+    /**
+     * Checks if redaction removed more than half of the original snippet.
+     */
+    fun isMostlyRedacted(original: String, sanitized: String): Boolean {
+        val trimmedOriginal = original.trim()
+        if (trimmedOriginal.isEmpty()) return true
+
+        val remainingUnredacted = sanitized
+            .replace("[redacted]", "")
+            .replace("[link]", "")
+            .replace("[address]", "")
+            .replace("[number]", "")
+            .trim()
+
+        return remainingUnredacted.length < (trimmedOriginal.length * 0.5f)
+    }
 
     private fun sanitizeKey(value: String): String = safeKeyPattern.replace(value, "_").take(MAX_KEY_LENGTH)
 

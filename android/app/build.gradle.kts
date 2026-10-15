@@ -10,7 +10,7 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-val defaultDevUrl = "http://10.0.2.2:8000/"
+val defaultDevUrl = "https://secureshield-ai-yzn2.onrender.com/"
 val defaultProdUrl = "https://secureshield-ai-yzn2.onrender.com/"
 
 val devBaseUrl = System.getenv("DEV_BASE_URL")
@@ -23,6 +23,12 @@ val prodBaseUrl = System.getenv("PROD_BASE_URL")
     ?: localProperties.getProperty("PROD_BASE_URL")
     ?: defaultProdUrl
 
+val apiKey = System.getenv("SECURESHIELD_API_KEY")
+    ?: System.getenv("API_KEY")
+    ?: localProperties.getProperty("SECURESHIELD_API_KEY")
+    ?: localProperties.getProperty("API_KEY")
+    ?: ""
+
 android {
     namespace = "com.secureshield.ai"
     compileSdk = 34
@@ -31,10 +37,11 @@ android {
         applicationId = "com.secureshield.ai"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2"
         
         buildConfigField("String", "BASE_URL", "\"${devBaseUrl}\"")
+        buildConfigField("String", "API_KEY", "\"${apiKey}\"")
     }
 
     signingConfigs {
@@ -45,6 +52,8 @@ android {
                 storePassword = "android"
                 keyAlias = "androiddebugkey"
                 keyPassword = "android"
+                enableV1Signing = true
+                enableV2Signing = true
             }
         }
     }
