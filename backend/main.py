@@ -20,8 +20,10 @@ def init_databases():
     try:
         from app.database.feedback import init_db as init_feedback_db
         from app.engines.sender_engine import init_db as init_sender_db
+        from app.intelligence.threat_feeds import init_threat_db
         init_feedback_db()
         init_sender_db()
+        init_threat_db()
     except Exception:
         pass
 

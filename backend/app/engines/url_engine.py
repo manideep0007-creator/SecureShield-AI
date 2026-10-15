@@ -234,7 +234,7 @@ async def check_google_safe_browsing(url: str) -> dict:
 async def _get_domain_age_days(domain: str) -> int | None:
     try:
         # Strictly enforce maximum 2-second timeout
-        result = await asyncio.wait_for(asyncwhois.aio_whois_domain(domain), timeout=2.0)
+        result = await asyncio.wait_for(asyncwhois.aio_whois(domain), timeout=2.0)
         created = result.parser_dict.get('created')
         
         if not created:
@@ -268,6 +268,11 @@ class URLEngine(BaseEngine):
         if not url:
             return EngineResult.skipped(self.name, "No URL provided")
             
+        # 1. Primary Check: Verified global threat feeds (URLhaus / OpenPhish)
+        from app.intelligence.threat_feeds import threat_store
+        threat_match = threat_store.lookup_url(url)
+        is_whitelisted = threat_store.is_whitelisted_domain(url)
+
         heuristics = lexical_heuristics(url)
         gsb_result = await check_google_safe_browsing(url)
         
@@ -285,17 +290,51 @@ class URLEngine(BaseEngine):
         lexical = heuristics["lexical_score"]
         gsb = gsb_result["gsb_score"]
         
-        if gsb >= 1.0:
+        if threat_match:
+            # Verified malicious in global threat intelligence database
+            combined_score = 1.0
+            confidence_level = 0.95
+        elif gsb >= 1.0:
             # GSB-confirmed threat produces a risk_score of at least 90,
             # with lexical heuristics scaling the remaining [90, 100] interval.
             combined_score = min(1.0, 0.90 + (lexical * 0.10))
+            confidence_level = 0.85
         elif gsb > 0:
             combined_score = lexical * 0.4 + gsb * 0.6
+            confidence_level = 0.80
+        elif is_whitelisted and "ip_based_host" not in heuristics["lexical_flags"] and "at_symbol_present" not in heuristics["lexical_flags"]:
+            # Verified top trusted destination without severe evasion signs
+            combined_score = min(lexical * 0.25, 0.15)
+            confidence_level = 0.90
         else:
             combined_score = lexical * 0.7 + gsb * 0.3
+            confidence_level = 0.80
             
         flags = heuristics["lexical_flags"] + gsb_result.get("gsb_threats", [])
         evidence = heuristics.get("evidence", [])
+
+        if threat_match:
+            source = threat_match.get("source", "ThreatFeed")
+            threat_type = threat_match.get("threat_type", "malware_download")
+            tags = threat_match.get("tags", "")
+            flags.extend(["known_malicious_url", f"{source.lower()}_malicious"])
+            evidence.append(EvidenceItem(
+                key="THREAT_FEED_MATCH",
+                value={
+                    "threat_type": threat_type,
+                    "source": source,
+                    "tags": tags,
+                },
+                description=f"Confirmed active malicious URL in global {source} database ({threat_type})."
+            ))
+
+        if is_whitelisted and not threat_match:
+            flags.append("whitelisted_trusted_domain")
+            evidence.append(EvidenceItem(
+                key="WHITELISTED_DOMAIN",
+                value=True,
+                description="Root domain is verified on global top trusted website whitelist."
+            ))
         
         if domain_age is not None:
             if domain_age < 14:
@@ -314,14 +353,17 @@ class URLEngine(BaseEngine):
         
         status = EngineStatus.SUCCESS
         error_message = None
-        if "error" in gsb_result:
+        if threat_match:
+            status = EngineStatus.SUCCESS
+            error_message = None
+        elif "error" in gsb_result:
             status = EngineStatus.PARTIAL
             error_message = gsb_result["error"]
             
-        # risk_score (0-100), confidence (0.8 based on V1 fusion)
+        # risk_score (0-100), confidence scaled by threat intelligence
         return self._build_result(
             risk_score=combined_score * 100.0,
-            confidence=0.8,
+            confidence=confidence_level,
             flags=flags,
             evidence=evidence,
             status=status,

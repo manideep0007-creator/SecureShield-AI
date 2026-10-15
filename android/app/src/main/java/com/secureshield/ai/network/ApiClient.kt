@@ -1,6 +1,7 @@
 package com.secureshield.ai.network
 
 import com.secureshield.ai.BuildConfig
+import com.secureshield.ai.engine.OnDeviceHeuristicEngine
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
@@ -282,7 +283,7 @@ object ApiClient {
      */
     suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val response = withTimeout(5000L) {
+            val response = withTimeout(10000L) {
                 api.healthCheck()
             }
             val healthy = response.isSuccessful
@@ -292,6 +293,31 @@ object ApiClient {
             healthy
         } catch (_: Exception) {
             false
+        }
+    }
+
+    /**
+     * Performs a resilient scan against the backend, automatically and seamlessly falling
+     * back to the autonomous On-Device Heuristic Engine if the remote service is unavailable,
+     * sleeping, or encounters connection/timeout failures.
+     */
+    suspend fun scanWithFallback(input: ScanInput): UnifiedScanResponse = withContext(Dispatchers.IO) {
+        try {
+            val response = withTimeout(15000L) {
+                api.scan(input)
+            }
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null) {
+                    isServerAwake = true
+                    return@withContext UnifiedScanResponseParser.parse(body)
+                }
+            }
+            // Fallback for non-2xx responses (502, 503, 504, 500)
+            OnDeviceHeuristicEngine.scan(input)
+        } catch (_: Exception) {
+            // Fallback for network timeouts, ConnectException, offline, etc.
+            OnDeviceHeuristicEngine.scan(input)
         }
     }
 
@@ -314,10 +340,13 @@ object ApiClient {
         if (!ServerSettings.isValidServerUrl(candidateUrl)) {
             return@withContext ProbeResult.Failure("Invalid URL format. Must start with http:// or https://")
         }
+        if (!ServerSettings.isEmulator() && ServerSettings.isEmulatorLoopbackUrl(candidateUrl)) {
+            return@withContext ProbeResult.Failure("10.0.2.2 only works inside Android Emulator. On a physical phone, tap '☁️ Use Cloud Backend' or use your Wi-Fi LAN IP.")
+        }
         val start = System.currentTimeMillis()
         try {
             val probeApi = createProbeApi(candidateUrl)
-            val response = withTimeout(5000L) {
+            val response = withTimeout(20000L) {
                 probeApi.healthCheck()
             }
             val elapsed = System.currentTimeMillis() - start
@@ -353,9 +382,9 @@ object ApiClient {
                 }
                 chain.proceed(builder.build())
             }
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .writeTimeout(5, TimeUnit.SECONDS)
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(20, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
             .build()
     }

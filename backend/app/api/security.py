@@ -51,7 +51,15 @@ class InMemoryRateLimiter:
 
 rate_limiter = InMemoryRateLimiter(max_requests=30, window_seconds=60.0)
 
-PUBLIC_PATHS = {"/", "/health", "/api/health", "/docs", "/openapi.json", "/redoc"}
+PUBLIC_PATHS = {
+    "/",
+    "/health",
+    "/api/health",
+    "/api/threat-intelligence/status",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+}
 
 
 def is_public_path(path: str) -> bool:

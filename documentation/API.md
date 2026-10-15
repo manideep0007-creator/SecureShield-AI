@@ -40,9 +40,11 @@ Performs concurrent multi-engine analysis across URLs, raw message text, email h
   "url": "http://192.168.1.1@secure-login-verify.xyz/account",
   "text": "URGENT: Your bank account has been suspended. Please verify identity immediately.",
   "source_channel": "manual",
-  "classification_profile": "standard",
-  "file_bytes_base64": null,
+  "classification_profile": "default",
   "file_name": null,
+  "file_bytes": null,
+  "image_bytes": null,
+  "client_id": "8f3e2d1a-4b5c-6d7e-8f9a-0b1c2d3e4f5a",
   "metadata": {
     "sender": "security-alert@fakebank-update.xyz",
     "recipient": "user@gmail.com",
@@ -66,25 +68,18 @@ Performs concurrent multi-engine analysis across URLs, raw message text, email h
     {
       "engine_name": "url_engine",
       "risk_score": 85.0,
-      "classification": "Phishing",
-      "confidence": 0.95,
-      "flags": ["ip_based_host", "suspicious_tld", "userinfo_in_url"],
-      "evidence": {
-        "host": "192.168.1.1@secure-login-verify.xyz",
-        "heuristics_triggered": 3
-      },
-      "reasons": ["URL contains an embedded userinfo credentials trick and suspicious host."]
-    },
-    {
-      "engine_name": "nlp_engine",
-      "risk_score": 92.0,
-      "classification": "Deceptive",
-      "confidence": 0.90,
-      "flags": ["urgent_coercion", "credential_harvesting_pattern"],
-      "evidence": {
-        "matched_keywords": ["suspended", "verify identity", "urgent"]
-      },
-      "reasons": ["Linguistic markers indicate social engineering and urgency coercion."]
+      "confidence": 0.80,
+      "flags": ["ip_based_host", "suspicious_tld", "at_symbol_present"],
+      "evidence": [
+        {
+          "key": "IP_HOST",
+          "value": "192.168.1.1",
+          "description": "IP-based hostname detected"
+        }
+      ],
+      "status": "success",
+      "error_message": null,
+      "metadata": {}
     }
   ],
   "risk_assessment": {
@@ -92,19 +87,21 @@ Performs concurrent multi-engine analysis across URLs, raw message text, email h
     "classification": "Phishing",
     "confidence": 0.93,
     "contributing_engines": ["url_engine", "nlp_engine", "header_analysis_engine"],
-    "ignored_engines": ["visual_engine"],
-    "flags": ["ip_based_host", "urgent_coercion", "credential_harvesting_pattern"],
+    "ignored_engines": [],
+    "flags": ["ip_based_host", "suspicious_tld", "nlp_urgency", "nlp_credential_request"],
     "evidence": [
       {
-        "engine": "url_engine",
-        "detail": "High-risk domain with credential spoofing"
+        "key": "IP_HOST",
+        "value": "192.168.1.1",
+        "description": "IP-based hostname detected"
       }
     ],
     "reasons": [
-      "The URL uses deceptive credentials formatting.",
-      "Message text contains high-urgency social engineering patterns."
+      "The URL uses an IP address instead of a standard domain name.",
+      "Natural language processing found signs of urgency.",
+      "Natural language processing found signs of credential request."
     ],
-    "recommended_action": "Do not enter passwords, OTPs, or financial details. Delete this message."
+    "recommended_action": "Do not click any links or provide credentials. Report and delete this message."
   }
 }
 ```
@@ -119,19 +116,20 @@ Allows users to submit positive/negative telemetry for a completed scan.
 ```json
 {
   "scan_id": "8f3e2d1a-4b5c-6d7e-8f9a-0b1c2d3e4f5a",
-  "feedback": "down",
-  "classification": "Phishing",
-  "risk_score": 88.5,
-  "confidence": 0.93,
+  "user_feedback": "negative",
+  "classification_at_scan_time": "Phishing",
+  "risk_score_at_scan_time": 88.5,
+  "confidence_at_scan_time": 0.93,
   "source_type": "gmail"
 }
 ```
 
-### Response `200 OK`
+### Response `200 OK` (`FeedbackSubmissionResponse`)
 ```json
 {
   "status": "success",
-  "message": "Feedback recorded."
+  "scan_id": "8f3e2d1a-4b5c-6d7e-8f9a-0b1c2d3e4f5a",
+  "timestamp": "2026-10-15T11:00:00Z"
 }
 ```
 

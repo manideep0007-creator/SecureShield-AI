@@ -251,12 +251,12 @@ SecureShield-AI/
 ├── documentation/
 │   ├── API.md                    # REST API endpoint reference & schemas
 │   ├── ARCHITECTURE.md           # Detailed architecture & engine pipeline
+│   ├── DEMO_SCRIPT.md            # Demonstration script for evaluations
 │   ├── DEPLOYMENT.md             # Cloud deployment & CI/CD guides
-│   └── DEVELOPMENT.md            # Local setup, testing & signing guide
+│   ├── DEVELOPMENT.md            # Local setup, testing & signing guide
+│   └── FILE_EXPLORER_GUIDE.md    # Guide for navigating project folders
 ├── .env.example                  # Environment variable template
 ├── .gitignore                    # Git ignore rules
-├── DEMO_SCRIPT.md                # Demonstration script for evaluations
-├── DEPLOYMENT.md                 # Root deployment summary
 ├── README.md                     # Project overview & quick start guide
 ├── start_backend.bat             # Windows batch startup script
 └── start_backend.ps1             # PowerShell startup script

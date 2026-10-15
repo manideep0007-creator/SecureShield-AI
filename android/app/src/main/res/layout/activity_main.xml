@@ -63,12 +63,14 @@
                         android:layout_marginTop="2dp">
 
                         <View
+                            android:id="@+id/view_sys_dot"
                             android:layout_width="6dp"
                             android:layout_height="6dp"
                             android:background="@drawable/bg_badge_safe"
                             android:layout_marginEnd="6dp" />
 
                         <TextView
+                            android:id="@+id/text_sys_status"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="SYS ONLINE // 99.98%"
@@ -223,6 +225,7 @@
                                     android:layout_marginEnd="6dp" />
 
                                 <TextView
+                                    android:id="@+id/text_telemetry_ping"
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
@@ -740,6 +743,273 @@
                         android:layout_height="0dp"
                         android:visibility="gone" />
 
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- TAB: INBOX PROTECTION TAB (GMAIL SENTINEL) -->
+            <ScrollView
+                android:id="@+id/layout_inbox_tab"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingBottom="24dp">
+
+                    <!-- Inbox Header with OAuth Status -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="12dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Inbox Sentinel"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary" />
+
+                            <TextView
+                                android:id="@+id/text_inbox_account"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Zero-Knowledge In-Memory Audit"
+                                android:textSize="11sp"
+                                android:textColor="@color/text_muted" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_status_pill_active"
+                            android:text="OAUTH 2.0 • IN-MEMORY"
+                            android:textSize="9sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/threat_safe"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="3dp" />
+                    </LinearLayout>
+
+                    <!-- WorkManager Active Tactical Loop Card -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="6dp">
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="15-Min WorkManager Sentinel"
+                                        android:textSize="14sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/text_primary" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Active Tactical Background Loop"
+                                        android:textSize="10sp"
+                                        android:textColor="@color/threat_safe"
+                                        android:fontFamily="monospace" />
+                                </LinearLayout>
+
+                                <androidx.appcompat.widget.SwitchCompat
+                                    android:id="@+id/switch_inbox_tab_protection"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Scans unread messages in memory without downloading attachments or writing message bodies to disk."
+                                android:textSize="11sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginBottom="12dp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_telemetry_pill"
+                                    android:padding="6dp"
+                                    android:gravity="center"
+                                    android:text="28 AUDITED"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/text_secondary"
+                                    android:fontFamily="monospace"
+                                    android:layout_marginEnd="6dp" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_telemetry_pill"
+                                    android:padding="6dp"
+                                    android:gravity="center"
+                                    android:text="1 THREAT"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/threat_critical"
+                                    android:fontFamily="monospace"
+                                    android:layout_marginEnd="6dp" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_telemetry_pill"
+                                    android:padding="6dp"
+                                    android:gravity="center"
+                                    android:text="0 STORED"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/threat_safe"
+                                    android:fontFamily="monospace" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Triaged Stream Section Header -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="TRIAGED STREAM • RECENT AUDITS"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_muted"
+                        android:letterSpacing="0.08"
+                        android:layout_marginBottom="10dp" />
+
+                    <!-- Email Threat Card 1 (Sample / Active Feed) -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="10dp"
+                        app:cardBackgroundColor="@color/bg_dark_card"
+                        app:strokeColor="@color/threat_critical"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="14dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="4dp">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="service@account-security-notice.cc"
+                                    android:textSize="11sp"
+                                    android:textColor="@color/text_muted"
+                                    android:fontFamily="monospace" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_badge_threat"
+                                    android:text="PHISHING (88/100)"
+                                    android:textSize="9sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary"
+                                    android:paddingHorizontal="6dp"
+                                    android:paddingVertical="2dp" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="URGENT: Suspicious sign-in detected on your account"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary"
+                                android:layout_marginBottom="6dp" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_code_preview"
+                                android:padding="8dp"
+                                android:text="FORENSIC INTERCEPT: SPF SoftFail (~all), urgent credential harvesting lure, deceptive host."
+                                android:textSize="10sp"
+                                android:textColor="@color/threat_warning"
+                                android:fontFamily="monospace"
+                                android:layout_marginBottom="10dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_inbox_card_scan_demo"
+                                style="@style/Widget.Material3.Button.TonalButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="38dp"
+                                android:text="Audit This Threat Pattern"
+                                android:textSize="11sp"
+                                app:cornerRadius="19dp" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Sticky Bottom Action Button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_inbox_sync_now"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:text="⚡ Sync &amp; Scan Unread Inbox Now"
+                        android:textStyle="bold"
+                        android:textSize="13sp"
+                        android:textColor="@color/bg_dark"
+                        app:backgroundTint="@color/cyber_cyan"
+                        app:cornerRadius="25dp"
+                        android:layout_marginTop="8dp" />
                 </LinearLayout>
             </ScrollView>
 

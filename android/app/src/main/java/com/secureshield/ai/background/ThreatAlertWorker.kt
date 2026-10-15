@@ -63,12 +63,7 @@ class ThreatAlertWorker(
                 } else {
                     input
                 }
-                val response = ApiClient.api.scan(resolvedInput)
-                if (response.isSuccessful) {
-                    val body = response.body() ?: return null
-                    return UnifiedScanResponseParser.parse(body)
-                }
-                throw Exception("HTTP Error")
+                return ApiClient.scanWithFallback(resolvedInput)
             }
 
             override suspend fun saveHistory(result: UnifiedScanResponse, source: String) {

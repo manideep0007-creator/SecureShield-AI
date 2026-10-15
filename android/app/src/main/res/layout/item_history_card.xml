@@ -7,7 +7,7 @@
     app:cardBackgroundColor="@color/bg_dark_card"
     app:strokeColor="@color/bg_dark_card_stroke"
     app:strokeWidth="1dp"
-    app:cardCornerRadius="14dp"
+    app:cardCornerRadius="16dp"
     app:cardElevation="0dp">
 
     <LinearLayout
@@ -16,58 +16,74 @@
         android:orientation="vertical"
         android:padding="14dp">
 
+        <!-- Top Source & Timestamp Row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="6dp">
+            android:layout_marginBottom="8dp">
 
             <TextView
                 android:id="@+id/history_item_source_and_date"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="GMAIL • Oct 8, 12:00 AM"
-                android:textSize="11sp"
+                android:text="GUARDIAN RADAR • Today, 14:32"
+                android:textSize="10sp"
                 android:textStyle="bold"
-                android:textColor="@color/text_muted" />
+                android:textColor="@color/text_muted"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.04" />
 
             <TextView
                 android:id="@+id/history_item_badge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_badge_threat"
-                android:text="PHISHING"
-                android:textSize="11sp"
+                android:text="CRITICAL"
+                android:textSize="10sp"
                 android:textStyle="bold"
-                android:textColor="@color/text_primary" />
+                android:textColor="@color/text_primary"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp" />
         </LinearLayout>
 
+        <!-- Threat Summary / Metrics -->
         <TextView
             android:id="@+id/history_item_summary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Risk: 95.0 • Confidence: 90%"
+            android:text="Risk: 88.0 / 100 • Confidence: 94%"
             android:textSize="14sp"
             android:textStyle="bold"
             android:textColor="@color/text_primary"
+            android:fontFamily="monospace"
             android:layout_marginBottom="8dp" />
 
+        <!-- Card Action Footer -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="end">
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="✓ Logged &amp; Quarantined"
+                android:textSize="11sp"
+                android:textColor="@color/text_muted" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/history_item_btn_details"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
-                android:text="Details"
+                android:text="Forensics →"
                 android:textColor="@color/cyber_cyan"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:layout_marginEnd="4dp" />
 
             <com.google.android.material.button.MaterialButton
@@ -77,8 +93,7 @@
                 android:layout_height="36dp"
                 android:text="Delete"
                 android:textColor="@color/threat_critical"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
         </LinearLayout>
-
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

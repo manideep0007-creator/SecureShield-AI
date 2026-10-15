@@ -48,6 +48,21 @@ def api_evaluation_metrics():
         ) from error
 
 
+@router.get("/threat-intelligence/status")
+def api_threat_intelligence_status():
+    """Returns real-world threat intelligence feed counts and synchronization timestamps."""
+    from app.intelligence.threat_feeds import threat_store
+    return threat_store.get_statistics()
+
+
+@router.post("/threat-intelligence/sync")
+async def api_threat_intelligence_sync():
+    """Trigger an on-demand live community feed sync (URLhaus, MalwareBazaar, OpenPhish)."""
+    from app.intelligence.threat_feeds import threat_store
+    result = await threat_store.sync_live_feeds()
+    return result
+
+
 @router.post("/scan", response_model=UnifiedScanResponse)
 async def api_scan(payload: ScanInput):
     """V2 Unified Scan Endpoint: Parses ScanInput and returns all EngineResults."""

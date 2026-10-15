@@ -11,6 +11,7 @@ import android.view.accessibility.AccessibilityEvent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.secureshield.ai.ScanHistoryActivity
+import com.secureshield.ai.GuardianInterceptActivity
 import com.secureshield.ai.background.ProcessedMessageStore
 import com.secureshield.ai.history.ScanHistoryRepository
 import com.secureshield.ai.network.ApiClient
@@ -354,10 +355,14 @@ class UniversalLinkGuardService : AccessibilityService() {
         val topReason = scanResult.risk_assessment.reasons.firstOrNull()
             ?: scanResult.risk_assessment.recommended_action.ifBlank { "Potential threat detected on screen" }
 
-        // Tapping notification opens the result in ScanHistoryActivity
-        val intent = Intent(applicationContext, ScanHistoryActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        // Tapping notification opens the HUD overlay in GuardianInterceptActivity
+        val intent = Intent(applicationContext, GuardianInterceptActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("scan_id", scanResult.scan_id)
+            putExtra("target_url", targetDisplay)
+            putExtra("classification", scanResult.classification)
+            putExtra("score", scanResult.risk_score.toInt())
+            putExtra("source_app", appLabel)
         }
         val pendingIntent = PendingIntent.getActivity(
             applicationContext,
