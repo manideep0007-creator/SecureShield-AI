@@ -29,6 +29,7 @@ class OnDeviceHeuristicEngineTest {
         assertTrue(response.risk_assessment.flags.contains("suspicious_keywords"))
         assertTrue(response.risk_assessment.reasons.isNotEmpty())
         assertTrue(response.warnings.isNotEmpty())
+        assertEquals(listOf("Limited offline check - cloud engines were not used"), response.warnings)
 
         // Verify JSON round-trip strictly matches backend contract
         val jsonElement = gson.toJsonTree(response).asJsonObject

@@ -203,7 +203,7 @@ object OnDeviceHeuristicEngine {
             risk_assessment = riskAssessment,
             risk_score = finalScore,
             classification = classification,
-            warnings = listOf("Verified by SecureShield Autonomous On-Device Shield (Zero-Latency Protection).")
+            warnings = listOf("Limited offline check - cloud engines were not used")
         )
     }
 

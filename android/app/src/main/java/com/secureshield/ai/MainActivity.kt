@@ -1133,27 +1133,36 @@ class MainActivity : AppCompatActivity() {
         badgeCategory.setOnClickListener(null)
         textReasons.setOnClickListener(null)
         return lifecycleScope.launch {
-            try {
-                if (!ApiClient.isServerAwake) {
-                    badgeCategory.visibility = View.VISIBLE
-                    badgeCategory.text = "Scanning..."
-                    textReasons.text = "Analyzing threat indicators via SecureShield AI..."
+            val wakingTimer = launch {
+                if (ApiClient.isServerAwake) {
+                    kotlinx.coroutines.delay(2500L)
                 }
+                badgeCategory.text = "Waking server..."
+                textReasons.text = "Waking server..."
+            }
+
+            try {
+                badgeCategory.visibility = View.VISIBLE
+                badgeCategory.text = if (!ApiClient.isServerAwake) "Waking server..." else "Scanning..."
+                textReasons.text = if (!ApiClient.isServerAwake) "Waking server..." else "Analyzing threat indicators via SecureShield AI..."
 
                 val result: UnifiedScanResponse = try {
-                    val response = withTimeout(12000L) {
+                    val response = withTimeout(45000L) {
                         withContext(Dispatchers.IO) {
                             ApiClient.api.scan(resolvedInput)
                         }
                     }
                     if (response.isSuccessful && response.body() != null) {
                         ApiClient.isServerAwake = true
+                        wakingTimer.cancel()
                         UnifiedScanResponseParser.parse(response.body()!!)
                     } else {
+                        wakingTimer.cancel()
                         android.util.Log.w("MainActivity", "Cloud backend returned non-success; failing over to On-Device Shield.")
                         OnDeviceHeuristicEngine.scan(resolvedInput)
                     }
                 } catch (e: Exception) {
+                    wakingTimer.cancel()
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     android.util.Log.w("MainActivity", "Cloud connection offline or timed out; failing over to On-Device Shield.")
                     OnDeviceHeuristicEngine.scan(resolvedInput)
@@ -1184,7 +1193,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val isLocalFallback = result.scan_id.startsWith("local-")
-                val sourceBadge = if (isLocalFallback) "On-Device Shield" else categorySuffix
+                val sourceBadge = if (isLocalFallback) "Offline Check" else categorySuffix
                 badgeCategory.text = "${result.classification} ($sourceBadge)"
                 applyVerdictBadgeStyle(result.classification)
 
@@ -1192,6 +1201,9 @@ class MainActivity : AppCompatActivity() {
                 textScore.text = "Risk Score: ${formatScore(result.risk_score)} / 100 (Conf: ${confidencePct}%)"
                 val assessment = result.risk_assessment
                 val explanationLines = buildList {
+                    if (isLocalFallback) {
+                        add("Limited offline check - cloud engines were not used")
+                    }
                     addAll(assessment.reasons)
                     if (assessment.flags.isNotEmpty()) add("Indicators: ${assessment.flags.joinToString()}")
                     assessment.evidence.forEach { item ->
@@ -1200,7 +1212,15 @@ class MainActivity : AppCompatActivity() {
                     result.warnings.forEach { add(it) }
                 }.distinct()
                 textReasons.text = if (explanationLines.isNotEmpty()) explanationLines.first() else "No threats detected."
-                textAction.text = result.risk_assessment.recommended_action
+                if (isLocalFallback) {
+                    textAction.text = "Limited offline check - cloud engines were not used"
+                    textAction.visibility = View.VISIBLE
+                } else if (result.risk_assessment.recommended_action.isNotBlank()) {
+                    textAction.text = result.risk_assessment.recommended_action
+                    textAction.visibility = View.VISIBLE
+                } else {
+                    textAction.visibility = View.GONE
+                }
 
                 val isThreat = isThreatClassification(result.classification)
                 updateHeroProtectionState(latestThreat = isThreat)
@@ -1213,6 +1233,7 @@ class MainActivity : AppCompatActivity() {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 badgeCategory.text = "Scan Completed"
             } finally {
+                wakingTimer.cancel()
                 progressBar.visibility = View.GONE
             }
         }
