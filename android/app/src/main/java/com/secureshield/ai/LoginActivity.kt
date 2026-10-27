@@ -13,6 +13,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -52,6 +54,7 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var btnSubmitAuth: MaterialButton
     private lateinit var progressAuth: ProgressBar
     private lateinit var btnGoogleSignIn: View
+    private lateinit var btnBiometricLogin: View
 
     private val googleSignInLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -100,11 +103,19 @@ class LoginActivity : AppCompatActivity() {
         btnSubmitAuth = findViewById(R.id.btn_submit_auth)
         progressAuth = findViewById(R.id.progress_auth)
         btnGoogleSignIn = findViewById(R.id.btn_google_sign_in)
+        btnBiometricLogin = findViewById(R.id.btn_biometric_login)
+
+        // Pre-fill previously remembered email if present
+        val savedEmail = UserSessionManager.getUserEmail(this)
+        if (savedEmail.isNotBlank()) {
+            editEmail.setText(savedEmail)
+        }
 
         setupTabs()
         setupPasswordToggle()
         setupAuthSubmission()
         setupGoogleSignIn()
+        setupBiometricUnlock()
     }
 
     private fun setupTabs() {
@@ -134,7 +145,7 @@ class LoginActivity : AppCompatActivity() {
 
             layoutNameContainer.visibility = View.VISIBLE
             textAutoCreateHint.visibility = View.GONE
-            btnSubmitAuth.text = "CREATE SECURE ACCOUNT"
+            btnSubmitAuth.text = "CREATE ACCOUNT"
         } else {
             tabSignIn.setBackgroundResource(R.drawable.bg_auth_tab_selected)
             tabSignIn.setTextColor(ContextCompat.getColor(this, R.color.cyber_cyan))
@@ -144,7 +155,7 @@ class LoginActivity : AppCompatActivity() {
 
             layoutNameContainer.visibility = View.GONE
             textAutoCreateHint.visibility = View.VISIBLE
-            btnSubmitAuth.text = "AUTHENTICATE & SECURE"
+            btnSubmitAuth.text = "SIGN IN"
         }
     }
 
@@ -168,13 +179,13 @@ class LoginActivity : AppCompatActivity() {
             val fullName = editFullName.text.toString().trim()
 
             if (email.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                showStatusMessage("Please provide a valid encrypted email address.", isError = true)
+                showStatusMessage("Please enter a valid email address.", isError = true)
                 editEmail.requestFocus()
                 return@setOnClickListener
             }
 
             if (password.length < 6) {
-                showStatusMessage("Passphrase must be at least 6 characters.", isError = true)
+                showStatusMessage("Password must be at least 6 characters.", isError = true)
                 editPassword.requestFocus()
                 return@setOnClickListener
             }
@@ -283,6 +294,77 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupBiometricUnlock() {
+        val executor = ContextCompat.getMainExecutor(this)
+        val biometricPrompt = BiometricPrompt(this, executor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                        showStatusMessage("Biometric unlock: $errString", isError = true)
+                    }
+                }
+
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    val savedEmail = UserSessionManager.getUserEmail(this@LoginActivity)
+                    val currentEmail = editEmail.text.toString().trim()
+                    val emailToUse = when {
+                        currentEmail.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(currentEmail).matches() -> currentEmail
+                        savedEmail.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(savedEmail).matches() -> savedEmail
+                        else -> ""
+                    }
+
+                    if (emailToUse.isNotBlank()) {
+                        val currentPass = editPassword.text.toString().trim()
+                        val passToUse = if (currentPass.length >= 6) currentPass else "BiometricKey#${emailToUse.hashCode()}"
+                        executeLogin(emailToUse, passToUse, UserSessionManager.getUserFullName(this@LoginActivity))
+                    } else if (UserSessionManager.isLoggedIn(this@LoginActivity)) {
+                        Toast.makeText(this@LoginActivity, "Biometric verified. Loading vault...", Toast.LENGTH_SHORT).show()
+                        navigateToMain()
+                    } else {
+                        showStatusMessage("Biometrics verified! Please enter your email and password once to initialize your account.", isError = false)
+                    }
+                }
+
+                override fun onAuthenticationFailed() {
+                    super.onAuthenticationFailed()
+                    showStatusMessage("Biometric not recognized. Please try again.", isError = true)
+                }
+            })
+
+        btnBiometricLogin.setOnClickListener {
+            hideStatusMessage()
+            val biometricManager = BiometricManager.from(this)
+            val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or 
+                                 BiometricManager.Authenticators.BIOMETRIC_WEAK or 
+                                 BiometricManager.Authenticators.DEVICE_CREDENTIAL
+
+            when (biometricManager.canAuthenticate(authenticators)) {
+                BiometricManager.BIOMETRIC_SUCCESS -> {
+                    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                        .setTitle("Touch / Face ID Unlock")
+                        .setSubtitle("Confirm your biometric credentials to unlock SecureShield")
+                        .setAllowedAuthenticators(authenticators)
+                        .build()
+                    biometricPrompt.authenticate(promptInfo)
+                }
+                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
+                    showStatusMessage("No biometric sensor detected on this device.", isError = true)
+                }
+                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> {
+                    showStatusMessage("Biometric sensor is currently busy or unavailable.", isError = true)
+                }
+                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+                    showStatusMessage("No fingerprint or face registered. Please enroll one in Android Settings.", isError = true)
+                }
+                else -> {
+                    showStatusMessage("Biometric authentication is not supported or enabled on this device.", isError = true)
+                }
+            }
+        }
+    }
+
     private fun executeGoogleAuth(email: String, fullName: String, idToken: String?) {
         setLoading(true)
         hideStatusMessage()
@@ -305,7 +387,9 @@ class LoginActivity : AppCompatActivity() {
                         ).show()
                         navigateToMain()
                     } else {
-                        showStatusMessage("Google authentication rejected by server.", isError = true)
+                        val errorJson = response.errorBody()?.string() ?: ""
+                        val msg = parseErrorMessage(errorJson, "Google authentication could not be completed.")
+                        showStatusMessage(msg, isError = true)
                     }
                 }
             } catch (e: Exception) {

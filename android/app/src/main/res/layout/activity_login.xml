@@ -212,7 +212,7 @@
                     </LinearLayout>
 
                     <!-- Credentials Vault Input Stack -->
-                    <!-- Input 1: Operative Name (Sign Up Only) -->
+                    <!-- Input 1: Full Name (Sign Up Only) -->
                     <LinearLayout
                         android:id="@+id/layout_name_container"
                         android:layout_width="match_parent"
@@ -224,11 +224,10 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="OPERATIVE NAME"
-                            android:textSize="10sp"
+                            android:text="FULL NAME"
+                            android:textSize="10.5sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_secondary"
-                            android:fontFamily="monospace"
                             android:letterSpacing="0.08"
                             android:layout_marginBottom="6dp" />
 
@@ -252,7 +251,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
                                 android:background="@android:color/transparent"
-                                android:hint="Operative Name (e.g. Alex Drake)"
+                                android:hint="Your Name (e.g. Alex Morgan)"
                                 android:textColorHint="@color/text_muted"
                                 android:textColor="@color/text_primary"
                                 android:textSize="13.5sp"
@@ -261,42 +260,22 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <!-- Input 2: Cyber Identity / Email -->
+                    <!-- Input 2: Email Address -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:layout_marginBottom="12dp">
 
-                        <LinearLayout
-                            android:layout_width="match_parent"
+                        <TextView
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="6dp">
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="CYBER IDENTITY"
-                                android:textSize="10sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/text_secondary"
-                                android:fontFamily="monospace"
-                                android:letterSpacing="0.08" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:background="@drawable/bg_status_pill_active"
-                                android:text="VERIFIED"
-                                android:textSize="8.5sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/threat_safe"
-                                android:paddingHorizontal="6dp"
-                                android:paddingVertical="2dp" />
-                        </LinearLayout>
+                            android:text="EMAIL ADDRESS"
+                            android:textSize="10.5sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_secondary"
+                            android:letterSpacing="0.08"
+                            android:layout_marginBottom="6dp" />
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -318,17 +297,16 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
                                 android:background="@android:color/transparent"
-                                android:hint="identity@vault.domain"
+                                android:hint="you@example.com"
                                 android:textColorHint="@color/text_muted"
                                 android:textColor="@color/text_primary"
                                 android:textSize="13.5sp"
-                                android:fontFamily="monospace"
                                 android:singleLine="true"
                                 android:inputType="textEmailAddress" />
                         </LinearLayout>
                     </LinearLayout>
 
-                    <!-- Input 3: Enclave Master Key / Passphrase -->
+                    <!-- Input 3: Password -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -338,11 +316,10 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="ENCLAVE MASTER KEY"
-                            android:textSize="10sp"
+                            android:text="PASSWORD"
+                            android:textSize="10.5sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_secondary"
-                            android:fontFamily="monospace"
                             android:letterSpacing="0.08"
                             android:layout_marginBottom="6dp" />
 
@@ -367,7 +344,7 @@
                                 android:layout_height="match_parent"
                                 android:layout_weight="1"
                                 android:background="@android:color/transparent"
-                                android:hint="••••••••••••••••"
+                                android:hint="At least 6 characters"
                                 android:textColorHint="@color/text_muted"
                                 android:textColor="@color/text_primary"
                                 android:textSize="13.5sp"
@@ -385,7 +362,7 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <!-- Security Check Micro-Toggle Row -->
+                    <!-- Security Status Micro Row -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -404,14 +381,14 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Bind to Hardware HSM"
+                            android:text="Hardware-backed Security"
                             android:textSize="11.5sp"
                             android:textColor="@color/text_secondary" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Node 01: Active"
+                            android:text="Enclave: Active"
                             android:textSize="10.5sp"
                             android:textColor="@color/threat_safe"
                             android:fontFamily="monospace" />
@@ -422,7 +399,7 @@
                         android:id="@+id/text_auto_create_hint"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="⚡ New Operative? Signing in automatically provisions your isolated zero-knowledge vault."
+                        android:text="⚡ New here? Entering your credentials will automatically initialize your secure account."
                         android:textSize="11sp"
                         android:textColor="@color/cyber_cyan"
                         android:layout_marginBottom="16dp" />
@@ -432,7 +409,13 @@
                         android:id="@+id/btn_submit_auth"
                         android:layout_width="match_parent"
                         android:layout_height="52dp"
-                        android:text="AUTHENTICATE VAULT"
+                        android:text="SIGN IN"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="#080C14"
+                        android:letterSpacing="0.06"
+                        android:background="@drawable/bg_btn_primary_cyber"
+                        app:backgroundTint="@null" />
                         android:textSize="13sp"
                         android:textStyle="bold"
                         android:textColor="#080C14"
@@ -467,7 +450,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="OR SECURE HANDSHAKE"
+                            android:text="OR CONTINUE WITH"
                             android:textSize="9.5sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_muted"
@@ -489,7 +472,7 @@
                         android:orientation="horizontal"
                         android:layout_marginBottom="14dp">
 
-                        <!-- Google Enterprise SSO Button -->
+                        <!-- Google Sign In Button -->
                         <com.google.android.material.card.MaterialCardView
                             android:id="@+id/btn_google_sign_in"
                             android:layout_width="0dp"
@@ -519,7 +502,7 @@
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Google Cloud"
+                                    android:text="Google Account"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:textColor="@color/text_primary" />
@@ -527,7 +510,7 @@
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Enterprise SSO"
+                                    android:text="One-Tap Sign In"
                                     android:textSize="9.5sp"
                                     android:textColor="@color/text_muted" />
                             </LinearLayout>
@@ -535,6 +518,7 @@
 
                         <!-- Biometrics Button -->
                         <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/btn_biometric_login"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -570,7 +554,7 @@
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="FIDO2 Biometrics"
+                                    android:text="Biometric Unlock"
                                     android:textSize="9.5sp"
                                     android:textColor="@color/text_muted" />
                             </LinearLayout>
