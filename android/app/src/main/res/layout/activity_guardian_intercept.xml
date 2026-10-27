@@ -58,7 +58,7 @@
                 android:id="@+id/text_hud_headline"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="High-Risk Link Blocked"
+                android:text="Dangerous link detected"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 android:textColor="@color/text_primary"

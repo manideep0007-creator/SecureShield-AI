@@ -156,6 +156,21 @@ class ScanHistoryDatabase(
         return writableDatabase.update(TABLE_HISTORY, values, "$COLUMN_SCAN_ID = ?", arrayOf(scanId)) > 0
     }
 
+    fun getStats(): ScanHistoryStats {
+        var total = 0
+        var threats = 0
+        readableDatabase.rawQuery("SELECT COUNT(*) FROM $TABLE_HISTORY", null).use { cursor ->
+            if (cursor.moveToFirst()) total = cursor.getInt(0)
+        }
+        readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM $TABLE_HISTORY WHERE $COLUMN_CLASSIFICATION IN ('Suspicious', 'Deceptive', 'Phishing', 'Malware')",
+            null
+        ).use { cursor ->
+            if (cursor.moveToFirst()) threats = cursor.getInt(0)
+        }
+        return ScanHistoryStats(total, threats)
+    }
+
     private fun createHistoryTable(db: SQLiteDatabase) {
         db.execSQL(ScanHistorySchema.CREATE_HISTORY_TABLE)
     }

@@ -184,7 +184,7 @@
                                 android:id="@+id/text_hero_subtitle"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Real-time on-screen radar &amp; zero-touch threat isolation active"
+                                android:text="Monitoring links on screen"
                                 android:textSize="12sp"
                                 android:textColor="@color/text_secondary"
                                 android:gravity="center"
@@ -199,19 +199,21 @@
                                 android:layout_marginTop="14dp">
 
                                 <TextView
+                                    android:id="@+id/text_telemetry_audited"
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:background="@drawable/bg_telemetry_pill"
                                     android:padding="6dp"
                                     android:gravity="center"
-                                    android:text="24 AUDITED"
+                                    android:text="0 AUDITED"
                                     android:textSize="10sp"
                                     android:textColor="@color/text_secondary"
                                     android:fontFamily="monospace"
                                     android:layout_marginEnd="6dp" />
 
                                 <TextView
+                                    android:id="@+id/text_telemetry_threats"
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
@@ -353,7 +355,7 @@
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Sandbox"
+                                    android:text="Hash and static analysis"
                                     android:textSize="10sp"
                                     android:textColor="@color/text_muted"
                                     android:layout_marginTop="2dp" />

@@ -42,10 +42,18 @@ class ScanHistoryRepository(
             runCatching { store.updateFeedbackState(scanId, feedbackState) }.getOrDefault(false)
         }
 
+    suspend fun getStats(): ScanHistoryStats =
+        withContext(dispatcher) { runCatching { store.getStats() }.getOrDefault(ScanHistoryStats(0, 0)) }
+
     fun close() {
         runCatching { store.close() }
     }
 }
+
+data class ScanHistoryStats(
+    val totalScans: Int,
+    val threatScans: Int
+)
 
 interface ScanHistoryStore {
     fun insert(record: ScanHistoryRecord): Boolean
@@ -54,6 +62,7 @@ interface ScanHistoryStore {
     fun delete(scanId: String): Boolean
     fun deleteAll()
     fun updateFeedbackState(scanId: String, feedbackState: String): Boolean
+    fun getStats(): ScanHistoryStats = ScanHistoryStats(0, 0)
     fun close() = Unit
 }
 
@@ -64,6 +73,7 @@ private class AndroidScanHistoryStore(private val database: ScanHistoryDatabase)
     override fun delete(scanId: String) = database.delete(scanId)
     override fun deleteAll() { database.deleteAll() }
     override fun updateFeedbackState(scanId: String, feedbackState: String) = database.updateFeedbackState(scanId, feedbackState)
+    override fun getStats(): ScanHistoryStats = database.getStats()
     override fun close() = database.close()
 }
 

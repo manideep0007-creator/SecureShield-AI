@@ -28,6 +28,20 @@ class ScanHistoryRepositoryTest {
     }
 
     @Test
+    fun `stats count total scans and threat classifications accurately`() = runTest {
+        val fixture = fixture()
+        assertEquals(ScanHistoryStats(0, 0), fixture.repository.getStats())
+
+        fixture.store.insert(record(ID_A, 100, "Safe"))
+        fixture.store.insert(record(ID_B, 200, "Phishing"))
+        fixture.store.insert(record(ID_C, 300, "Suspicious"))
+
+        val stats = fixture.repository.getStats()
+        assertEquals(3, stats.totalScans)
+        assertEquals(2, stats.threatScans)
+    }
+
+    @Test
     fun `retrieval is newest first and supports lookup by scan id`() = runTest {
         val fixture = fixture()
         fixture.store.insert(record(ID_A, 100))
@@ -376,6 +390,12 @@ class ScanHistoryRepositoryTest {
             val record = rows[scanId] ?: return false
             rows[scanId] = record.copy(feedbackState = feedbackState)
             return true
+        }
+
+        override fun getStats(): ScanHistoryStats {
+            val total = rows.size
+            val threats = rows.values.count { it.classification in setOf("Suspicious", "Deceptive", "Phishing", "Malware") }
+            return ScanHistoryStats(total, threats)
         }
     }
 

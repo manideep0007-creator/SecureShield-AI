@@ -315,11 +315,14 @@ class MainActivity : AppCompatActivity() {
                     lifecycleScope.launch {
                         scanHistoryRepository.deleteAll()
                         loadHistoryTab()
+                        refreshTelemetryMetrics()
                     }
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
+
+        refreshTelemetryMetrics()
     }
 
     private fun loadHistoryTab() {
@@ -546,6 +549,21 @@ class MainActivity : AppCompatActivity() {
                 textTitle.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
                 textSubtitle.text = "Enable Guardian Mode for real-time threat defense"
             }
+        }
+    }
+
+    private fun refreshTelemetryMetrics() {
+        lifecycleScope.launch {
+            val stats = scanHistoryRepository.getStats()
+            findViewById<TextView>(R.id.text_telemetry_audited)?.text = "${stats.totalScans} AUDITED"
+            val threatsView = findViewById<TextView>(R.id.text_telemetry_threats)
+            threatsView?.text = "${stats.threatScans} ${if (stats.threatScans == 1) "THREAT" else "THREATS"}"
+            threatsView?.setTextColor(
+                ContextCompat.getColor(
+                    this@MainActivity,
+                    if (stats.threatScans > 0) R.color.threat_critical else R.color.threat_safe
+                )
+            )
         }
     }
 
@@ -942,7 +960,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         ensureNotificationPermission()
         updateUniversalGuardUi()
+        updateHeroProtectionState()
         refreshSystemTelemetry()
+        refreshTelemetryMetrics()
     }
 
     private fun refreshSystemTelemetry() {
@@ -1142,6 +1162,9 @@ class MainActivity : AppCompatActivity() {
                 currentResultSourceType = sourceType
                 lifecycleScope.launch(Dispatchers.IO) {
                     scanHistoryRepository.saveCompletedScan(result, sourceType)
+                    withContext(Dispatchers.Main) {
+                        refreshTelemetryMetrics()
+                    }
                 }
                 layoutFeedback.visibility = View.VISIBLE
                 btnViewDetails.visibility = View.VISIBLE
