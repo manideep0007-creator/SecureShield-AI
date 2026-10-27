@@ -41,4 +41,27 @@
     <!-- Primary Accent Button -->
     <color name="btn_gmail_red">#DC2626</color>
     <color name="btn_gmail_red_pressed">#B91C1C</color>
+
+    <!-- Apple Music Liquid Glass Theme Tokens -->
+    <color name="glass_surface">#B30E1726</color>
+    <color name="glass_surface_elevated">#CC142136</color>
+    <color name="glass_subcard">#7319263D</color>
+    <color name="glass_stroke">#3300E5FF</color>
+    <color name="glass_stroke_subtle">#26334D</color>
+    <color name="glass_stroke_highlight">#33FFFFFF</color>
+    <color name="glass_pill_bg">#4D0B1220</color>
+    <color name="glass_pill_stroke">#4000E5FF</color>
+    <color name="ambient_glow_cyan">#2600E5FF</color>
+    <color name="ambient_glow_emerald">#2610B981</color>
+    <color name="ambient_glow_crimson">#26EF4444</color>
+    <color name="ambient_glow_amber">#26F59E0B</color>
+    <color name="glass_threat_surface">#26EF4444</color>
+    <color name="glass_threat_stroke">#4DEF4444</color>
+    <color name="glass_surface_container">#D91C2028</color>
+    <color name="glass_surface_container_high">#D9262A33</color>
+    <color name="glass_surface_container_highest">#D931353E</color>
+    <color name="tertiary_light">#A8FFD2</color>
+    <color name="tertiary_dim">#4EDEA3</color>
+    <color name="tertiary_container_cyber">#5BE9AD</color>
+    <color name="secondary_container_cyber">#EE9800</color>
 </resources>

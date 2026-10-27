@@ -1,434 +1,652 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
     android:background="@color/bg_dark">
 
-    <LinearLayout
+    <!-- Dynamic Atmospheric Glow Orbs (Apple Music Liquid Glow) -->
+    <View
+        android:layout_width="320dp"
+        android:layout_height="320dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="-80dp"
+        android:background="@drawable/bg_glow_orb_cyan" />
+
+    <View
+        android:layout_width="260dp"
+        android:layout_height="260dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginBottom="-40dp"
+        android:layout_marginEnd="-40dp"
+        android:background="@drawable/bg_glow_orb_emerald" />
+
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:paddingTop="36dp"
-        android:paddingBottom="36dp">
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbars="none">
 
-        <!-- Top Cyber Brand Emblem Header -->
-        <FrameLayout
-            android:layout_width="96dp"
-            android:layout_height="96dp"
-            android:layout_marginBottom="16dp">
-
-            <View
-                android:layout_width="96dp"
-                android:layout_height="96dp"
-                android:layout_gravity="center"
-                android:background="@drawable/bg_shield_ring"
-                android:alpha="0.7" />
-
-            <ImageView
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:layout_gravity="center"
-                android:src="@drawable/img_secureshield_logo"
-                android:contentDescription="SecureShield Logo" />
-        </FrameLayout>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="SecureShield AI"
-            android:textSize="25sp"
-            android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:letterSpacing="0.03" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="CYBER AEGIS ACCESS VAULT"
-            android:textSize="10.5sp"
-            android:textStyle="bold"
-            android:textColor="@color/cyber_cyan"
-            android:letterSpacing="0.16" />
-
-        <!-- Glassmorphic Auth Master Card -->
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            app:cardCornerRadius="18dp"
-            app:cardBackgroundColor="#0F172A"
-            app:strokeColor="#1E2D48"
-            app:strokeWidth="1dp"
-            app:cardElevation="0dp">
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="28dp"
+            android:paddingBottom="36dp">
 
-            <LinearLayout
+            <!-- Central Liquid Glass Vault Container -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="20dp">
+                android:layout_marginTop="8dp"
+                app:cardCornerRadius="28dp"
+                app:cardBackgroundColor="@color/glass_surface"
+                app:strokeColor="@color/glass_stroke"
+                app:strokeWidth="1dp"
+                app:cardElevation="0dp">
 
-                <!-- Segmented Tabs: Sign In / Sign Up -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:orientation="horizontal"
-                    android:background="@drawable/bg_auth_tab_container"
-                    android:padding="3dp"
-                    android:layout_marginBottom="18dp">
-
-                    <TextView
-                        android:id="@+id/tab_sign_in"
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1"
-                        android:gravity="center"
-                        android:text="SIGN IN"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/cyber_cyan"
-                        android:background="@drawable/bg_auth_tab_selected"
-                        android:letterSpacing="0.06"
-                        android:clickable="true"
-                        android:focusable="true" />
-
-                    <TextView
-                        android:id="@+id/tab_sign_up"
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1"
-                        android:gravity="center"
-                        android:text="SIGN UP"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_secondary"
-                        android:background="@android:color/transparent"
-                        android:letterSpacing="0.06"
-                        android:clickable="true"
-                        android:focusable="true" />
-                </LinearLayout>
-
-                <!-- Status / Error Banner (Alert for 'User already exists' etc.) -->
-                <LinearLayout
-                    android:id="@+id/layout_auth_status"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:background="@drawable/bg_status_pill_active"
-                    android:padding="12dp"
-                    android:layout_marginBottom="16dp"
-                    android:visibility="gone">
-
-                    <ImageView
-                        android:id="@+id/img_auth_status_icon"
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:src="@drawable/ic_shield_alert"
-                        android:layout_marginEnd="10dp"
-                        app:tint="@color/risk_high" />
-
-                    <TextView
-                        android:id="@+id/text_auth_status"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="User already exists. Please sign in or use Google."
-                        android:textSize="12.5sp"
-                        android:textColor="@color/text_primary" />
-                </LinearLayout>
-
-                <!-- Full Name Field (Sign Up Only) -->
-                <LinearLayout
-                    android:id="@+id/layout_name_container"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginBottom="14dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="OPERATIVE NAME"
-                        android:textSize="10.5sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_secondary"
-                        android:letterSpacing="0.08"
-                        android:layout_marginBottom="6dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:background="@drawable/bg_input_field"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp">
-
-                        <ImageView
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
-                            android:src="@drawable/ic_user_cyber"
-                            android:layout_marginEnd="10dp" />
-
-                        <EditText
-                            android:id="@+id/edit_full_name"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:background="@android:color/transparent"
-                            android:hint="Full Name (e.g. Alex Drake)"
-                            android:textColorHint="@color/text_muted"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp"
-                            android:singleLine="true"
-                            android:inputType="textPersonName" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Email Address Field -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:layout_marginBottom="14dp">
+                    android:gravity="center_horizontal"
+                    android:paddingHorizontal="20dp"
+                    android:paddingTop="24dp"
+                    android:paddingBottom="24dp">
 
-                    <TextView
+                    <!-- 3D Holographic Shield Emblem & Halo -->
+                    <FrameLayout
+                        android:layout_width="88dp"
+                        android:layout_height="88dp"
+                        android:layout_marginBottom="12dp">
+
+                        <View
+                            android:layout_width="88dp"
+                            android:layout_height="88dp"
+                            android:background="@drawable/bg_shield_glow_safe"
+                            android:alpha="0.5" />
+
+                        <View
+                            android:layout_width="80dp"
+                            android:layout_height="80dp"
+                            android:layout_gravity="center"
+                            android:background="@drawable/bg_radar_orbit" />
+
+                        <FrameLayout
+                            android:layout_width="60dp"
+                            android:layout_height="60dp"
+                            android:layout_gravity="center"
+                            android:background="@drawable/bg_glass_subcard">
+
+                            <ImageView
+                                android:layout_width="36dp"
+                                android:layout_height="36dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/img_secureshield_logo"
+                                android:contentDescription="SecureShield AI Emblem" />
+                        </FrameLayout>
+                    </FrameLayout>
+
+                    <!-- Identity Typography -->
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="ENCRYPTED IDENTITY / EMAIL"
-                        android:textSize="10.5sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_secondary"
-                        android:letterSpacing="0.08"
-                        android:layout_marginBottom="6dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
                         android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:background="@drawable/bg_input_field"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp">
-
-                        <ImageView
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
-                            android:src="@drawable/ic_email_cyber"
-                            android:layout_marginEnd="10dp" />
-
-                        <EditText
-                            android:id="@+id/edit_email"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:background="@android:color/transparent"
-                            android:hint="operator@organization.com"
-                            android:textColorHint="@color/text_muted"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp"
-                            android:singleLine="true"
-                            android:inputType="textEmailAddress" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Password Field with Show/Hide Toggle -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="CRYPTOGRAPHIC PASSPHRASE"
-                        android:textSize="10.5sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_secondary"
-                        android:letterSpacing="0.08"
-                        android:layout_marginBottom="6dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:background="@drawable/bg_input_field"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp">
-
-                        <ImageView
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
-                            android:src="@drawable/ic_lock_cyber"
-                            android:layout_marginEnd="10dp" />
-
-                        <EditText
-                            android:id="@+id/edit_password"
-                            android:layout_width="0dp"
-                            android:layout_height="match_parent"
-                            android:layout_weight="1"
-                            android:background="@android:color/transparent"
-                            android:hint="••••••••••••"
-                            android:textColorHint="@color/text_muted"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp"
-                            android:singleLine="true"
-                            android:inputType="textPassword" />
-
-                        <ImageView
-                            android:id="@+id/btn_toggle_password"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:padding="2dp"
-                            android:src="@drawable/ic_chevron_right"
-                            android:contentDescription="Toggle Password"
-                            app:tint="@color/text_secondary" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Auto-Provisioning Callout Hint -->
-                <TextView
-                    android:id="@+id/text_auto_create_hint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="⚡ New Operative? Clicking Sign In automatically provisions your isolated threat vault."
-                    android:textSize="11.5sp"
-                    android:textColor="@color/cyber_cyan"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- Primary Action Button (Sign In / Sign Up) -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_submit_auth"
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:text="AUTHENTICATE &amp; SECURE"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    android:textColor="#080C14"
-                    android:letterSpacing="0.06"
-                    android:background="@drawable/bg_btn_primary_cyber"
-                    app:backgroundTint="@null" />
-
-                <ProgressBar
-                    android:id="@+id/progress_auth"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
-                    android:layout_gravity="center"
-                    android:indeterminateTint="@color/cyber_cyan"
-                    android:layout_marginTop="12dp"
-                    android:visibility="gone" />
-
-                <!-- Divider -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="22dp"
-                    android:layout_marginBottom="20dp">
-
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1"
-                        android:background="#1E2D48" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="OR CONTINUE WITH"
-                        android:textSize="10.5sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_muted"
-                        android:letterSpacing="0.1"
-                        android:layout_marginStart="14dp"
-                        android:layout_marginEnd="14dp" />
-
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1"
-                        android:background="#1E2D48" />
-                </LinearLayout>
-
-                <!-- Sign in with Google Button -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/btn_google_sign_in"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    app:cardCornerRadius="12dp"
-                    app:cardBackgroundColor="#141E33"
-                    app:strokeColor="#1E2D48"
-                    app:strokeWidth="1dp"
-                    android:clickable="true"
-                    android:focusable="true">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:orientation="horizontal"
-                        android:gravity="center">
-
-                        <ImageView
-                            android:layout_width="20dp"
-                            android:layout_height="20dp"
-                            android:src="@drawable/ic_google_logo"
-                            android:layout_marginEnd="12dp" />
+                        android:gravity="center_vertical">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Sign In with Google"
-                            android:textSize="13.5sp"
+                            android:text="SecureShield "
+                            android:textSize="22sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary"
                             android:letterSpacing="0.02" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="AI"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/cyber_cyan"
+                            android:letterSpacing="0.04" />
                     </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
 
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="3dp"
+                        android:layout_marginBottom="20dp">
+
+                        <View
+                            android:layout_width="6dp"
+                            android:layout_height="6dp"
+                            android:background="@drawable/bg_badge_safe"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="ENTERPRISE THREAT INTELLIGENCE"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_secondary"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.1" />
+                    </LinearLayout>
+
+                    <!-- Liquid Glass Segmented Tab Switcher -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:orientation="horizontal"
+                        android:background="@drawable/bg_glass_telemetry_pill"
+                        android:padding="3dp"
+                        android:layout_marginBottom="18dp">
+
+                        <TextView
+                            android:id="@+id/tab_sign_in"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:text="SIGN IN"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/cyber_cyan"
+                            android:background="@drawable/bg_auth_tab_selected"
+                            android:letterSpacing="0.06"
+                            android:clickable="true"
+                            android:focusable="true" />
+
+                        <TextView
+                            android:id="@+id/tab_sign_up"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:text="REGISTER"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_secondary"
+                            android:background="@android:color/transparent"
+                            android:letterSpacing="0.06"
+                            android:clickable="true"
+                            android:focusable="true" />
+                    </LinearLayout>
+
+                    <!-- Status / Error Banner -->
+                    <LinearLayout
+                        android:id="@+id/layout_auth_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/bg_badge_threat"
+                        android:padding="12dp"
+                        android:layout_marginBottom="16dp"
+                        android:visibility="gone">
+
+                        <ImageView
+                            android:id="@+id/img_auth_status_icon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:src="@drawable/ic_shield_alert"
+                            android:layout_marginEnd="10dp"
+                            app:tint="@color/threat_critical" />
+
+                        <TextView
+                            android:id="@+id/text_auth_status"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="User already exists. Please sign in or use Google."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_primary" />
+                    </LinearLayout>
+
+                    <!-- Credentials Vault Input Stack -->
+                    <!-- Input 1: Operative Name (Sign Up Only) -->
+                    <LinearLayout
+                        android:id="@+id/layout_name_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="12dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="OPERATIVE NAME"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_secondary"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.08"
+                            android:layout_marginBottom="6dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:background="@drawable/bg_glass_subcard"
+                            android:paddingHorizontal="14dp">
+
+                            <ImageView
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:src="@drawable/ic_user_cyber"
+                                app:tint="@color/cyber_cyan"
+                                android:layout_marginEnd="10dp" />
+
+                            <EditText
+                                android:id="@+id/edit_full_name"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:background="@android:color/transparent"
+                                android:hint="Operative Name (e.g. Alex Drake)"
+                                android:textColorHint="@color/text_muted"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13.5sp"
+                                android:singleLine="true"
+                                android:inputType="textPersonName" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Input 2: Cyber Identity / Email -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="6dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="CYBER IDENTITY"
+                                android:textSize="10sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_secondary"
+                                android:fontFamily="monospace"
+                                android:letterSpacing="0.08" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_status_pill_active"
+                                android:text="VERIFIED"
+                                android:textSize="8.5sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/threat_safe"
+                                android:paddingHorizontal="6dp"
+                                android:paddingVertical="2dp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:background="@drawable/bg_glass_subcard"
+                            android:paddingHorizontal="14dp">
+
+                            <ImageView
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:src="@drawable/ic_email_cyber"
+                                app:tint="@color/cyber_cyan"
+                                android:layout_marginEnd="10dp" />
+
+                            <EditText
+                                android:id="@+id/edit_email"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:background="@android:color/transparent"
+                                android:hint="identity@vault.domain"
+                                android:textColorHint="@color/text_muted"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13.5sp"
+                                android:fontFamily="monospace"
+                                android:singleLine="true"
+                                android:inputType="textEmailAddress" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Input 3: Enclave Master Key / Passphrase -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="ENCLAVE MASTER KEY"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_secondary"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.08"
+                            android:layout_marginBottom="6dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:background="@drawable/bg_glass_subcard"
+                            android:paddingHorizontal="14dp">
+
+                            <ImageView
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:src="@drawable/ic_lock_cyber"
+                                app:tint="@color/cyber_cyan"
+                                android:layout_marginEnd="10dp" />
+
+                            <EditText
+                                android:id="@+id/edit_password"
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_weight="1"
+                                android:background="@android:color/transparent"
+                                android:hint="••••••••••••••••"
+                                android:textColorHint="@color/text_muted"
+                                android:textColor="@color/text_primary"
+                                android:textSize="13.5sp"
+                                android:singleLine="true"
+                                android:inputType="textPassword" />
+
+                            <ImageView
+                                android:id="@+id/btn_toggle_password"
+                                android:layout_width="26dp"
+                                android:layout_height="26dp"
+                                android:padding="4dp"
+                                android:src="@drawable/ic_chevron_right"
+                                android:contentDescription="Toggle Password"
+                                app:tint="@color/text_secondary" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Security Check Micro-Toggle Row -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:src="@drawable/ic_shield_protected"
+                            app:tint="@color/cyber_cyan"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Bind to Hardware HSM"
+                            android:textSize="11.5sp"
+                            android:textColor="@color/text_secondary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Node 01: Active"
+                            android:textSize="10.5sp"
+                            android:textColor="@color/threat_safe"
+                            android:fontFamily="monospace" />
+                    </LinearLayout>
+
+                    <!-- Auto-Provisioning Hint -->
+                    <TextView
+                        android:id="@+id/text_auto_create_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="⚡ New Operative? Signing in automatically provisions your isolated zero-knowledge vault."
+                        android:textSize="11sp"
+                        android:textColor="@color/cyber_cyan"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- Primary Action Button: Liquid Cyan Glow Pill -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_submit_auth"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:text="AUTHENTICATE VAULT"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="#080C14"
+                        android:letterSpacing="0.06"
+                        android:background="@drawable/bg_btn_primary_cyber"
+                        app:backgroundTint="@null" />
+
+                    <ProgressBar
+                        android:id="@+id/progress_auth"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="center"
+                        android:indeterminateTint="@color/cyber_cyan"
+                        android:layout_marginTop="12dp"
+                        android:visibility="gone" />
+
+                    <!-- Divider: Secure Handshake -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="20dp"
+                        android:layout_marginBottom="16dp">
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1"
+                            android:background="@color/bg_dark_card_stroke" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="OR SECURE HANDSHAKE"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_muted"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.1"
+                            android:layout_marginHorizontal="12dp" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1"
+                            android:background="@color/bg_dark_card_stroke" />
+                    </LinearLayout>
+
+                    <!-- Biometric & OAuth Dock -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="14dp">
+
+                        <!-- Google Enterprise SSO Button -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/btn_google_sign_in"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="6dp"
+                            app:cardCornerRadius="16dp"
+                            app:cardBackgroundColor="@color/glass_subcard"
+                            app:strokeColor="@color/bg_dark_card_stroke"
+                            app:strokeWidth="1dp"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:gravity="center"
+                                android:padding="12dp">
+
+                                <ImageView
+                                    android:layout_width="22dp"
+                                    android:layout_height="22dp"
+                                    android:src="@drawable/ic_google_logo"
+                                    android:layout_marginBottom="4dp" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Google Cloud"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Enterprise SSO"
+                                    android:textSize="9.5sp"
+                                    android:textColor="@color/text_muted" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <!-- Biometrics Button -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            app:cardCornerRadius="16dp"
+                            app:cardBackgroundColor="@color/glass_subcard"
+                            app:strokeColor="@color/bg_dark_card_stroke"
+                            app:strokeWidth="1dp"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:gravity="center"
+                                android:padding="12dp">
+
+                                <ImageView
+                                    android:layout_width="22dp"
+                                    android:layout_height="22dp"
+                                    android:src="@drawable/ic_shield_protected"
+                                    app:tint="@color/cyber_cyan"
+                                    android:layout_marginBottom="4dp" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Touch / Face ID"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="FIDO2 Biometrics"
+                                    android:textSize="9.5sp"
+                                    android:textColor="@color/text_muted" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+
+                    <!-- Active Hardware Enclave Status Card -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/bg_glass_subcard"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="10dp">
+
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@drawable/ic_shield_protected"
+                            app:tint="@color/threat_safe"
+                            android:layout_marginEnd="8dp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Zero-Knowledge Vault"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="v4.9.2-PROD"
+                            android:textSize="9.5sp"
+                            android:textColor="@color/text_muted"
+                            android:fontFamily="monospace" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Bottom Cryptographic Assurance Badge -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="20dp">
+
+                <View
+                    android:layout_width="6dp"
+                    android:layout_height="6dp"
+                    android:background="@drawable/bg_badge_safe"
+                    android:layout_marginEnd="6dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="256-BIT LOCAL ENCLAVE ENCRYPTED"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_muted"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.08" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Isolated Vault Security Assurance Footer -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@drawable/ic_shield_protected"
-                android:layout_marginEnd="8dp"
-                app:tint="@color/risk_low" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="ISOLATED PER-USER THREAT VAULT ACTIVE"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="@color/risk_low"
-                android:letterSpacing="0.08" />
+                android:layout_marginTop="4dp"
+                android:text="Strict hardware-backed ephemeral isolation under Zero-Knowledge protocols."
+                android:textSize="10.5sp"
+                android:textColor="@color/text_muted"
+                android:gravity="center" />
         </LinearLayout>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Dedicated Cryptographic Sandbox • Zero Cross-User Leakage"
-            android:textSize="11sp"
-            android:textColor="@color/text_muted" />
-
-    </LinearLayout>
-</ScrollView>
+    </ScrollView>
+</FrameLayout>

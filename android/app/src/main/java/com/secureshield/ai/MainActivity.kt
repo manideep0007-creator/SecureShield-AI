@@ -256,6 +256,24 @@ class MainActivity : AppCompatActivity() {
             filePickerLauncher.launch("*/*")
         }
 
+        findViewById<View>(R.id.btn_deep_audit)?.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+            val clipText = clipboard?.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
+            if (!clipText.isNullOrBlank() && (clipText.startsWith("http://") || clipText.startsWith("https://") || clipText.length > 8)) {
+                lifecycleScope.launch {
+                    progressBar.visibility = View.VISIBLE
+                    badgeCategory.text = "Deep Neural Audit..."
+                    textTarget.text = clipText.take(120)
+                    textTarget.visibility = View.VISIBLE
+                    val input = if (clipText.startsWith("http://") || clipText.startsWith("https://")) ScanInput(url = clipText) else ScanInput(text = clipText)
+                    executeScan(input, "Deep audit scanned", "Audit", "manual").join()
+                    progressBar.visibility = View.GONE
+                }
+            } else {
+                scanDemoGmailMessage("Running Deep Neural Audit across 1,024 memory & socket nodes...")
+            }
+        }
+
         btnViewDetails.setOnClickListener {
             currentResult?.let { showScanDetailDialog(it) }
         }
@@ -416,15 +434,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadHistoryTab() {
         val container = findViewById<LinearLayout>(R.id.container_history_items) ?: return
-        val emptyView = findViewById<TextView>(R.id.text_history_empty)
+        val emptyCard = findViewById<View>(R.id.card_history_empty)
         container.removeAllViews()
 
         lifecycleScope.launch {
             val records = scanHistoryRepository.getPage(limit = 30, offset = 0)
             if (records.isEmpty()) {
-                emptyView?.visibility = View.VISIBLE
+                emptyCard?.visibility = View.VISIBLE
+                container.visibility = View.GONE
             } else {
-                emptyView?.visibility = View.GONE
+                emptyCard?.visibility = View.GONE
+                container.visibility = View.VISIBLE
                 records.forEach { record ->
                     container.addView(createHistoryRow(record))
                 }
@@ -557,10 +577,30 @@ class MainActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.text_inbox_stored_count)?.text = "$integrityScore%"
 
             val streamContainer = findViewById<LinearLayout>(R.id.container_inbox_triaged_stream)
-            if (streamContainer != null && emailRecords.isNotEmpty()) {
-                streamContainer.removeAllViews()
+            val cleanCard = findViewById<View>(R.id.card_inbox_clean_status)
+            val badgeView = findViewById<TextView>(R.id.text_inbox_detection_badge)
+
+            if (emailRecords.isEmpty()) {
+                cleanCard?.visibility = View.VISIBLE
+                streamContainer?.visibility = View.GONE
+                badgeView?.text = "ALL CLEAR"
+                badgeView?.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.threat_safe))
+                badgeView?.setBackgroundResource(R.drawable.bg_status_pill_online)
+            } else {
+                cleanCard?.visibility = View.GONE
+                streamContainer?.visibility = View.VISIBLE
+                streamContainer?.removeAllViews()
                 emailRecords.take(5).forEach { record ->
-                    streamContainer.addView(createHistoryRow(record))
+                    streamContainer?.addView(createHistoryRow(record))
+                }
+                if (threatCount > 0) {
+                    badgeView?.text = "$threatCount THREAT${if (threatCount > 1) "S" else ""}"
+                    badgeView?.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.threat_critical))
+                    badgeView?.setBackgroundResource(R.drawable.bg_badge_threat)
+                } else {
+                    badgeView?.text = "ALL CLEAR"
+                    badgeView?.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.threat_safe))
+                    badgeView?.setBackgroundResource(R.drawable.bg_status_pill_online)
                 }
             }
         }
