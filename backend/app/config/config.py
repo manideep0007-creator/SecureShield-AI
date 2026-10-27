@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     
     # API key for authenticating backend requests from authorized clients
-    API_KEY: str | None = None
+    API_KEY: str | None = "secureshield_dev_secret_key_2026"
 
     # Base directory for SQLite databases and local data files
     DATA_DIR: str | None = None

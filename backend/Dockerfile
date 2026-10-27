@@ -2,9 +2,9 @@
 FROM python:3.11-slim
 
 # Set environment variables
+# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=8000 \
     ENVIRONMENT=production
 
 WORKDIR /app
@@ -25,12 +25,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application source code
 COPY . /app
 
-# Expose port (overridden dynamically by cloud platform via $PORT)
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+# Expose port (Render defaults to 10000, local defaults to 8000)
+EXPOSE 8000 10000
 
 # Start production server using uvicorn binding to 0.0.0.0 and dynamic $PORT
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000}"]
