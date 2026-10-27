@@ -242,6 +242,15 @@ class ScanHistoryRepositoryTest {
     }
 
     @Test
+    fun `demo source type survives sanitization and filtering`() = runTest {
+        val fixture = fixture()
+        assertTrue(fixture.repository.saveCompletedScan(response(ID_A), "demo"))
+
+        val demoRow = fixture.repository.getPage(filter = ScanHistoryFilter(sourceType = "demo")).single()
+        assertEquals("demo", demoRow.sourceType)
+    }
+
+    @Test
     fun `v4 migration widens the source_type check and preserves existing rows`() {
         val file = File.createTempFile("history-v4-migration-", ".db")
         try {
@@ -376,7 +385,7 @@ class ScanHistoryRepositoryTest {
                 classification == null || selected.classification == classification
             }
             .filter { selected ->
-                val source = filter.sourceType?.lowercase()?.takeIf { it in setOf("url", "file", "share", "gmail", "accessibility_guard", "unknown") }
+                val source = filter.sourceType?.lowercase()?.takeIf { it in setOf("url", "file", "share", "gmail", "accessibility_guard", "demo", "unknown") }
                 source == null || selected.sourceType == source
             }
             .sortedWith(compareByDescending<ScanHistoryRecord> { it.timestampMillis }.thenByDescending { it.scanId })

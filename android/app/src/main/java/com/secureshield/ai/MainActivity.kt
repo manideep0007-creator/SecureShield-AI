@@ -144,7 +144,7 @@ class MainActivity : AppCompatActivity() {
         when (GmailOAuthOutcomeMapper.classify(account != null, statusCode, GoogleSignInStatusCodes.SIGN_IN_CANCELLED)) {
             GmailOAuthOutcome.AUTHORIZED -> processUnreadMessages(account!!)
             GmailOAuthOutcome.CANCELLED, GmailOAuthOutcome.FAILED -> {
-                scanDemoGmailMessage("Scanning inbox messages...")
+                scanDemoGmailMessage("DEMO MESSAGE - not from your inbox")
             }
         }
     }
@@ -721,8 +721,8 @@ class MainActivity : AppCompatActivity() {
             .build()
         try {
             googleSignInLauncher.launch(GoogleSignIn.getClient(this, options).signInIntent)
-        } catch (_: Exception) {
-            scanDemoGmailMessage("Scanning inbox messages...")
+        } catch (e: Exception) {
+            Toast.makeText(this, "Failed to launch Google Sign-In: ${e.localizedMessage ?: "Unknown error"}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -920,7 +920,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun scanDemoGmailMessage(statusText: String = "Scanning inbox messages...") {
+    private fun scanDemoGmailMessage(statusText: String = "DEMO MESSAGE - not from your inbox") {
         gmailScanInProgress = true
         btnScanGmail.isEnabled = false
         progressBar.visibility = View.VISIBLE
@@ -936,16 +936,17 @@ class MainActivity : AppCompatActivity() {
         )
 
         lifecycleScope.launch {
-            badgeCategory.text = "Analyzing inbox..."
+            badgeCategory.text = "Analyzing sample lure..."
 
             textTarget.text = buildString {
+                appendLine("DEMO MESSAGE - not from your inbox")
                 appendLine("From: ${demoEmail.sender}")
                 demoEmail.recipient?.let { appendLine("To: $it") }
                 demoEmail.subject?.let { appendLine("Subject: $it") }
                 append("Message: ${demoEmail.messageId}")
             }
-            executeScan(demoEmail.toScanInput(), "Gmail message scanned", "Email", "gmail").join()
-            finishGmailFlow("Inbox scan complete: 1 message analyzed.")
+            executeScan(demoEmail.toScanInput(), "DEMO MESSAGE - not from your inbox", "Demo Email", "demo").join()
+            finishGmailFlow("Demo scan complete: 1 message analyzed.")
         }
     }
 

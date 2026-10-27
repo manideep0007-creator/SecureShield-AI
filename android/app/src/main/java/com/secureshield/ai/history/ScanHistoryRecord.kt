@@ -36,7 +36,7 @@ object ScanHistorySanitizer {
     private val longTokenPattern = Regex("\\b[A-Za-z0-9_+/=-]{32,}\\b")
     private val safeKeyPattern = Regex("[^A-Za-z0-9_.()\\-]")
     private val classifications = setOf("Safe", "Suspicious", "Deceptive", "Phishing", "Malware")
-    private val sourceTypes = setOf("url", "file", "share", "gmail", "accessibility_guard", "unknown")
+    private val sourceTypes = setOf("url", "file", "share", "gmail", "accessibility_guard", "demo", "unknown")
 
     fun fromResponse(
         result: UnifiedScanResponse,

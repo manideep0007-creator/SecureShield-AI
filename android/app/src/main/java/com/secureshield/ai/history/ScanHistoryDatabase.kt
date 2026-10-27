@@ -24,7 +24,7 @@ object ScanHistorySchema {
     private const val HISTORY_COLUMNS_DDL = """
         scan_id TEXT PRIMARY KEY NOT NULL,
         timestamp_millis INTEGER NOT NULL,
-        source_type TEXT NOT NULL CHECK (source_type IN ('url','file','share','gmail','accessibility_guard','unknown')),
+        source_type TEXT NOT NULL CHECK (source_type IN ('url','file','share','gmail','accessibility_guard','demo','unknown')),
         classification TEXT NOT NULL CHECK (classification IN ('Safe','Suspicious','Deceptive','Phishing','Malware')),
         risk_score REAL NOT NULL CHECK (risk_score BETWEEN 0 AND 100),
         confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
@@ -38,19 +38,19 @@ object ScanHistorySchema {
     const val CREATE_HISTORY_TABLE = "CREATE TABLE IF NOT EXISTS $TABLE_HISTORY ($HISTORY_COLUMNS_DDL)"
 
     /**
-     * SQLite cannot widen a CHECK constraint in place, so version 4 rebuilds the table.
+     * SQLite cannot widen a CHECK constraint in place, so version 5 rebuilds the table.
      * Rows are copied verbatim; any source_type outside the new set is coerced to
      * 'unknown' so a partially written legacy row can never abort the migration.
      * Runs inside the SQLiteOpenHelper upgrade transaction, so it is atomic.
      */
-    private val MIGRATE_TO_V4_STATEMENTS = listOf(
+    private val MIGRATE_TO_V5_STATEMENTS = listOf(
         "CREATE TABLE $TABLE_HISTORY_MIGRATION ($HISTORY_COLUMNS_DDL)",
         """INSERT INTO $TABLE_HISTORY_MIGRATION (
             scan_id, timestamp_millis, source_type, classification, risk_score, confidence,
             recommended_action, reasons_json, flags_json, evidence_keys_json, feedback_state
         ) SELECT
             scan_id, timestamp_millis,
-            CASE WHEN source_type IN ('url','file','share','gmail','accessibility_guard')
+            CASE WHEN source_type IN ('url','file','share','gmail','accessibility_guard','demo')
                  THEN source_type ELSE 'unknown' END,
             classification, risk_score, confidence,
             recommended_action, reasons_json, flags_json, evidence_keys_json, feedback_state
@@ -73,8 +73,8 @@ object ScanHistorySchema {
         if (oldVersion < 3 && COLUMN_FEEDBACK_STATE !in columns) {
             add("ALTER TABLE $TABLE_HISTORY ADD COLUMN $COLUMN_FEEDBACK_STATE TEXT")
         }
-        if (oldVersion < 4) {
-            addAll(MIGRATE_TO_V4_STATEMENTS)
+        if (oldVersion < 5) {
+            addAll(MIGRATE_TO_V5_STATEMENTS)
         }
     }
 }
@@ -226,7 +226,7 @@ class ScanHistoryDatabase(
 
     private companion object {
         const val DATABASE_NAME = "secure_scan_history.db"
-        const val DATABASE_VERSION = 4
+        const val DATABASE_VERSION = 5
         const val TABLE_HISTORY = ScanHistorySchema.TABLE_HISTORY
         const val COLUMN_SCAN_ID = ScanHistorySchema.COLUMN_SCAN_ID
         const val COLUMN_TIMESTAMP = ScanHistorySchema.COLUMN_TIMESTAMP
@@ -240,7 +240,7 @@ class ScanHistoryDatabase(
         const val COLUMN_EVIDENCE_KEYS = ScanHistorySchema.COLUMN_EVIDENCE_KEYS
         const val COLUMN_FEEDBACK_STATE = ScanHistorySchema.COLUMN_FEEDBACK_STATE
         val CLASSIFICATIONS = setOf("Safe", "Suspicious", "Deceptive", "Phishing", "Malware")
-        val SOURCE_TYPES = setOf("url", "file", "share", "gmail", "accessibility_guard", "unknown")
+        val SOURCE_TYPES = setOf("url", "file", "share", "gmail", "accessibility_guard", "demo", "unknown")
         val FEEDBACK_STATES = setOf("positive", "negative")
     }
 }
