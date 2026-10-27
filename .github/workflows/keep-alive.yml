@@ -1,0 +1,25 @@
+name: 24/7 Backend Keep-Alive
+
+on:
+  schedule:
+    # Run every 10 minutes
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping-health:
+    name: Ping SecureShield Cloud Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Health Endpoint
+        run: |
+          echo "Pinging SecureShield Cloud Backend to maintain 24/7 warm state..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 https://secureshield-ai-yzn2.onrender.com/health)
+          echo "HTTP Status Code: $RESPONSE"
+          if [ "$RESPONSE" -eq 200 ]; then
+            echo "SecureShield backend is LIVE and healthy (200 OK)."
+          else
+            echo "Backend responded with status: $RESPONSE. Retrying in 10s..."
+            sleep 10
+            curl -f -s https://secureshield-ai-yzn2.onrender.com/health || true
+          fi
