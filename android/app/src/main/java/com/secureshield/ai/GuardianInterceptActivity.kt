@@ -16,7 +16,14 @@ class GuardianInterceptActivity : AppCompatActivity() {
         val score = intent?.getIntExtra("score", 88) ?: 88
         val sourceApp = intent?.getStringExtra("source_app") ?: "Active App"
 
-        findViewById<TextView>(R.id.text_hud_headline)?.text = "High-Risk Link Blocked in $sourceApp"
+        val threatLabel = when {
+            classification.contains("Malware", ignoreCase = true) -> "Malicious link"
+            classification.contains("Phishing", ignoreCase = true) -> "Phishing link"
+            classification.contains("Deceptive", ignoreCase = true) -> "Deceptive link"
+            classification.contains("Suspicious", ignoreCase = true) -> "Suspicious link"
+            else -> "Dangerous link"
+        }
+        findViewById<TextView>(R.id.text_hud_headline)?.text = "$threatLabel detected in $sourceApp"
         findViewById<TextView>(R.id.text_hud_url)?.text = targetUrl
         findViewById<TextView>(R.id.text_hud_score)?.text = score.toString()
         findViewById<TextView>(R.id.text_hud_classification)?.text = classification

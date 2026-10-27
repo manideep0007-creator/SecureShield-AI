@@ -24,11 +24,12 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         res = await engine.analyze(ScanInput(text="Just text"))
         self.assertEqual(res.status, "skipped")
 
-    async def test_url_engine_analysis(self):
+    @patch("app.engines.url_engine.check_google_safe_browsing", new_callable=AsyncMock)
+    @patch("app.engines.url_engine._get_domain_age_days", new_callable=AsyncMock)
+    async def test_url_engine_analysis(self, mock_domain_age, mock_gsb):
+        mock_gsb.return_value = {"gsb_score": 0.0, "gsb_threats": []}
+        mock_domain_age.return_value = 500
         engine = URLEngine()
-        # The check_google_safe_browsing calls real network but we don't patch it here.
-        # It's fine; it will return 0.0 or network error (PARTIAL), but risk_score won't crash.
-        # Actually it's better to test deterministic heuristic
         res = await engine.analyze(ScanInput(url="http://192.168.1.1@malbad.xyz"))
         self.assertNotEqual(res.status, "skipped")
         self.assertGreater(res.risk_score, 0)
@@ -106,7 +107,7 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertIn("SPECIAL_CHAR_COUNT", ev_keys)
         self.assertIn("BASE64_OBFUSCATION", ev_keys)
 
-    @patch("app.engines.url_engine.asyncwhois.aio_whois_domain", new_callable=AsyncMock)
+    @patch("app.engines.url_engine.asyncwhois.aio_whois", new_callable=AsyncMock)
     async def test_url_engine_domain_age_new(self, mock_whois):
         class MockWhoisResult:
             def __init__(self, created):
@@ -126,7 +127,7 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(ev)
         self.assertEqual(ev.value, 5)
 
-    @patch("app.engines.url_engine.asyncwhois.aio_whois_domain", new_callable=AsyncMock)
+    @patch("app.engines.url_engine.asyncwhois.aio_whois", new_callable=AsyncMock)
     async def test_url_engine_domain_age_old(self, mock_whois):
         class MockWhoisResult:
             def __init__(self, created):
@@ -144,7 +145,7 @@ class TestEnginesScanInput(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(ev)
         self.assertEqual(ev.value, 2000)
 
-    @patch("app.engines.url_engine.asyncwhois.aio_whois_domain", new_callable=AsyncMock)
+    @patch("app.engines.url_engine.asyncwhois.aio_whois", new_callable=AsyncMock)
     async def test_url_engine_domain_age_missing_or_error(self, mock_whois):
         class MockWhoisResult:
             def __init__(self, created):

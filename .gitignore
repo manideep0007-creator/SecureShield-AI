@@ -6,11 +6,13 @@
 # Python
 venv/
 .venv/
+**/.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
+**/.pytest_cache/
 *.egg-info/
 .coverage
 htmlcov/
@@ -18,6 +20,7 @@ htmlcov/
 # Android / Gradle
 .gradle/
 .idea/
+**/.idea/
 android/.gradle/
 android/.idea/
 android/build/

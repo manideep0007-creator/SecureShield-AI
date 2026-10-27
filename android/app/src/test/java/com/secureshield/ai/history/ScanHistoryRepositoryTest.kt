@@ -28,6 +28,20 @@ class ScanHistoryRepositoryTest {
     }
 
     @Test
+    fun `stats count total scans and threat classifications accurately`() = runTest {
+        val fixture = fixture()
+        assertEquals(ScanHistoryStats(0, 0), fixture.repository.getStats())
+
+        fixture.store.insert(record(ID_A, 100, "Safe"))
+        fixture.store.insert(record(ID_B, 200, "Phishing"))
+        fixture.store.insert(record(ID_C, 300, "Suspicious"))
+
+        val stats = fixture.repository.getStats()
+        assertEquals(3, stats.totalScans)
+        assertEquals(2, stats.threatScans)
+    }
+
+    @Test
     fun `retrieval is newest first and supports lookup by scan id`() = runTest {
         val fixture = fixture()
         fixture.store.insert(record(ID_A, 100))
@@ -228,6 +242,15 @@ class ScanHistoryRepositoryTest {
     }
 
     @Test
+    fun `demo source type survives sanitization and filtering`() = runTest {
+        val fixture = fixture()
+        assertTrue(fixture.repository.saveCompletedScan(response(ID_A), "demo"))
+
+        val demoRow = fixture.repository.getPage(filter = ScanHistoryFilter(sourceType = "demo")).single()
+        assertEquals("demo", demoRow.sourceType)
+    }
+
+    @Test
     fun `v4 migration widens the source_type check and preserves existing rows`() {
         val file = File.createTempFile("history-v4-migration-", ".db")
         try {
@@ -362,7 +385,7 @@ class ScanHistoryRepositoryTest {
                 classification == null || selected.classification == classification
             }
             .filter { selected ->
-                val source = filter.sourceType?.lowercase()?.takeIf { it in setOf("url", "file", "share", "gmail", "accessibility_guard", "unknown") }
+                val source = filter.sourceType?.lowercase()?.takeIf { it in setOf("url", "file", "share", "gmail", "accessibility_guard", "demo", "unknown") }
                 source == null || selected.sourceType == source
             }
             .sortedWith(compareByDescending<ScanHistoryRecord> { it.timestampMillis }.thenByDescending { it.scanId })
@@ -376,6 +399,12 @@ class ScanHistoryRepositoryTest {
             val record = rows[scanId] ?: return false
             rows[scanId] = record.copy(feedbackState = feedbackState)
             return true
+        }
+
+        override fun getStats(): ScanHistoryStats {
+            val total = rows.size
+            val threats = rows.values.count { it.classification in setOf("Suspicious", "Deceptive", "Phishing", "Malware") }
+            return ScanHistoryStats(total, threats)
         }
     }
 

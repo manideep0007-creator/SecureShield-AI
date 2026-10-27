@@ -3,211 +3,414 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#D9080C14"
-    android:padding="20dp">
+    android:background="#E6080C14">
 
-    <!-- Centered Cyber Alert HUD Modal -->
-    <com.google.android.material.card.MaterialCardView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+    <!-- Ambient Crimson Reactor Radial Glow Orb -->
+    <View
+        android:layout_width="320dp"
+        android:layout_height="320dp"
         android:layout_gravity="center"
-        app:cardBackgroundColor="@color/bg_dark_card"
-        app:strokeColor="@color/threat_critical"
-        app:strokeWidth="1.5dp"
-        app:cardCornerRadius="20dp"
-        app:cardElevation="16dp">
+        android:background="@drawable/bg_glow_orb_crimson" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbars="none">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="24dp">
 
-            <!-- HUD Top Intercept Pill -->
+            <!-- Tactical HUD Ambient Top Bar -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
+                android:paddingHorizontal="8dp"
                 android:layout_marginBottom="12dp">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_badge_threat"
-                    android:text="🛡️ RADAR • ACTIVE INTERCEPT"
-                    android:textSize="10sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:paddingHorizontal="10dp"
-                    android:paddingVertical="4dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0.02s LATENCY"
-                    android:textSize="10sp"
-                    android:textColor="@color/threat_safe"
-                    android:fontFamily="monospace"
-                    android:layout_marginStart="8dp" />
-            </LinearLayout>
-
-            <!-- Headline -->
-            <TextView
-                android:id="@+id/text_hud_headline"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="High-Risk Link Blocked"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_primary"
-                android:letterSpacing="0.02" />
-
-            <TextView
-                android:id="@+id/text_hud_subtitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Universal Link Guard intercepted a phishing vector before navigation was triggered."
-                android:textSize="12sp"
-                android:textColor="@color/text_secondary"
-                android:layout_marginTop="4dp"
-                android:layout_marginBottom="14dp" />
-
-            <!-- Intercepted Target URI Box -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@drawable/bg_code_preview"
-                android:padding="12dp"
-                android:layout_marginBottom="12dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="INTERCEPTED URI HOOK"
-                    android:textSize="9sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/threat_warning"
-                    android:letterSpacing="0.08"
-                    android:layout_marginBottom="4dp" />
-
-                <TextView
-                    android:id="@+id/text_hud_url"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="http://192.168.1.1@secure-login-verify.xyz/account"
-                    android:textColor="@color/cyber_cyan"
-                    android:textSize="11sp"
-                    android:fontFamily="monospace"
-                    android:lineSpacingExtra="2dp" />
-
-                <!-- Threat Tags -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:layout_marginTop="8dp">
+                    android:gravity="center_vertical">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_badge_threat"
-                        android:text="Credential Harvester"
-                        android:textSize="9sp"
-                        android:textColor="@color/text_primary"
-                        android:paddingHorizontal="6dp"
-                        android:paddingVertical="2dp"
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:src="@drawable/ic_shield_alert"
+                        app:tint="@color/threat_critical"
                         android:layout_marginEnd="6dp" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:background="@drawable/bg_badge_warning"
-                        android:text="Host Spoofing"
-                        android:textSize="9sp"
-                        android:textColor="@color/text_primary"
-                        android:paddingHorizontal="6dp"
-                        android:paddingVertical="2dp" />
+                        android:text="SENTINEL-X :: ACTIVE HALT"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/threat_critical"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.08" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <View
+                        android:layout_width="6dp"
+                        android:layout_height="6dp"
+                        android:background="@drawable/bg_badge_threat"
+                        android:layout_marginEnd="6dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.02s LATENCY"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/threat_critical" />
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Threat Verdict Card -->
+            <!-- Central Liquid Glass Interception Card Surface -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@color/bg_dark_card_elevated"
-                app:strokeColor="@color/bg_dark_card_stroke"
-                app:strokeWidth="1dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp">
+                app:cardBackgroundColor="#F2160A0F"
+                app:strokeColor="@color/threat_critical"
+                app:strokeWidth="1.5dp"
+                app:cardCornerRadius="28dp"
+                app:cardElevation="24dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:padding="12dp">
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:padding="20dp">
 
-                    <TextView
-                        android:id="@+id/text_hud_score"
+                    <!-- Specular Highlight Strip -->
+                    <View
+                        android:layout_width="48dp"
+                        android:layout_height="4dp"
+                        android:background="@drawable/bg_glass_telemetry_pill"
+                        android:alpha="0.7"
+                        android:layout_marginBottom="14dp" />
+
+                    <!-- Threat Crest with Concentric Shockwave Rings -->
+                    <FrameLayout
+                        android:layout_width="88dp"
+                        android:layout_height="88dp"
+                        android:layout_marginBottom="12dp">
+
+                        <View
+                            android:layout_width="88dp"
+                            android:layout_height="88dp"
+                            android:background="@drawable/bg_shield_glow_threat"
+                            android:alpha="0.4" />
+
+                        <FrameLayout
+                            android:layout_width="64dp"
+                            android:layout_height="64dp"
+                            android:layout_gravity="center"
+                            android:background="@drawable/bg_auth_tab_container">
+
+                            <ImageView
+                                android:layout_width="38dp"
+                                android:layout_height="38dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_shield_alert"
+                                app:tint="@color/threat_critical" />
+                        </FrameLayout>
+                    </FrameLayout>
+
+                    <!-- Critical Status Pill -->
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="88"
-                        android:textSize="22sp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/bg_badge_threat"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="4dp"
+                        android:layout_marginBottom="10dp">
+
+                        <View
+                            android:layout_width="6dp"
+                            android:layout_height="6dp"
+                            android:background="@drawable/bg_badge_threat"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="CRITICAL INTERCEPT • ZERO-DAY BLOCKED"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/threat_critical"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.06" />
+                    </LinearLayout>
+
+                    <!-- Alert Headline & Subtitle -->
+                    <TextView
+                        android:id="@+id/text_hud_headline"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="THREAT INTERCEPTED"
+                        android:textSize="20sp"
                         android:textStyle="bold"
                         android:textColor="@color/threat_critical"
-                        android:fontFamily="monospace"
-                        android:layout_marginEnd="12dp" />
+                        android:gravity="center"
+                        android:letterSpacing="0.04" />
 
-                    <LinearLayout
-                        android:layout_width="0dp"
+                    <TextView
+                        android:id="@+id/text_hud_subtitle"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                        android:text="Zero-Day Credential Harvester Neutralized"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"
+                        android:gravity="center"
+                        android:layout_marginTop="3dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="SecureShield AI hardware-enclave barrier prevented runtime keystroke exfiltration and token dump."
+                        android:textSize="11.5sp"
+                        android:textColor="@color/text_secondary"
+                        android:gravity="center"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="14dp" />
+
+                    <!-- Intercepted URL Forensic Inspection Box -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_code_preview"
+                        android:padding="12dp"
+                        android:layout_marginBottom="12dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="6dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="INTERCEPTED REQUEST VECTOR"
+                                android:textSize="9.5sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_muted"
+                                android:letterSpacing="0.08" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_badge_warning"
+                                android:text="TLS SPOOFED"
+                                android:textSize="9sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/threat_warning"
+                                android:paddingHorizontal="6dp"
+                                android:paddingVertical="2dp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/text_hud_url"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="https://paypa1-security-verify.com/login/auth-session"
+                            android:textSize="11.5sp"
+                            android:textColor="@color/cyber_cyan"
+                            android:fontFamily="monospace"
+                            android:lineSpacingExtra="2dp"
+                            android:background="#26080C14"
+                            android:padding="8dp" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="CRITICAL THREAT"
-                            android:textSize="12sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/threat_critical" />
-
-                        <TextView
-                            android:id="@+id/text_hud_classification"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Phishing &amp; Credential Theft"
-                            android:textSize="11sp"
-                            android:textColor="@color/text_secondary" />
+                            android:text="⚠️ HOMOGRAPH ATTACK (ASCII 0x31 '1' mimics latin 'l')"
+                            android:textSize="10sp"
+                            android:textColor="@color/threat_critical"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="6dp" />
                     </LinearLayout>
+
+                    <!-- Forensic Telemetry Pods (Row of 3) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
+
+                        <!-- Pod 1: Engine -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:background="@drawable/bg_glass_subcard"
+                            android:padding="10dp"
+                            android:layout_marginEnd="6dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="ENGINE"
+                                android:textSize="9sp"
+                                android:textColor="@color/text_muted"
+                                android:fontFamily="monospace" />
+
+                            <TextView
+                                android:id="@+id/text_hud_classification"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Heuristic AI"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/cyber_cyan"
+                                android:layout_marginTop="4dp" />
+                        </LinearLayout>
+
+                        <!-- Pod 2: Risk Score -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:background="@drawable/bg_glass_subcard"
+                            android:padding="10dp"
+                            android:layout_marginEnd="6dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="RISK SCORE"
+                                android:textSize="9sp"
+                                android:textColor="@color/text_muted"
+                                android:fontFamily="monospace" />
+
+                            <TextView
+                                android:id="@+id/text_hud_score"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="88/100"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/threat_critical"
+                                android:layout_marginTop="4dp" />
+                        </LinearLayout>
+
+                        <!-- Pod 3: Reputation -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:background="@drawable/bg_glass_subcard"
+                            android:padding="10dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="REPUTATION"
+                                android:textSize="9sp"
+                                android:textColor="@color/text_muted"
+                                android:fontFamily="monospace" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Blacklisted"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/threat_critical"
+                                android:layout_marginTop="4dp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Runtime Memory Inspection Note -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:background="@drawable/bg_badge_threat"
+                        android:padding="10dp"
+                        android:layout_marginBottom="16dp">
+
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@drawable/ic_shield_alert"
+                            app:tint="@color/threat_critical"
+                            android:layout_marginEnd="8dp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Zero-Day in-memory hook attempted hijacking active system clipboard tokens. Session terminated inside isolated hypervisor sandbox #KVM-08."
+                            android:textSize="11sp"
+                            android:textColor="@color/text_primary"
+                            android:lineSpacingExtra="1dp" />
+                    </LinearLayout>
+
+                    <!-- Emergency Action Buttons -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_hud_keep_safe"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:text="DISCARD &amp; CLOSE SESSION"
+                        android:textStyle="bold"
+                        android:textSize="13sp"
+                        android:textColor="#FFFFFF"
+                        app:backgroundTint="@color/threat_critical"
+                        app:cornerRadius="16dp"
+                        app:icon="@drawable/ic_shield_protected"
+                        app:iconGravity="textStart"
+                        android:letterSpacing="0.04"
+                        android:layout_marginBottom="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_hud_ignore"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="PROCEED WITH MALICIOUS HOST (UNSAFE)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp"
+                        android:letterSpacing="0.04" />
+
+                    <!-- Enclave Local Ledger Footer -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🔒 SECURE ENCLAVE HARDWARE INTERCEPT • ENCRYPTED LOG #8841F9"
+                        android:textSize="9sp"
+                        android:textColor="@color/text_muted"
+                        android:fontFamily="monospace"
+                        android:layout_marginTop="8dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
-            <!-- Dual Action Buttons -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_hud_keep_safe"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:text="🛡️ Keep Me Safe (Block &amp; Return)"
-                android:textColor="@color/text_primary"
-                android:textStyle="bold"
-                android:textSize="13sp"
-                app:backgroundTint="@color/threat_critical"
-                app:cornerRadius="25dp"
-                android:layout_marginBottom="8dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_hud_ignore"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="⚠️ Ignore &amp; Proceed Anyway (Unsafe)"
-                android:textColor="@color/text_muted"
-                android:textSize="12sp" />
         </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
+    </ScrollView>
 </FrameLayout>

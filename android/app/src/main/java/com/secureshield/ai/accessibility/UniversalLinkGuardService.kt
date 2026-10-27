@@ -1,6 +1,7 @@
 package com.secureshield.ai.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -18,6 +19,7 @@ import com.secureshield.ai.network.ApiClient
 import com.secureshield.ai.network.ClientIdProvider
 import com.secureshield.ai.network.ServerSettings
 import com.secureshield.ai.network.ScanInput
+import com.secureshield.ai.engine.OnDeviceHeuristicEngine
 import com.secureshield.ai.network.UnifiedScanResponse
 import com.secureshield.ai.network.UnifiedScanResponseParser
 import kotlinx.coroutines.CancellationException
@@ -128,6 +130,14 @@ class UniversalLinkGuardService : AccessibilityService() {
                             "detector" to "SecureShieldGuardianService"
                         )
                     )
+
+                    // Zero-delay pre-flight check: evaluate on-device immediately (<2ms)
+                    val instantVerdict = OnDeviceHeuristicEngine.scan(input)
+                    if (THREAT_CATEGORIES.any { it.equals(instantVerdict.classification, ignoreCase = true) }) {
+                        android.util.Log.w("GuardianService", "⚡ INSTANT THREAT on-screen: ${instantVerdict.classification} for $url. Firing ASAP alert!")
+                        sendThreatNotification(instantVerdict, sourcePackage, targetDisplay = url)
+                    }
+
                     val success = try {
                         scanAndReport(input, sourcePackage, targetDisplay = url)
                     } catch (e: Exception) {
@@ -177,6 +187,14 @@ class UniversalLinkGuardService : AccessibilityService() {
                             "detector" to "SecureShieldGuardianService"
                         )
                     )
+
+                    // Zero-delay pre-flight check: evaluate on-device immediately (<2ms)
+                    val instantVerdict = OnDeviceHeuristicEngine.scan(input)
+                    if (THREAT_CATEGORIES.any { it.equals(instantVerdict.classification, ignoreCase = true) }) {
+                        android.util.Log.w("GuardianService", "⚡ INSTANT TEXT THREAT on-screen: ${instantVerdict.classification}. Firing ASAP alert!")
+                        sendThreatNotification(instantVerdict, sourcePackage, targetDisplay = sanitizedSnippet)
+                    }
+
                     val success = try {
                         scanAndReport(input, sourcePackage, targetDisplay = sanitizedSnippet)
                     } catch (e: Exception) {
@@ -267,6 +285,26 @@ class UniversalLinkGuardService : AccessibilityService() {
         }
     }
 
+    private suspend fun persistAndNotifyVerdict(
+        scanResult: UnifiedScanResponse,
+        sourcePackage: String,
+        targetDisplay: String
+    ) {
+        try {
+            val repo = ScanHistoryRepository(applicationContext)
+            repo.saveCompletedScan(scanResult, "accessibility_guard")
+            repo.close()
+            sendBroadcast(Intent("com.secureshield.ai.ACTION_TELEMETRY_UPDATED").setPackage(packageName))
+        } catch (e: Exception) {
+            android.util.Log.e("GuardianService", "Failed to save scan history: ${e.message}")
+        }
+        try {
+            handleScanVerdict(scanResult, sourcePackage, targetDisplay)
+        } catch (e: Exception) {
+            android.util.Log.e("GuardianService", "Failed to handle scan verdict: ${e.message}")
+        }
+    }
+
     private suspend fun executeSingleScan(
         api: com.secureshield.ai.network.SecureShieldApi,
         scanInput: ScanInput,
@@ -282,18 +320,7 @@ class UniversalLinkGuardService : AccessibilityService() {
                 } else {
                     try {
                         val scanResult = UnifiedScanResponseParser.parse(body)
-                        try {
-                            val repo = ScanHistoryRepository(applicationContext)
-                            repo.saveCompletedScan(scanResult, "accessibility_guard")
-                            repo.close()
-                        } catch (e: Exception) {
-                            android.util.Log.e("GuardianService", "Failed to save scan history: ${e.message}")
-                        }
-                        try {
-                            handleScanVerdict(scanResult, sourcePackage, targetDisplay)
-                        } catch (e: Exception) {
-                            android.util.Log.e("GuardianService", "Failed to handle scan verdict: ${e.message}")
-                        }
+                        persistAndNotifyVerdict(scanResult, sourcePackage, targetDisplay)
                         ScanAttemptOutcome.Success
                     } catch (e: Exception) {
                         ScanAttemptOutcome.NonRetryableFailure("Malformed scan response: ${e.message}")
@@ -303,10 +330,8 @@ class UniversalLinkGuardService : AccessibilityService() {
                 val code = response.code()
                 if (code in 400..499) {
                     ScanAttemptOutcome.NonRetryableFailure("HTTP $code")
-                } else if (code >= 500) {
-                    ScanAttemptOutcome.RetryableFailure("HTTP $code")
                 } else {
-                    ScanAttemptOutcome.NonRetryableFailure("HTTP $code")
+                    ScanAttemptOutcome.RetryableFailure("HTTP $code")
                 }
             }
         } catch (e: Exception) {
@@ -386,7 +411,13 @@ class UniversalLinkGuardService : AccessibilityService() {
             .setContentText(alertSummary)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigMessage))
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setVibrate(longArrayOf(0, 250, 150, 250))
+            .setFullScreenIntent(pendingIntent, true)
+            .setOnlyAlertOnce(false)
             .setAutoCancel(true)
 
         try {
@@ -404,7 +435,12 @@ class UniversalLinkGuardService : AccessibilityService() {
                 "SecureShield Alerts",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "High-priority alerts for detected security threats"
+                description = "High-priority instant alerts for detected security threats"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 250, 150, 250)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(true)
+                setBypassDnd(true)
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)

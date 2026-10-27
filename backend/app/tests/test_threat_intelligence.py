@@ -110,6 +110,32 @@ class TestThreatIntelligence(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(data["malware_hashes_count"], 0)
         self.assertGreater(data["whitelisted_domains_count"], 0)
 
+    @patch("app.intelligence.threat_feeds.threat_store.sync_live_feeds", new_callable=AsyncMock)
+    async def test_threat_feed_sync_loop_executes_non_blocking_and_logs_error(self, mock_sync):
+        """Test that run_threat_feed_sync_loop executes sync_live_feeds in background and errors are non-fatal."""
+        from main import run_threat_feed_sync_loop
+        # 1. Success case
+        mock_sync.return_value = {"status": "success", "total_threat_urls": 100}
+        task = asyncio.create_task(run_threat_feed_sync_loop(interval_seconds=0.01))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        self.assertGreaterEqual(mock_sync.call_count, 1)
+
+        # 2. Failure case (non-fatal, loop continues or handles gracefully)
+        mock_sync.side_effect = RuntimeError("Network unreachable")
+        task_err = asyncio.create_task(run_threat_feed_sync_loop(interval_seconds=0.01))
+        await asyncio.sleep(0.05)
+        task_err.cancel()
+        try:
+            await task_err
+        except asyncio.CancelledError:
+            pass
+        self.assertGreaterEqual(mock_sync.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

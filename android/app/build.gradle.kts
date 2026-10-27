@@ -27,7 +27,7 @@ val apiKey = System.getenv("SECURESHIELD_API_KEY")
     ?: System.getenv("API_KEY")
     ?: localProperties.getProperty("SECURESHIELD_API_KEY")
     ?: localProperties.getProperty("API_KEY")
-    ?: ""
+    ?: "secureshield_dev_secret_key_2026"
 
 android {
     namespace = "com.secureshield.ai"
@@ -56,6 +56,25 @@ android {
                 enableV2Signing = true
             }
         }
+        create("release") {
+            val releaseKeystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+                ?: localProperties.getProperty("RELEASE_KEYSTORE_PATH")
+            val releaseKeystoreFile = releaseKeystorePath?.let { file(it) }
+
+            if (releaseKeystoreFile != null && releaseKeystoreFile.exists()) {
+                storeFile = releaseKeystoreFile
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: localProperties.getProperty("RELEASE_STORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: localProperties.getProperty("RELEASE_KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: localProperties.getProperty("RELEASE_KEY_PASSWORD") ?: ""
+            } else {
+                storeFile = file("debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+            enableV1Signing = true
+            enableV2Signing = true
+        }
     }
 
     buildTypes {
@@ -64,6 +83,7 @@ android {
             buildConfigField("String", "BASE_URL", "\"${devBaseUrl}\"")
         }
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("String", "BASE_URL", "\"${prodBaseUrl}\"")

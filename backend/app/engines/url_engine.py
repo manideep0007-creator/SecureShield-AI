@@ -203,7 +203,7 @@ def lexical_heuristics(url: str) -> dict:
 async def check_google_safe_browsing(url: str) -> dict:
     """Call the Google Safe Browsing API."""
     api_key = settings.GOOGLE_SAFE_BROWSING_API_KEY
-    if not api_key:
+    if not api_key or api_key.strip() in ("", "dummy") or "your_" in api_key.lower():
         return {"gsb_score": 0.0, "error": "GSB_API_KEY_NOT_CONFIGURED"}
         
     endpoint = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={api_key}"

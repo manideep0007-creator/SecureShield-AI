@@ -36,14 +36,15 @@ object ScanHistorySanitizer {
     private val longTokenPattern = Regex("\\b[A-Za-z0-9_+/=-]{32,}\\b")
     private val safeKeyPattern = Regex("[^A-Za-z0-9_.()\\-]")
     private val classifications = setOf("Safe", "Suspicious", "Deceptive", "Phishing", "Malware")
-    private val sourceTypes = setOf("url", "file", "share", "gmail", "accessibility_guard", "unknown")
+    private val sourceTypes = setOf("url", "file", "share", "gmail", "accessibility_guard", "demo", "unknown")
 
     fun fromResponse(
         result: UnifiedScanResponse,
         sourceType: String,
         timestampMillis: Long = System.currentTimeMillis()
     ): ScanHistoryRecord? {
-        if (!runCatching { UUID.fromString(result.scan_id) }.isSuccess) return null
+        val idCore = result.scan_id.removePrefix("local-").removePrefix("demo-")
+        if (!runCatching { UUID.fromString(idCore) }.isSuccess) return null
         if (result.classification !in classifications) return null
         if (!result.risk_score.isFinite() || result.risk_score !in 0f..100f) return null
         val confidence = result.risk_assessment.confidence

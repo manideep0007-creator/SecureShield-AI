@@ -100,6 +100,12 @@ The backend operates with strict data boundaries:
 | **Files & Attachments** | Yes | **No** | Inspected in memory up to 10 MB limit; byte payloads are never stored. |
 | **Sender Metadata** | Yes | **Yes** (`sender_behavior.db`) | Scoped to `(client_id, sender_id)` and `(client_id, display_name)`. Stores interaction counts, timestamps, hourly buckets, and domain history for anomaly detection. |
 | **User Feedback** | Yes | **Yes** (`feedback.db`) | Stores `scan_id`, feedback rating (`positive`/`negative`), classification, risk score, confidence, and source type for telemetry. |
+| **Threat Intelligence Feeds** | Yes | **Yes** (`threat_feeds.db`) | Local SQLite cache of synchronized open threat feeds (Abuse.ch URLhaus, MalwareBazaar, OpenPhish) updated every 6 hours. |
+
+### Persistent Storage Configuration (`DATA_DIR`)
+All persistent SQLite databases are stored in the directory specified by the **`DATA_DIR`** environment variable (defaults to `backend/data/` if not set):
+- **`DATA_DIR`**: Path to the storage directory for SQLite databases (`sender_behavior.db`, `feedback.db`, `threat_feeds.db`).
+- In cloud deployments (e.g. Railway, Render, Docker), mount a persistent volume to `DATA_DIR` so that threat feed sync data, reputation records, and telemetry survive container restarts and redeployments.
 
 ---
 
@@ -154,6 +160,7 @@ The backend operates with strict data boundaries:
    GOOGLE_SAFE_BROWSING_API_KEY=your_key_here  # Optional (graceful fallback)
    VIRUSTOTAL_API_KEY=your_key_here            # Optional (graceful fallback)
    ENVIRONMENT=development
+   DATA_DIR=data                               # Persistent storage directory for SQLite databases (mount volume here)
    ```
 6. **Start the backend server**:
    ```bash
