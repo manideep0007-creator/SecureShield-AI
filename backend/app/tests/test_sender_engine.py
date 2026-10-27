@@ -2,23 +2,30 @@ import pytest
 import os
 import time
 import sqlite3
-from app.engines.sender_engine import SenderEngine, init_db, DB_PATH
+from app.engines.sender_engine import SenderEngine, init_db, get_sender_db_path
 from app.models.scan_input import ScanInput
+
+DB_PATH = get_sender_db_path()
 
 @pytest.fixture(autouse=True)
 def setup_db():
-    if os.path.exists(DB_PATH):
-        try:
-            os.remove(DB_PATH)
-        except OSError:
-            pass
-    init_db()
+    active_path = get_sender_db_path()
+    init_db(active_path)
+    try:
+        with sqlite3.connect(active_path) as conn:
+            conn.execute("DELETE FROM senders")
+            conn.execute("DELETE FROM sender_name_history")
+            conn.commit()
+    except Exception:
+        pass
     yield
-    if os.path.exists(DB_PATH):
-        try:
-            os.remove(DB_PATH)
-        except OSError:
-            pass
+    try:
+        with sqlite3.connect(active_path) as conn:
+            conn.execute("DELETE FROM senders")
+            conn.execute("DELETE FROM sender_name_history")
+            conn.commit()
+    except Exception:
+        pass
 
 @pytest.mark.asyncio
 async def test_sender_skipped_when_no_sender_id():

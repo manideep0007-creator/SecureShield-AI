@@ -7,6 +7,7 @@
     android:background="@color/bg_dark">
 
     <LinearLayout
+        android:id="@+id/layout_main_dashboard"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical">
@@ -30,11 +31,11 @@
                 android:gravity="center_vertical">
 
                 <ImageView
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:src="@drawable/ic_shield_protected"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:src="@drawable/img_secureshield_logo"
                     android:layout_marginEnd="10dp"
-                    app:tint="@color/cyber_cyan" />
+                    android:contentDescription="SecureShield Logo" />
 
                 <LinearLayout
                     android:layout_width="wrap_content"
@@ -748,7 +749,7 @@
                 </LinearLayout>
             </ScrollView>
 
-            <!-- TAB: INBOX PROTECTION TAB (GMAIL SENTINEL) -->
+            <!-- TAB: INBOX PROTECTION TAB (GMAIL SENTINEL - MINIMAL STITCH DESIGN) -->
             <ScrollView
                 android:id="@+id/layout_inbox_tab"
                 android:layout_width="match_parent"
@@ -761,15 +762,34 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:paddingHorizontal="16dp"
-                    android:paddingBottom="24dp">
+                    android:paddingTop="12dp"
+                    android:paddingBottom="28dp">
 
-                    <!-- Inbox Header with OAuth Status -->
+                    <!-- Status Strip: Clean Minimal Header -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:paddingVertical="12dp">
+                        android:layout_marginBottom="14dp">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:layout_marginEnd="12dp">
+
+                            <View
+                                android:layout_width="38dp"
+                                android:layout_height="38dp"
+                                android:background="@drawable/bg_auth_tab_selected"
+                                android:alpha="0.7" />
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_email_cyber" />
+                        </FrameLayout>
 
                         <LinearLayout
                             android:layout_width="0dp"
@@ -777,44 +797,59 @@
                             android:layout_weight="1"
                             android:orientation="vertical">
 
-                            <TextView
+                            <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Inbox Sentinel"
-                                android:textSize="18sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/text_primary" />
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Inbox Sentinel"
+                                    android:textSize="18sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="8dp"
+                                    android:background="@drawable/bg_status_pill_active"
+                                    android:text="● LIVE"
+                                    android:textSize="9.5sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/threat_safe"
+                                    android:paddingHorizontal="8dp"
+                                    android:paddingVertical="2dp" />
+                            </LinearLayout>
 
                             <TextView
-                                android:id="@+id/text_inbox_account"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Zero-Knowledge In-Memory Audit"
-                                android:textSize="11sp"
-                                android:textColor="@color/text_muted" />
+                                android:text="Real-time neural inbox protection"
+                                android:textSize="11.5sp"
+                                android:textColor="@color/text_secondary" />
                         </LinearLayout>
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:background="@drawable/bg_status_pill_active"
-                            android:text="OAUTH 2.0 • IN-MEMORY"
-                            android:textSize="9sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/threat_safe"
-                            android:paddingHorizontal="8dp"
-                            android:paddingVertical="3dp" />
+                        <ImageView
+                            android:layout_width="34dp"
+                            android:layout_height="34dp"
+                            android:padding="7dp"
+                            android:background="@drawable/bg_auth_tab_container"
+                            android:src="@drawable/ic_shield_protected"
+                            app:tint="@color/cyber_cyan" />
                     </LinearLayout>
 
-                    <!-- WorkManager Active Tactical Loop Card -->
+                    <!-- Connected Account Hero Card -->
                     <com.google.android.material.card.MaterialCardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        app:cardBackgroundColor="@color/bg_dark_card"
-                        app:strokeColor="@color/bg_dark_card_stroke"
+                        android:layout_marginBottom="14dp"
+                        app:cardBackgroundColor="#0F172A"
+                        app:strokeColor="#1E2D48"
                         app:strokeWidth="1dp"
-                        app:cardCornerRadius="16dp"
+                        app:cardCornerRadius="18dp"
                         app:cardElevation="0dp">
 
                         <LinearLayout
@@ -823,12 +858,74 @@
                             android:orientation="vertical"
                             android:padding="16dp">
 
+                            <!-- Account Header Row -->
                             <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal"
                                 android:gravity="center_vertical"
-                                android:layout_marginBottom="6dp">
+                                android:layout_marginBottom="14dp">
+
+                                <FrameLayout
+                                    android:layout_width="42dp"
+                                    android:layout_height="42dp"
+                                    android:background="@drawable/bg_auth_tab_container"
+                                    android:layout_marginEnd="12dp">
+
+                                    <ImageView
+                                        android:layout_width="22dp"
+                                        android:layout_height="22dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_google_logo" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:id="@+id/text_inbox_account"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="user@gmail.com"
+                                        android:textSize="15sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/text_primary"
+                                        android:singleLine="true" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="SECURED VIA OAUTH 2.0"
+                                        android:textSize="10sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/threat_safe"
+                                        android:letterSpacing="0.06" />
+                                </LinearLayout>
+
+                                <!-- Shield Active Badge -->
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_status_pill_active"
+                                    android:text="● SHIELD ON"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/threat_safe"
+                                    android:paddingHorizontal="10dp"
+                                    android:paddingVertical="4dp" />
+                            </LinearLayout>
+
+                            <!-- Modern Clean Toggle Sub-Card -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="#141C2B"
+                                android:padding="12dp">
 
                                 <LinearLayout
                                     android:layout_width="0dp"
@@ -839,18 +936,17 @@
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="15-Min WorkManager Sentinel"
-                                        android:textSize="14sp"
+                                        android:text="Real-Time Inbox Guard"
+                                        android:textSize="13.5sp"
                                         android:textStyle="bold"
                                         android:textColor="@color/text_primary" />
 
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Active Tactical Background Loop"
-                                        android:textSize="10sp"
-                                        android:textColor="@color/threat_safe"
-                                        android:fontFamily="monospace" />
+                                        android:text="Auto-inspects links &amp; attachments for phishing"
+                                        android:textSize="11sp"
+                                        android:textColor="@color/text_secondary" />
                                 </LinearLayout>
 
                                 <androidx.appcompat.widget.SwitchCompat
@@ -858,159 +954,428 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content" />
                             </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- 3 Minimalist Metric Counters Grid -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="18dp">
+
+                        <!-- Stat 1: Audited -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:background="@drawable/bg_inbox_stat_card"
+                            android:paddingVertical="12dp"
+                            android:layout_marginEnd="6dp">
 
                             <TextView
-                                android:layout_width="match_parent"
+                                android:id="@+id/text_inbox_audited_count"
+                                android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Scans unread messages in memory without downloading attachments or writing message bodies to disk."
-                                android:textSize="11sp"
+                                android:text="42"
+                                android:textSize="19sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="AUDITED"
+                                android:textSize="10sp"
+                                android:textStyle="bold"
                                 android:textColor="@color/text_secondary"
-                                android:layout_marginBottom="12dp" />
+                                android:letterSpacing="0.06"
+                                android:layout_marginTop="2dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Past 24h"
+                                android:textSize="9.5sp"
+                                android:textColor="@color/text_muted" />
+                        </LinearLayout>
+
+                        <!-- Stat 2: Threats -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:background="@drawable/bg_inbox_stat_card"
+                            android:paddingVertical="12dp"
+                            android:layout_marginEnd="6dp">
+
+                            <TextView
+                                android:id="@+id/text_inbox_threats_count"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textSize="19sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/threat_safe" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="THREATS"
+                                android:textSize="10sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/threat_safe"
+                                android:letterSpacing="0.06"
+                                android:layout_marginTop="2dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Clean Buffer"
+                                android:textSize="9.5sp"
+                                android:textColor="@color/threat_safe"
+                                android:alpha="0.8" />
+                        </LinearLayout>
+
+                        <!-- Stat 3: Integrity -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:background="@drawable/bg_inbox_stat_card"
+                            android:paddingVertical="12dp">
+
+                            <TextView
+                                android:id="@+id/text_inbox_stored_count"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="100%"
+                                android:textSize="19sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/cyber_cyan" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="INTEGRITY"
+                                android:textSize="10sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_secondary"
+                                android:letterSpacing="0.06"
+                                android:layout_marginTop="2dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Zero Breaches"
+                                android:textSize="9.5sp"
+                                android:textColor="@color/text_muted" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Recent Email Audits Section Header -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Recent Email Audits"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_auth_tab_selected"
+                            android:text="TODAY"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/cyber_cyan"
+                            android:paddingHorizontal="7dp"
+                            android:paddingVertical="2dp" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1" />
+
+                        <TextView
+                            android:id="@+id/btn_inbox_view_all"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="View All →"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/cyber_cyan"
+                            android:clickable="true"
+                            android:focusable="true" />
+                    </LinearLayout>
+
+                    <!-- Triaged Stream Container (Clean Cards) -->
+                    <LinearLayout
+                        android:id="@+id/container_inbox_triaged_stream"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <!-- Minimal Threat Card (Clean, NO Wall of Monospace Text!) -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/card_inbox_demo_threat"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="10dp"
+                            app:cardBackgroundColor="#0F172A"
+                            app:strokeColor="#1E2D48"
+                            app:strokeWidth="1dp"
+                            app:cardCornerRadius="16dp"
+                            app:cardElevation="0dp">
 
                             <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal">
 
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:background="@drawable/bg_telemetry_pill"
-                                    android:padding="6dp"
-                                    android:gravity="center"
-                                    android:text="28 AUDITED"
-                                    android:textSize="10sp"
-                                    android:textColor="@color/text_secondary"
-                                    android:fontFamily="monospace"
-                                    android:layout_marginEnd="6dp" />
+                                <!-- Visual Danger Left Stripe -->
+                                <View
+                                    android:layout_width="4dp"
+                                    android:layout_height="match_parent"
+                                    android:background="@color/threat_critical" />
 
-                                <TextView
-                                    android:layout_width="0dp"
+                                <LinearLayout
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:background="@drawable/bg_telemetry_pill"
-                                    android:padding="6dp"
-                                    android:gravity="center"
-                                    android:text="1 THREAT"
-                                    android:textSize="10sp"
-                                    android:textColor="@color/threat_critical"
-                                    android:fontFamily="monospace"
-                                    android:layout_marginEnd="6dp" />
+                                    android:orientation="vertical"
+                                    android:padding="14dp">
 
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:background="@drawable/bg_telemetry_pill"
-                                    android:padding="6dp"
-                                    android:gravity="center"
-                                    android:text="0 STORED"
-                                    android:textSize="10sp"
-                                    android:textColor="@color/threat_safe"
-                                    android:fontFamily="monospace" />
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="4dp">
+
+                                        <ImageView
+                                            android:layout_width="16dp"
+                                            android:layout_height="16dp"
+                                            android:src="@drawable/ic_shield_alert"
+                                            android:layout_marginEnd="6dp"
+                                            app:tint="@color/threat_critical" />
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="PayPal Security"
+                                            android:textSize="13sp"
+                                            android:textStyle="bold"
+                                            android:textColor="@color/text_primary" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="12m ago"
+                                            android:textSize="10.5sp"
+                                            android:textColor="@color/text_muted" />
+                                    </LinearLayout>
+
+                                    <TextView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="security-alert@fakebank.xyz"
+                                        android:textSize="11sp"
+                                        android:textColor="@color/threat_critical"
+                                        android:layout_marginBottom="6dp" />
+
+                                    <TextView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Suspicious sign-in attempt detected from IP 185.220.101.4"
+                                        android:textSize="13sp"
+                                        android:textColor="@color/text_primary"
+                                        android:layout_marginBottom="12dp" />
+
+                                    <!-- Bottom Action & Badge -->
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical">
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:background="@drawable/bg_badge_threat"
+                                            android:text="PHISHING BLOCKED"
+                                            android:textSize="9.5sp"
+                                            android:textStyle="bold"
+                                            android:textColor="@color/text_primary"
+                                            android:paddingHorizontal="8dp"
+                                            android:paddingVertical="3dp" />
+
+                                        <View
+                                            android:layout_width="0dp"
+                                            android:layout_height="1dp"
+                                            android:layout_weight="1" />
+
+                                        <TextView
+                                            android:id="@+id/btn_inbox_card_scan_demo"
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="Inspect Threat →"
+                                            android:textSize="11.5sp"
+                                            android:textStyle="bold"
+                                            android:textColor="@color/cyber_cyan"
+                                            android:clickable="true"
+                                            android:focusable="true" />
+                                    </LinearLayout>
+                                </LinearLayout>
                             </LinearLayout>
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
+                        </com.google.android.material.card.MaterialCardView>
 
-                    <!-- Triaged Stream Section Header -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="TRIAGED STREAM • RECENT AUDITS"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_muted"
-                        android:letterSpacing="0.08"
-                        android:layout_marginBottom="10dp" />
-
-                    <!-- Email Threat Card 1 (Sample / Active Feed) -->
-                    <com.google.android.material.card.MaterialCardView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="10dp"
-                        app:cardBackgroundColor="@color/bg_dark_card"
-                        app:strokeColor="@color/threat_critical"
-                        app:strokeWidth="1dp"
-                        app:cardCornerRadius="16dp"
-                        app:cardElevation="0dp">
-
-                        <LinearLayout
+                        <!-- Safe Clean Card Example -->
+                        <com.google.android.material.card.MaterialCardView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="14dp">
+                            android:layout_marginBottom="10dp"
+                            app:cardBackgroundColor="#0F172A"
+                            app:strokeColor="#1E2D48"
+                            app:strokeWidth="1dp"
+                            app:cardCornerRadius="16dp"
+                            app:cardElevation="0dp">
 
                             <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:layout_marginBottom="4dp">
+                                android:orientation="horizontal">
 
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="service@account-security-notice.cc"
-                                    android:textSize="11sp"
-                                    android:textColor="@color/text_muted"
-                                    android:fontFamily="monospace" />
+                                <!-- Visual Safe Left Stripe -->
+                                <View
+                                    android:layout_width="4dp"
+                                    android:layout_height="match_parent"
+                                    android:background="@color/threat_safe" />
 
-                                <TextView
-                                    android:layout_width="wrap_content"
+                                <LinearLayout
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:background="@drawable/bg_badge_threat"
-                                    android:text="PHISHING (88/100)"
-                                    android:textSize="9sp"
-                                    android:textStyle="bold"
-                                    android:textColor="@color/text_primary"
-                                    android:paddingHorizontal="6dp"
-                                    android:paddingVertical="2dp" />
+                                    android:orientation="vertical"
+                                    android:padding="14dp">
+
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="4dp">
+
+                                        <ImageView
+                                            android:layout_width="16dp"
+                                            android:layout_height="16dp"
+                                            android:src="@drawable/ic_shield_protected"
+                                            android:layout_marginEnd="6dp"
+                                            app:tint="@color/threat_safe" />
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="Google Cloud Billing"
+                                            android:textSize="13sp"
+                                            android:textStyle="bold"
+                                            android:textColor="@color/text_primary" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="2h ago"
+                                            android:textSize="10.5sp"
+                                            android:textColor="@color/text_muted" />
+                                    </LinearLayout>
+
+                                    <TextView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="billing-noreply@google.com"
+                                        android:textSize="11sp"
+                                        android:textColor="@color/text_muted"
+                                        android:layout_marginBottom="6dp" />
+
+                                    <TextView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Your monthly invoice is ready: Statement ending Oct 2024"
+                                        android:textSize="13sp"
+                                        android:textColor="@color/text_primary"
+                                        android:layout_marginBottom="12dp" />
+
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical">
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:background="@drawable/bg_badge_safe"
+                                            android:text="VERIFIED SAFE"
+                                            android:textSize="9.5sp"
+                                            android:textStyle="bold"
+                                            android:textColor="@color/text_primary"
+                                            android:paddingHorizontal="8dp"
+                                            android:paddingVertical="3dp" />
+
+                                        <View
+                                            android:layout_width="0dp"
+                                            android:layout_height="1dp"
+                                            android:layout_weight="1" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="0 Links Flagged"
+                                            android:textSize="11sp"
+                                            android:textColor="@color/text_secondary" />
+                                    </LinearLayout>
+                                </LinearLayout>
                             </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
 
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="URGENT: Suspicious sign-in detected on your account"
-                                android:textSize="14sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/text_primary"
-                                android:layout_marginBottom="6dp" />
-
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:background="@drawable/bg_code_preview"
-                                android:padding="8dp"
-                                android:text="FORENSIC INTERCEPT: SPF SoftFail (~all), urgent credential harvesting lure, deceptive host."
-                                android:textSize="10sp"
-                                android:textColor="@color/threat_warning"
-                                android:fontFamily="monospace"
-                                android:layout_marginBottom="10dp" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btn_inbox_card_scan_demo"
-                                style="@style/Widget.Material3.Button.TonalButton"
-                                android:layout_width="match_parent"
-                                android:layout_height="38dp"
-                                android:text="Audit This Threat Pattern"
-                                android:textSize="11sp"
-                                app:cornerRadius="19dp" />
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
-
-                    <!-- Sticky Bottom Action Button -->
+                    <!-- Minimalist Sticky Scan Button -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_inbox_sync_now"
                         android:layout_width="match_parent"
-                        android:layout_height="50dp"
-                        android:text="⚡ Sync &amp; Scan Unread Inbox Now"
+                        android:layout_height="52dp"
+                        android:text="⚡ Scan Inbox Now"
                         android:textStyle="bold"
-                        android:textSize="13sp"
-                        android:textColor="@color/bg_dark"
-                        app:backgroundTint="@color/cyber_cyan"
-                        app:cornerRadius="25dp"
+                        android:textSize="14sp"
+                        android:textColor="#080C14"
+                        android:background="@drawable/bg_btn_primary_cyber"
+                        app:backgroundTint="@null"
+                        android:layout_marginTop="14dp"
+                        android:letterSpacing="0.04" />
+
+                    <!-- Assurance Sub-Footer -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:text="Last synchronized just now • 🔒 Zero Cloud Storage"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_muted"
                         android:layout_marginTop="8dp" />
                 </LinearLayout>
             </ScrollView>
@@ -1088,26 +1453,62 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:paddingHorizontal="16dp"
-                    android:paddingVertical="12dp">
+                    android:paddingTop="8dp"
+                    android:paddingBottom="24dp">
 
-                    <TextView
+                    <!-- Status Strip Header -->
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Shield Settings"
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_primary"
-                        android:layout_marginBottom="16dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="16dp">
 
-                    <!-- Permissions Card -->
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Shield Settings"
+                            android:textSize="20sp"
+                            android:textStyle="bold"
+                            android:textColor="#FFFFFF" />
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:background="@drawable/bg_status_pill_online"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="5dp">
+
+                            <View
+                                android:layout_width="6dp"
+                                android:layout_height="6dp"
+                                android:background="@drawable/bg_status_pill_active"
+                                android:layout_marginEnd="6dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="CLOUD AI ACTIVE"
+                                android:textColor="#10B981"
+                                android:textSize="10sp"
+                                android:textStyle="bold"
+                                android:letterSpacing="0.08" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Hero Profile & Vault Card -->
                     <com.google.android.material.card.MaterialCardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        app:cardBackgroundColor="@color/bg_dark_card"
-                        app:strokeColor="@color/bg_dark_card_stroke"
+                        android:layout_marginBottom="20dp"
+                        app:cardBackgroundColor="#0F172A"
+                        app:strokeColor="#1E2D48"
                         app:strokeWidth="1dp"
-                        app:cardCornerRadius="18dp">
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="0dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1115,23 +1516,202 @@
                             android:orientation="vertical"
                             android:padding="16dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
+                            <!-- Profile Row -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:text="System Privileges"
-                                android:textSize="14sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/text_primary"
-                                android:layout_marginBottom="12dp" />
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="14dp">
 
+                                <!-- Avatar with Ring -->
+                                <FrameLayout
+                                    android:layout_width="46dp"
+                                    android:layout_height="46dp"
+                                    android:layout_marginEnd="12dp">
+
+                                    <View
+                                        android:layout_width="46dp"
+                                        android:layout_height="46dp"
+                                        android:background="@drawable/bg_status_pill_online" />
+
+                                    <ImageView
+                                        android:layout_width="24dp"
+                                        android:layout_height="24dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_user_cyber"
+                                        app:tint="#00E5FF" />
+                                </FrameLayout>
+
+                                <!-- User Name & Email -->
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <LinearLayout
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical">
+
+                                        <TextView
+                                            android:id="@+id/text_auth_user_name"
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="Operative"
+                                            android:textSize="16sp"
+                                            android:textStyle="bold"
+                                            android:textColor="#FFFFFF" />
+
+                                        <ImageView
+                                            android:layout_width="14dp"
+                                            android:layout_height="14dp"
+                                            android:layout_marginStart="6dp"
+                                            android:src="@drawable/ic_shield_protected"
+                                            app:tint="#10B981" />
+                                    </LinearLayout>
+
+                                    <TextView
+                                        android:id="@+id/text_auth_user_email"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="user@secureshield.ai"
+                                        android:textSize="12sp"
+                                        android:textColor="#94A3B8"
+                                        android:layout_marginTop="2dp" />
+                                </LinearLayout>
+
+                                <!-- Modern Log Out Button -->
+                                <TextView
+                                    android:id="@+id/btn_auth_sign_out"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="LOG OUT"
+                                    android:textSize="11sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.06"
+                                    android:textColor="#EF4444"
+                                    android:background="@drawable/bg_pill_danger"
+                                    android:paddingHorizontal="12dp"
+                                    android:paddingVertical="7dp"
+                                    android:clickable="true"
+                                    android:focusable="true" />
+                            </LinearLayout>
+
+                            <!-- Vault Isolation Pill Strip -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="@drawable/bg_settings_row"
+                                android:paddingHorizontal="12dp"
+                                android:paddingVertical="8dp">
+
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_lock_cyber"
+                                    android:layout_marginEnd="6dp"
+                                    app:tint="#10B981" />
+
+                                <TextView
+                                    android:id="@+id/text_auth_user_db"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Vault Database: secureshield_user.db"
+                                    android:textSize="11sp"
+                                    android:textColor="#10B981"
+                                    android:ellipsize="middle"
+                                    android:singleLine="true" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="AES-256"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.08"
+                                    android:textColor="#00E5FF"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:paddingHorizontal="8dp"
+                                    android:paddingVertical="3dp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Group 1: Shield Protections -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp"
+                        android:paddingHorizontal="2dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="SHIELD PROTECTIONS"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.08"
+                            android:textColor="#64748B" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="2 ACTIVE"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="#10B981" />
+                    </LinearLayout>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="20dp"
+                        app:cardBackgroundColor="#0F172A"
+                        app:strokeColor="#1E2D48"
+                        app:strokeWidth="1dp"
+                        app:cardCornerRadius="18dp"
+                        app:cardElevation="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <!-- Accessibility Service Row -->
                             <LinearLayout
                                 android:id="@+id/row_setting_accessibility"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal"
                                 android:gravity="center_vertical"
-                                android:paddingVertical="8dp"
-                                android:background="?attr/selectableItemBackground">
+                                android:background="@drawable/bg_settings_row"
+                                android:padding="12dp"
+                                android:clickable="true"
+                                android:focusable="true">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:layout_marginEnd="12dp">
+
+                                    <ImageView
+                                        android:layout_width="20dp"
+                                        android:layout_height="20dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_guardian_radar"
+                                        app:tint="#00E5FF" />
+                                </FrameLayout>
 
                                 <LinearLayout
                                     android:layout_width="0dp"
@@ -1142,38 +1722,69 @@
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Accessibility Service"
-                                        android:textColor="@color/text_primary"
-                                        android:textSize="14sp" />
+                                        android:text="Real-Time Screen Guard"
+                                        android:textColor="#FFFFFF"
+                                        android:textSize="14sp"
+                                        android:textStyle="bold" />
 
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Real-time on-screen radar &amp; link interceptor"
-                                        android:textColor="@color/text_muted"
-                                        android:textSize="12sp" />
+                                        android:text="Detects phishing links in active apps"
+                                        android:textColor="#94A3B8"
+                                        android:textSize="12sp"
+                                        android:layout_marginTop="2dp" />
                                 </LinearLayout>
 
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="ENABLED"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.08"
+                                    android:textColor="#10B981"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:paddingHorizontal="8dp"
+                                    android:paddingVertical="4dp"
+                                    android:layout_marginEnd="8dp" />
+
                                 <ImageView
-                                    android:layout_width="20dp"
-                                    android:layout_height="20dp"
-                                    android:src="@drawable/ic_chevron_right" />
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="#64748B" />
                             </LinearLayout>
 
                             <View
                                 android:layout_width="match_parent"
-                                android:layout_height="1dp"
-                                android:background="@color/bg_dark_card_stroke"
-                                android:layout_marginVertical="4dp" />
+                                android:layout_height="6dp" />
 
+                            <!-- Notification Row -->
                             <LinearLayout
                                 android:id="@+id/row_setting_notifications"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal"
                                 android:gravity="center_vertical"
-                                android:paddingVertical="8dp"
-                                android:background="?attr/selectableItemBackground">
+                                android:background="@drawable/bg_settings_row"
+                                android:padding="12dp"
+                                android:clickable="true"
+                                android:focusable="true">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:layout_marginEnd="12dp">
+
+                                    <ImageView
+                                        android:layout_width="20dp"
+                                        android:layout_height="20dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_shield_alert"
+                                        app:tint="#F59E0B" />
+                                </FrameLayout>
 
                                 <LinearLayout
                                     android:layout_width="0dp"
@@ -1184,59 +1795,111 @@
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Tactical Notifications"
-                                        android:textColor="@color/text_primary"
-                                        android:textSize="14sp" />
+                                        android:text="Threat Push Alerts"
+                                        android:textColor="#FFFFFF"
+                                        android:textSize="14sp"
+                                        android:textStyle="bold" />
 
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Instant alerts when critical threats are identified"
-                                        android:textColor="@color/text_muted"
-                                        android:textSize="12sp" />
+                                        android:text="Instant alerts on zero-day attacks"
+                                        android:textColor="#94A3B8"
+                                        android:textSize="12sp"
+                                        android:layout_marginTop="2dp" />
                                 </LinearLayout>
 
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="ACTIVE"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.08"
+                                    android:textColor="#10B981"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:paddingHorizontal="8dp"
+                                    android:paddingVertical="4dp"
+                                    android:layout_marginEnd="8dp" />
+
                                 <ImageView
-                                    android:layout_width="20dp"
-                                    android:layout_height="20dp"
-                                    android:src="@drawable/ic_chevron_right" />
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="#64748B" />
                             </LinearLayout>
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
-                    <!-- Advanced Developer / Server Card -->
+                    <!-- Group 2: AI Defense Cloud -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp"
+                        android:paddingHorizontal="2dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="AI DEFENSE CLOUD"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.08"
+                            android:textColor="#64748B" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="GLOBAL FABRIC"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="#00E5FF" />
+                    </LinearLayout>
+
                     <com.google.android.material.card.MaterialCardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="12dp"
-                        app:cardBackgroundColor="@color/bg_dark_card"
-                        app:strokeColor="@color/bg_dark_card_stroke"
+                        android:layout_marginBottom="20dp"
+                        app:cardBackgroundColor="#0F172A"
+                        app:strokeColor="#1E2D48"
                         app:strokeWidth="1dp"
-                        app:cardCornerRadius="18dp">
+                        app:cardCornerRadius="18dp"
+                        app:cardElevation="0dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
-                            android:padding="16dp">
+                            android:padding="8dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Neural AI Endpoint"
-                                android:textSize="14sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/text_primary"
-                                android:layout_marginBottom="12dp" />
-
+                            <!-- Server Endpoint Row -->
                             <LinearLayout
                                 android:id="@+id/row_setting_server"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal"
                                 android:gravity="center_vertical"
-                                android:paddingVertical="8dp"
-                                android:background="?attr/selectableItemBackground">
+                                android:background="@drawable/bg_settings_row"
+                                android:padding="12dp"
+                                android:clickable="true"
+                                android:focusable="true">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:layout_marginEnd="12dp">
+
+                                    <ImageView
+                                        android:layout_width="20dp"
+                                        android:layout_height="20dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_action_scan_file"
+                                        app:tint="#00E5FF" />
+                                </FrameLayout>
 
                                 <LinearLayout
                                     android:layout_width="0dp"
@@ -1247,58 +1910,243 @@
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Server Configuration"
-                                        android:textColor="@color/text_primary"
-                                        android:textSize="14sp" />
+                                        android:text="Defense Endpoint"
+                                        android:textColor="#FFFFFF"
+                                        android:textSize="14sp"
+                                        android:textStyle="bold" />
 
                                     <TextView
                                         android:id="@+id/text_setting_current_server"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="Configure backend AI endpoint"
-                                        android:textColor="@color/text_muted"
-                                        android:textSize="12sp" />
+                                        android:text="Configured: http://10.0.2.2:8000/"
+                                        android:textColor="#94A3B8"
+                                        android:textSize="12sp"
+                                        android:layout_marginTop="2dp"
+                                        android:singleLine="true"
+                                        android:ellipsize="end" />
                                 </LinearLayout>
 
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="ONLINE"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.08"
+                                    android:textColor="#10B981"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:paddingHorizontal="8dp"
+                                    android:paddingVertical="4dp"
+                                    android:layout_marginEnd="8dp" />
+
                                 <ImageView
-                                    android:layout_width="20dp"
-                                    android:layout_height="20dp"
-                                    android:src="@drawable/ic_chevron_right" />
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="#64748B" />
+                            </LinearLayout>
+
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="6dp" />
+
+                            <!-- Model Telemetry Strip -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="#141E33"
+                                android:paddingHorizontal="12dp"
+                                android:paddingVertical="8dp">
+
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_shield_protected"
+                                    android:layout_marginEnd="6dp"
+                                    app:tint="#00E5FF" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Neural Signatures: v4.19"
+                                    android:textSize="11sp"
+                                    android:textColor="#94A3B8" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="SYNCED"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.08"
+                                    android:textColor="#10B981" />
                             </LinearLayout>
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
-                    <!-- About Card -->
+                    <!-- Group 3: System & Privacy -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp"
+                        android:paddingHorizontal="2dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="SYSTEM &amp; PRIVACY"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.08"
+                            android:textColor="#64748B" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="ISO 27001"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="#64748B" />
+                    </LinearLayout>
+
                     <com.google.android.material.card.MaterialCardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="24dp"
-                        app:cardBackgroundColor="@color/bg_dark_card"
-                        app:strokeColor="@color/bg_dark_card_stroke"
+                        app:cardBackgroundColor="#0F172A"
+                        app:strokeColor="#1E2D48"
                         app:strokeWidth="1dp"
-                        app:cardCornerRadius="18dp">
+                        app:cardCornerRadius="18dp"
+                        app:cardElevation="0dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
-                            android:padding="16dp">
+                            android:padding="8dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
+                            <!-- Vault Integrity -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:text="About SecureShield AI"
-                                android:textSize="14sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/text_primary"
-                                android:layout_marginBottom="8dp" />
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="@drawable/bg_settings_row"
+                                android:padding="12dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:layout_marginEnd="12dp">
+
+                                    <ImageView
+                                        android:layout_width="20dp"
+                                        android:layout_height="20dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_shield_protected"
+                                        app:tint="#10B981" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Local Vault Integrity"
+                                        android:textColor="#FFFFFF"
+                                        android:textSize="14sp"
+                                        android:textStyle="bold" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Hardware-Bound AES-256 GCM"
+                                        android:textColor="#94A3B8"
+                                        android:textSize="12sp"
+                                        android:layout_marginTop="2dp" />
+                                </LinearLayout>
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="100% HEALTHY"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.08"
+                                    android:textColor="#10B981"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:paddingHorizontal="8dp"
+                                    android:paddingVertical="4dp" />
+                            </LinearLayout>
+
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="6dp" />
+
+                            <!-- About SecureShield AI -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:text="v2.0 Tactical Build • Multi-Engine Defense Suite"
-                                android:textColor="@color/text_muted"
-                                android:textSize="12sp" />
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="@drawable/bg_settings_row"
+                                android:padding="12dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_status_pill_online"
+                                    android:layout_marginEnd="12dp">
+
+                                    <ImageView
+                                        android:layout_width="20dp"
+                                        android:layout_height="20dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_shield_protected"
+                                        app:tint="#94A3B8" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="About SecureShield AI"
+                                        android:textColor="#FFFFFF"
+                                        android:textSize="14sp"
+                                        android:textStyle="bold" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="v2.0 • Multi-Engine Defense Suite"
+                                        android:textColor="#94A3B8"
+                                        android:textSize="12sp"
+                                        android:layout_marginTop="2dp" />
+                                </LinearLayout>
+
+                                <ImageView
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="#64748B" />
+                            </LinearLayout>
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
                 </LinearLayout>
@@ -1317,4 +2165,98 @@
             app:menu="@menu/menu_bottom_nav" />
 
     </LinearLayout>
+ 
+    <!-- Ultra-Sleek Splash Screen Transition Overlay -->
+    <FrameLayout
+        android:id="@+id/layout_splash_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/bg_dark"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <!-- Glowing Pulse Ring Behind Logo -->
+            <FrameLayout
+                android:layout_width="160dp"
+                android:layout_height="160dp"
+                android:layout_gravity="center">
+
+                <View
+                    android:id="@+id/splash_glow_ring"
+                    android:layout_width="150dp"
+                    android:layout_height="150dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_shield_ring"
+                    android:alpha="0.6" />
+
+                <ImageView
+                    android:id="@+id/splash_logo_image"
+                    android:layout_width="130dp"
+                    android:layout_height="130dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/img_secureshield_logo"
+                    android:contentDescription="SecureShield AI Logo" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/splash_app_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="SecureShield AI"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary"
+                android:letterSpacing="0.04" />
+
+            <TextView
+                android:id="@+id/splash_app_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="NEXT-GEN MULTI-ENGINE CYBER DEFENSE"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/cyber_cyan"
+                android:letterSpacing="0.15" />
+
+            <!-- Cyber Tech Status / Loading Pill -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_status_pill_online"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <ProgressBar
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:indeterminate="true"
+                    android:indeterminateTint="@color/cyber_cyan"
+                    android:layout_marginEnd="10dp" />
+
+                <TextView
+                    android:id="@+id/splash_status_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ARMING AEGIS CORE..."
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:letterSpacing="0.08" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

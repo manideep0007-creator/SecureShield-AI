@@ -2,6 +2,7 @@ package com.secureshield.ai
 
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -109,7 +110,10 @@ class MainActivity : AppCompatActivity() {
     private val feedbackSubmissionManager by lazy {
         FeedbackSubmissionManager { request -> ApiClient.api.sendFeedback(request) }
     }
-    private val scanHistoryRepositoryDelegate = lazy { ScanHistoryRepository(applicationContext) }
+    private val scanHistoryRepositoryDelegate = lazy {
+        val userDbName = com.secureshield.ai.auth.UserSessionManager.getUserDatabaseName(applicationContext)
+        ScanHistoryRepository(applicationContext, userDbName)
+    }
     private val scanHistoryRepository by scanHistoryRepositoryDelegate
 
     private val notificationPermissionLauncher =
@@ -151,6 +155,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Session check: If user is not authenticated, redirect to LoginActivity
+        if (!com.secureshield.ai.auth.UserSessionManager.isLoggedIn(this)) {
+            val loginIntent = Intent(this, LoginActivity::class.java)
+            loginIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(loginIntent)
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_main)
         
         badgeCategory = findViewById(R.id.badge_category)
@@ -168,7 +182,14 @@ class MainActivity : AppCompatActivity() {
         textFeedbackStatus = findViewById(R.id.text_feedback_status)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel("SS_ALERTS", "SecureShield Alerts", NotificationManager.IMPORTANCE_HIGH)
+            val channel = NotificationChannel("SS_ALERTS", "SecureShield Alerts", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "High-priority instant alerts for detected security threats"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 250, 150, 250)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(true)
+                setBypassDnd(true)
+            }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
         }
@@ -255,8 +276,76 @@ class MainActivity : AppCompatActivity() {
         setupSettingsTab()
         startAnimations()
         refreshSystemTelemetry()
+        setupSplashScreenTransition()
 
         handleIntent(intent)
+    }
+
+    private fun setupSplashScreenTransition() {
+        val splashOverlay = findViewById<View>(R.id.layout_splash_overlay) ?: return
+        val splashLogo = findViewById<ImageView>(R.id.splash_logo_image)
+        val splashGlowRing = findViewById<View>(R.id.splash_glow_ring)
+        val splashStatusText = findViewById<TextView>(R.id.splash_status_text)
+        val mainDashboard = findViewById<View>(R.id.layout_main_dashboard)
+
+        splashOverlay.visibility = View.VISIBLE
+        splashOverlay.alpha = 1.0f
+        mainDashboard?.alpha = 0.0f
+        mainDashboard?.scaleX = 0.96f
+        mainDashboard?.scaleY = 0.96f
+
+        splashLogo?.apply {
+            scaleX = 0.82f
+            scaleY = 0.82f
+            alpha = 0.0f
+            animate()
+                .scaleX(1.0f)
+                .scaleY(1.0f)
+                .alpha(1.0f)
+                .setDuration(600)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
+
+        splashGlowRing?.let { ring ->
+            val pulseX = ObjectAnimator.ofFloat(ring, View.SCALE_X, 0.95f, 1.18f, 0.95f)
+            val pulseY = ObjectAnimator.ofFloat(ring, View.SCALE_Y, 0.95f, 1.18f, 0.95f)
+            val pulseAlpha = ObjectAnimator.ofFloat(ring, View.ALPHA, 0.35f, 0.8f, 0.35f)
+            pulseX.repeatCount = ObjectAnimator.INFINITE
+            pulseY.repeatCount = ObjectAnimator.INFINITE
+            pulseAlpha.repeatCount = ObjectAnimator.INFINITE
+            pulseX.duration = 1600
+            pulseY.duration = 1600
+            pulseAlpha.duration = 1600
+            AnimatorSet().apply {
+                playTogether(pulseX, pulseY, pulseAlpha)
+                start()
+            }
+        }
+
+        splashOverlay.postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            splashStatusText?.text = "AEGIS DEFENSE ARMED"
+
+            splashOverlay.animate()
+                .alpha(0.0f)
+                .scaleX(1.06f)
+                .scaleY(1.06f)
+                .setDuration(450)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .withEndAction {
+                    splashOverlay.visibility = View.GONE
+                }
+                .start()
+
+            mainDashboard?.animate()
+                ?.alpha(1.0f)
+                ?.scaleX(1.0f)
+                ?.scaleY(1.0f)
+                ?.setDuration(450)
+                ?.setInterpolator(DecelerateInterpolator())
+                ?.start()
+        }, 1100)
     }
 
     private fun setupBottomNavigation() {
@@ -448,6 +537,33 @@ class MainActivity : AppCompatActivity() {
         } else {
             accountText?.text = "Zero-Knowledge In-Memory Audit"
         }
+
+        lifecycleScope.launch {
+            val records = scanHistoryRepository.getPage(limit = 100, offset = 0)
+            val emailRecords = records.filter { it.sourceType == "gmail" || it.sourceType == "demo" }
+            val auditedCount = emailRecords.size
+            val threatCount = emailRecords.count { it.classification != "Safe" }
+
+            findViewById<TextView>(R.id.text_inbox_audited_count)?.text = "$auditedCount"
+            val threatsView = findViewById<TextView>(R.id.text_inbox_threats_count)
+            threatsView?.text = "$threatCount"
+            threatsView?.setTextColor(
+                ContextCompat.getColor(
+                    this@MainActivity,
+                    if (threatCount > 0) R.color.threat_critical else R.color.threat_safe
+                )
+            )
+            val integrityScore = if (auditedCount == 0) 100 else maxOf(0, 100 - (threatCount * 25))
+            findViewById<TextView>(R.id.text_inbox_stored_count)?.text = "$integrityScore%"
+
+            val streamContainer = findViewById<LinearLayout>(R.id.container_inbox_triaged_stream)
+            if (streamContainer != null && emailRecords.isNotEmpty()) {
+                streamContainer.removeAllViews()
+                emailRecords.take(5).forEach { record ->
+                    streamContainer.addView(createHistoryRow(record))
+                }
+            }
+        }
     }
 
     private fun setupSettingsTab() {
@@ -460,12 +576,40 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.row_setting_server)?.setOnClickListener {
             showServerConfigDialog()
         }
+        findViewById<View>(R.id.btn_auth_sign_out)?.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Log Out of Shield?")
+                .setMessage("Your current session and local vault will be secured.")
+                .setPositiveButton("Log Out") { _, _ ->
+                    val token = com.secureshield.ai.auth.UserSessionManager.getAuthToken(this)
+                    if (!token.isNullOrBlank()) {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            runCatching { ApiClient.api.logout(token) }
+                        }
+                    }
+                    com.secureshield.ai.auth.UserSessionManager.clearSession(this)
+                    val loginIntent = Intent(this, LoginActivity::class.java)
+                    loginIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    startActivity(loginIntent)
+                    finish()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
         updateSettingsTab()
     }
 
     private fun updateSettingsTab() {
         val serverText = findViewById<TextView>(R.id.text_setting_current_server)
         serverText?.text = "Configured: ${ServerSettings.getServerUrl(this)}"
+
+        val userNameText = findViewById<TextView>(R.id.text_auth_user_name)
+        val userEmailText = findViewById<TextView>(R.id.text_auth_user_email)
+        val userDbText = findViewById<TextView>(R.id.text_auth_user_db)
+
+        userNameText?.text = com.secureshield.ai.auth.UserSessionManager.getUserFullName(this)
+        userEmailText?.text = com.secureshield.ai.auth.UserSessionManager.getUserEmail(this)
+        userDbText?.text = "Vault Database: ${com.secureshield.ai.auth.UserSessionManager.getUserDatabaseName(this)}"
     }
 
     private fun startAnimations() {
@@ -957,6 +1101,14 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
     }
 
+    private val telemetryReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            refreshTelemetryMetrics()
+            updateInboxTab()
+            loadHistoryTab()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         ensureNotificationPermission()
@@ -964,6 +1116,22 @@ class MainActivity : AppCompatActivity() {
         updateHeroProtectionState()
         refreshSystemTelemetry()
         refreshTelemetryMetrics()
+        updateInboxTab()
+        try {
+            androidx.core.content.ContextCompat.registerReceiver(
+                this,
+                telemetryReceiver,
+                android.content.IntentFilter("com.secureshield.ai.ACTION_TELEMETRY_UPDATED"),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+        } catch (_: Exception) {}
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try {
+            unregisterReceiver(telemetryReceiver)
+        } catch (_: Exception) {}
     }
 
     private fun refreshSystemTelemetry() {
@@ -1133,6 +1301,20 @@ class MainActivity : AppCompatActivity() {
         badgeCategory.setOnClickListener(null)
         textReasons.setOnClickListener(null)
         return lifecycleScope.launch {
+            // Stage 1: Zero-delay instant on-device evaluation (< 5ms)
+            val preflightResult = withContext(Dispatchers.Default) {
+                OnDeviceHeuristicEngine.scan(resolvedInput)
+            }
+            val isPreflightThreat = isThreatClassification(preflightResult.classification)
+            if (isPreflightThreat) {
+                android.util.Log.w("MainActivity", "⚡ INSTANT THREAT DETECTED (<5ms): ${preflightResult.classification}")
+                sendPushNotification(
+                    "🚨 ${preflightResult.classification} Detected",
+                    "Risk Score: ${preflightResult.risk_score.toInt()}/100 • ${preflightResult.risk_assessment.reasons.firstOrNull() ?: "Threat intercepted on device"}"
+                )
+                updateHeroProtectionState(latestThreat = true)
+            }
+
             val wakingTimer = launch {
                 if (ApiClient.isServerAwake) {
                     kotlinx.coroutines.delay(2500L)
@@ -1143,11 +1325,11 @@ class MainActivity : AppCompatActivity() {
 
             try {
                 badgeCategory.visibility = View.VISIBLE
-                badgeCategory.text = if (!ApiClient.isServerAwake) "Waking server..." else "Scanning..."
+                badgeCategory.text = if (isPreflightThreat) "Verifying with Cloud AI..." else (if (!ApiClient.isServerAwake) "Waking server..." else "Scanning...")
                 textReasons.text = if (!ApiClient.isServerAwake) "Waking server..." else "Analyzing threat indicators via SecureShield AI..."
 
                 val result: UnifiedScanResponse = try {
-                    val response = withTimeout(45000L) {
+                    val response = withTimeout(12000L) {
                         withContext(Dispatchers.IO) {
                             ApiClient.api.scan(resolvedInput)
                         }
@@ -1159,13 +1341,13 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         wakingTimer.cancel()
                         android.util.Log.w("MainActivity", "Cloud backend returned non-success; failing over to On-Device Shield.")
-                        OnDeviceHeuristicEngine.scan(resolvedInput)
+                        preflightResult
                     }
                 } catch (e: Exception) {
                     wakingTimer.cancel()
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     android.util.Log.w("MainActivity", "Cloud connection offline or timed out; failing over to On-Device Shield.")
-                    OnDeviceHeuristicEngine.scan(resolvedInput)
+                    preflightResult
                 }
 
                 currentResult = result
@@ -1174,6 +1356,7 @@ class MainActivity : AppCompatActivity() {
                     scanHistoryRepository.saveCompletedScan(result, sourceType)
                     withContext(Dispatchers.Main) {
                         refreshTelemetryMetrics()
+                        updateInboxTab()
                     }
                 }
                 layoutFeedback.visibility = View.VISIBLE
@@ -1506,8 +1689,15 @@ class MainActivity : AppCompatActivity() {
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle(title)
                 .setContentText(message)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(message))
                 .setContentIntent(pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setVibrate(longArrayOf(0, 250, 150, 250))
+                .setFullScreenIntent(pendingIntent, true)
+                .setOnlyAlertOnce(false)
                 .setAutoCancel(true)
             
             NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), builder.build())

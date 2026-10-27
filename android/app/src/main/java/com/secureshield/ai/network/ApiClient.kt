@@ -96,6 +96,18 @@ interface SecureShieldApi {
     @POST("/api/feedback")
     suspend fun sendFeedback(@Body request: FeedbackRequest): Response<FeedbackSubmissionResponse>
 
+    @POST("/api/auth/register")
+    suspend fun register(@Body request: com.secureshield.ai.auth.RegisterRequest): Response<com.secureshield.ai.auth.AuthResponse>
+
+    @POST("/api/auth/login")
+    suspend fun login(@Body request: com.secureshield.ai.auth.LoginRequest): Response<com.secureshield.ai.auth.AuthResponse>
+
+    @POST("/api/auth/google")
+    suspend fun googleAuth(@Body request: com.secureshield.ai.auth.GoogleAuthRequest): Response<com.secureshield.ai.auth.AuthResponse>
+
+    @POST("/api/auth/logout")
+    suspend fun logout(@retrofit2.http.Header("Authorization") token: String): Response<JsonObject>
+
     @retrofit2.http.GET("/health")
     suspend fun healthCheck(): Response<JsonObject>
 }
@@ -303,7 +315,7 @@ object ApiClient {
      */
     suspend fun scanWithFallback(input: ScanInput): UnifiedScanResponse = withContext(Dispatchers.IO) {
         try {
-            val response = withTimeout(15000L) {
+            val response = withTimeout(8000L) {
                 api.scan(input)
             }
             if (response.isSuccessful) {

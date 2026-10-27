@@ -27,7 +27,7 @@ val apiKey = System.getenv("SECURESHIELD_API_KEY")
     ?: System.getenv("API_KEY")
     ?: localProperties.getProperty("SECURESHIELD_API_KEY")
     ?: localProperties.getProperty("API_KEY")
-    ?: ""
+    ?: "secureshield_dev_secret_key_2026"
 
 android {
     namespace = "com.secureshield.ai"

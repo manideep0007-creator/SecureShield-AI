@@ -9,6 +9,7 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from app.api.routes import router
+from app.api.auth_routes import auth_router
 from app.api.security import SecurityAndRateLimitMiddleware
 from app.config.config import settings
 from app.intelligence.threat_feeds import threat_store
@@ -43,9 +44,11 @@ def init_databases():
         from app.database.feedback import init_db as init_feedback_db
         from app.engines.sender_engine import init_db as init_sender_db
         from app.intelligence.threat_feeds import init_threat_db
+        from app.database.auth_db import init_auth_db
         init_feedback_db()
         init_sender_db()
         init_threat_db()
+        init_auth_db()
     except Exception:
         pass
 
@@ -75,6 +78,7 @@ app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 app.add_middleware(SecurityAndRateLimitMiddleware)
 
 app.include_router(router, prefix="/api")
+app.include_router(auth_router)
 
 init_databases()
 
