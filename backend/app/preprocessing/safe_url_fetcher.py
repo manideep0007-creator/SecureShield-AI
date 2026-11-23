@@ -8,32 +8,43 @@ def is_safe_ip(ip_str: str) -> bool:
     """
     Validate whether an IP address is safe for outbound fetching.
     Blocks loopback, private, link-local, multicast, unspecified, reserved,
-    non-global, and internal IPv4-mapped IPv6 addresses.
+    non-global, cloud metadata endpoints, Carrier Grade NAT, and internal
+    IPv4-mapped IPv6 addresses.
     """
     try:
         ip = ipaddress.ip_address(ip_str)
         # Block loopback, private, link-local, multicast, unspecified, and reserved IPs
         if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_unspecified or ip.is_reserved or not ip.is_global:
             return False
+
         # Block IPv4-mapped IPv6 addresses that point to internal ranges
         if ip.version == 6 and ip.ipv4_mapped:
             return is_safe_ip(str(ip.ipv4_mapped))
+
+        # Block Carrier Grade NAT (RFC 6598: 100.64.0.0/10)
+        if ip.version == 4:
+            if ip in ipaddress.ip_network("100.64.0.0/10"):
+                return False
+            # Block Benchmarking / Documentation / Test networks
+            if ip in ipaddress.ip_network("198.18.0.0/15") or ip in ipaddress.ip_network("192.0.2.0/24") or ip in ipaddress.ip_network("198.51.100.0/24") or ip in ipaddress.ip_network("203.0.113.0/24"):
+                return False
+
         return True
     except ValueError:
         return False
 
 
 class SafeURLFetcher:
-    """Centralized, SSRF-resistant URL fetcher."""
-    
+    """Centralized, SSRF-resistant URL fetcher with DNS-rebinding protection."""
+
     @staticmethod
     def validate_url_syntax(url: str):
         parsed = urlparse(url)
-        
+
         # 1. Scheme validation
         if parsed.scheme.lower() not in ["http", "https"]:
             raise ValueError(f"SSRF Prevention: Unsupported scheme {parsed.scheme}")
-            
+
         # 2. Reject credentials in URL
         if parsed.username or parsed.password:
             raise ValueError("SSRF Prevention: Embedded URL credentials are not allowed")
@@ -43,21 +54,24 @@ class SafeURLFetcher:
             raise ValueError("SSRF Prevention: Missing URL host")
 
         return parsed
-        
+
     @classmethod
     async def resolve_redirects(cls, url: str, max_redirects: int = 5) -> str:
         """
         Safely resolve shortened or redirected links to their final URL.
-        Iteratively follows redirects, synchronously validating every hop's DNS/IP BEFORE connecting.
+        Iteratively follows redirects, validating every hop's DNS/IP BEFORE connecting.
         Connects directly to the already-validated IP with Host and SNI headers to prevent TOCTOU / DNS rebinding.
         """
         current_url = url
-        
-        # We manually handle redirects to ensure every hop is strictly validated before connection
+
         for _ in range(max_redirects + 1):
-            parsed = cls.validate_url_syntax(current_url)
+            try:
+                parsed = cls.validate_url_syntax(current_url)
+            except ValueError:
+                return current_url
+
             port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
-            
+
             # Fast-path check if hostname is already an IP address literal
             try:
                 ip_obj = ipaddress.ip_address(parsed.hostname)
@@ -70,17 +84,18 @@ class SafeURLFetcher:
                     addr_info = socket.getaddrinfo(parsed.hostname, port, type=socket.SOCK_STREAM)
                 except (socket.gaierror, socket.herror, OSError):
                     return current_url
-                
+
                 if not addr_info:
                     return current_url
-                
+
                 safe_ips = []
                 for item in addr_info:
                     ip_str = item[4][0]
                     if not is_safe_ip(ip_str):
+                        # If any resolved IP is unsafe, abort connection to prevent rebinding
                         return current_url
                     safe_ips.append((item[0], ip_str))
-            
+
             if not safe_ips:
                 return current_url
 
@@ -106,23 +121,21 @@ class SafeURLFetcher:
                     response = await client.head(target_url, headers=headers, extensions=extensions)
                     if response.status_code == 405:  # Method Not Allowed fallback
                         response = await client.get(target_url, headers=headers, extensions=extensions)
-                        
+
                     if response.status_code in (301, 302, 303, 307, 308):
                         next_location = response.headers.get("Location")
                         if not next_location:
                             return current_url
-                            
+
                         # Handle relative redirects
                         if not next_location.lower().startswith("http"):
                             next_location = urljoin(current_url, next_location)
-                            
+
                         current_url = next_location
                     else:
                         return current_url
             except Exception:
                 # If network fails or connection fails, return the last known safe URL
                 return current_url
-                
-        # If we hit the max redirect limit, return the last URL we reached
-        return current_url
 
+        return current_url

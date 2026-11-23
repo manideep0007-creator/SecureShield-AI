@@ -49,35 +49,51 @@ class InMemoryRateLimiter:
             self._records.clear()
 
 
-rate_limiter = InMemoryRateLimiter(max_requests=30, window_seconds=60.0)
+# Separate limiters for sensitive actions (Phase 2: API Security & Rate Limiting)
+rate_limiter = InMemoryRateLimiter(max_requests=30, window_seconds=60.0)          # General scan
+auth_login_limiter = InMemoryRateLimiter(max_requests=10, window_seconds=60.0)    # 10 attempts / min
+auth_register_limiter = InMemoryRateLimiter(max_requests=5, window_seconds=60.0)  # 5 registrations / min
+general_api_limiter = InMemoryRateLimiter(max_requests=60, window_seconds=60.0)   # 60 req / min
 
-PUBLIC_PATHS = {
+PUBLIC_HEALTH_PATHS = {
     "/",
     "/health",
     "/api/health",
     "/api/threat-intelligence/status",
-    "/api/auth/login",
-    "/api/auth/register",
-    "/api/auth/google",
-    "/api/auth/me",
-    "/api/auth/logout",
     "/docs",
     "/openapi.json",
     "/redoc",
 }
 
+PUBLIC_AUTH_PATHS = {
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/google",
+    "/api/auth/me",
+    "/api/auth/logout",
+}
 
-def is_public_path(path: str) -> bool:
+
+def is_health_or_doc_path(path: str) -> bool:
     normalized = path.rstrip("/")
     if not normalized:
         return True
-    return normalized in PUBLIC_PATHS or path in PUBLIC_PATHS
+    return normalized in PUBLIC_HEALTH_PATHS or path in PUBLIC_HEALTH_PATHS
+
+
+def is_auth_path(path: str) -> bool:
+    normalized = path.rstrip("/")
+    return normalized in PUBLIC_AUTH_PATHS or path in PUBLIC_AUTH_PATHS
 
 
 def verify_api_key_header(api_key: str | None) -> bool:
-    expected_key = os.getenv("API_KEY") or settings.API_KEY or "secureshield_dev_secret_key_2026"
     if not api_key:
         return False
+    expected_key = os.getenv("API_KEY") or settings.API_KEY
+    if settings.ENVIRONMENT == "production" and (not expected_key or expected_key == "secureshield_dev_secret_key_2026"):
+        # In production, default development keys are rejected
+        return False
+    expected_key = expected_key or "secureshield_dev_secret_key_2026"
     return secrets.compare_digest(api_key, expected_key)
 
 
@@ -85,11 +101,46 @@ class SecurityAndRateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         path = request.url.path
 
-        # 1. Allow public root & health routes without auth or rate limiting
-        if is_public_path(path) or request.method == "OPTIONS":
+        # 1. Allow preflight OPTIONS requests
+        if request.method == "OPTIONS":
             return await call_next(request)
 
-        # 2. Enforce API Key authentication on all /api/* endpoints
+        # Extract client IP
+        client_ip = (
+            request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or (request.client.host if request.client else "unknown")
+        )
+        now = time.time()
+
+        # 2. Allow unauthenticated health & docs
+        if is_health_or_doc_path(path):
+            return await call_next(request)
+
+        # 3. Apply dedicated strict rate limiting to Authentication endpoints (Phase 2)
+        if path == "/api/auth/register":
+            allowed, retry_after = auth_register_limiter.check_and_record(f"reg:{client_ip}", now=now)
+            if not allowed:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Too many registration attempts. Please retry later."},
+                    headers={"Retry-After": str(retry_after)},
+                )
+            return await call_next(request)
+
+        if path in ("/api/auth/login", "/api/auth/google"):
+            allowed, retry_after = auth_login_limiter.check_and_record(f"auth:{client_ip}", now=now)
+            if not allowed:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Too many authentication attempts. Please retry later."},
+                    headers={"Retry-After": str(retry_after)},
+                )
+            return await call_next(request)
+
+        if is_auth_path(path):
+            return await call_next(request)
+
+        # 4. Enforce API Key authentication on all other /api/* endpoints
         if path.startswith("/api/"):
             api_key = request.headers.get("X-API-Key")
             if not verify_api_key_header(api_key):
@@ -99,13 +150,7 @@ class SecurityAndRateLimitMiddleware(BaseHTTPMiddleware):
                     headers={"WWW-Authenticate": "ApiKey"},
                 )
 
-            # 3. Rate limiting per IP and per API Key (30 req/min)
-            client_ip = (
-                request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-                or (request.client.host if request.client else "unknown")
-            )
-
-            now = time.time()
+            # 5. Rate limiting per IP and per API Key on scan and protected endpoints
             ip_allowed, ip_retry_after = rate_limiter.check_and_record(f"ip:{client_ip}", now=now)
             if not ip_allowed:
                 return JSONResponse(

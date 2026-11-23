@@ -15,6 +15,8 @@ ENGINE_RELIABILITY = {
     "nlp_engine": 0.80,
     "visual_engine": 0.90,
     "sender_engine": 0.60,
+    "header_analysis_engine": 0.85,
+    "attachment_behavior_engine": 0.90,
 }
 
 MALWARE_FLAGS = frozenset({"MALWARE", "malware_detected", "vt_malicious", "vt_suspicious"})

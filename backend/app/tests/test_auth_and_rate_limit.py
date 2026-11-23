@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 # Add backend directory to path so imports resolve cleanly
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from main import app
-from app.api.security import rate_limiter
+from app.api.security import rate_limiter, auth_login_limiter, auth_register_limiter
 
 TEST_API_KEY = "secureshield-test-secret-key-12345"
 
@@ -15,10 +15,14 @@ class TestAuthAndRateLimit(unittest.TestCase):
     def setUp(self):
         os.environ["API_KEY"] = TEST_API_KEY
         rate_limiter.reset()
+        auth_login_limiter.reset()
+        auth_register_limiter.reset()
         self.client = TestClient(app)
 
     def tearDown(self):
         rate_limiter.reset()
+        auth_login_limiter.reset()
+        auth_register_limiter.reset()
         self.client.close()
 
     def test_health_and_root_endpoints_open_without_api_key(self):
@@ -117,3 +121,43 @@ class TestAuthAndRateLimit(unittest.TestCase):
             headers={"X-API-Key": TEST_API_KEY, "X-Forwarded-For": "198.51.100.2"},
         )
         self.assertEqual(res_ip2.status_code, 429)
+
+    def test_registration_rate_limiting(self):
+        """Mass account creation rate limiting (max 5 per min per IP)."""
+        ip = "203.0.113.50"
+        for i in range(5):
+            res = self.client.post(
+                "/api/auth/register",
+                json={"email": f"mass_user_{i}@shield.ai", "password": "Password123!", "full_name": "Mass"},
+                headers={"X-Forwarded-For": ip}
+            )
+            self.assertEqual(res.status_code, 201)
+
+        # 6th attempt is blocked with 429
+        blocked = self.client.post(
+            "/api/auth/register",
+            json={"email": "mass_user_blocked@shield.ai", "password": "Password123!", "full_name": "Mass"},
+            headers={"X-Forwarded-For": ip}
+        )
+        self.assertEqual(blocked.status_code, 429)
+        self.assertIn("Too many registration attempts", blocked.json()["detail"])
+
+    def test_login_brute_force_rate_limiting(self):
+        """Login brute-force rate limiting (max 10 per min per IP)."""
+        ip = "203.0.113.60"
+        for _ in range(10):
+            res = self.client.post(
+                "/api/auth/login",
+                json={"email": "victim@shield.ai", "password": "WrongPassword!"},
+                headers={"X-Forwarded-For": ip}
+            )
+            self.assertEqual(res.status_code, 401)
+
+        # 11th attempt is blocked with 429
+        blocked = self.client.post(
+            "/api/auth/login",
+            json={"email": "victim@shield.ai", "password": "WrongPassword!"},
+            headers={"X-Forwarded-For": ip}
+        )
+        self.assertEqual(blocked.status_code, 429)
+        self.assertIn("Too many authentication attempts", blocked.json()["detail"])

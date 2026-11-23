@@ -438,4 +438,85 @@ class ApiClientTest {
         assertTrue(bodyUtf8.contains("\"client_id\":\"test-client-uuid-9999\""))
         assertTrue(bodyUtf8.contains("\"sender_id\":\"trusted@company.com\""))
     }
+
+    @Test(expected = ScanAuthException::class)
+    fun `test scanWithFallback throws ScanAuthException on HTTP 401`() = runTest {
+        mockWebServer.enqueue(MockResponse().setResponseCode(401).setBody("{\"detail\":\"Unauthorized\"}"))
+        ApiClient.setBaseUrl(mockWebServer.url("/").toString())
+        try {
+            ApiClient.scanWithFallback(ScanInput(url = "https://example.com"))
+        } finally {
+            ApiClient.resetBaseUrl()
+        }
+    }
+
+    @Test(expected = ScanRateLimitException::class)
+    fun `test scanWithFallback throws ScanRateLimitException on HTTP 429`() = runTest {
+        mockWebServer.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", "30").setBody("{\"detail\":\"Rate limit exceeded\"}"))
+        ApiClient.setBaseUrl(mockWebServer.url("/").toString())
+        try {
+            ApiClient.scanWithFallback(ScanInput(url = "https://example.com"))
+        } finally {
+            ApiClient.resetBaseUrl()
+        }
+    }
+
+    @Test(expected = ScanInvalidInputException::class)
+    fun `test scanWithFallback throws ScanInvalidInputException on HTTP 422`() = runTest {
+        mockWebServer.enqueue(MockResponse().setResponseCode(422).setBody("{\"detail\":\"Unprocessable Entity\"}"))
+        ApiClient.setBaseUrl(mockWebServer.url("/").toString())
+        try {
+            ApiClient.scanWithFallback(ScanInput(url = "https://example.com"))
+        } finally {
+            ApiClient.resetBaseUrl()
+        }
+    }
+
+    @Test
+    fun `test scanWithFallback fails over to local heuristics on HTTP 500`() = runTest {
+        mockWebServer.enqueue(MockResponse().setResponseCode(500).setBody("Internal Error"))
+        ApiClient.setBaseUrl(mockWebServer.url("/").toString())
+        try {
+            val result = ApiClient.scanWithFallback(ScanInput(text = "Hello world check text"))
+            assertEquals("local_heuristic_scan", result.status)
+            assertTrue(result.warnings.any { it.contains("Degraded Protection") })
+        } finally {
+            ApiClient.resetBaseUrl()
+        }
+    }
+
+    @Test
+    fun `test scanWithFallback distinguishes full backend scan on success`() = runTest {
+        val dummyResponse = """
+            {
+                "scan_id": "scan-backend-success",
+                "status": "completed",
+                "total_engines": 1,
+                "completed_engines": 1,
+                "skipped_engines": 0,
+                "risk_score": 10.0,
+                "classification": "Safe",
+                "results": [],
+                "risk_assessment": {
+                    "risk_score": 10.0,
+                    "classification": "Safe",
+                    "confidence": 0.8,
+                    "contributing_engines": ["sender_engine"],
+                    "ignored_engines": [],
+                    "flags": [],
+                    "evidence": [],
+                    "reasons": ["Safe link verified."],
+                    "recommended_action": "Safe."
+                }
+            }
+        """.trimIndent()
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(dummyResponse))
+        ApiClient.setBaseUrl(mockWebServer.url("/").toString())
+        try {
+            val result = ApiClient.scanWithFallback(ScanInput(url = "https://safe-domain.org"))
+            assertEquals("full_backend_scan", result.status)
+        } finally {
+            ApiClient.resetBaseUrl()
+        }
+    }
 }

@@ -1374,20 +1374,62 @@ class MainActivity : AppCompatActivity() {
                             ApiClient.api.scan(resolvedInput)
                         }
                     }
+                    val code = response.code()
                     if (response.isSuccessful && response.body() != null) {
                         ApiClient.isServerAwake = true
                         wakingTimer.cancel()
-                        UnifiedScanResponseParser.parse(response.body()!!)
+                        val parsed = UnifiedScanResponseParser.parse(response.body()!!)
+                        val fullStatus = if (parsed.skipped_engines > 0 || parsed.completed_engines < parsed.total_engines) {
+                            "partial_backend_scan"
+                        } else {
+                            "full_backend_scan"
+                        }
+                        parsed.copy(status = fullStatus)
+                    } else if (code == 401 || code == 403) {
+                        wakingTimer.cancel()
+                        android.util.Log.e("MainActivity", "Authentication failure (HTTP $code)")
+                        Toast.makeText(this@MainActivity, "Authentication failed (HTTP $code). Please check API credentials.", Toast.LENGTH_LONG).show()
+                        preflightResult.copy(
+                            status = "failed_scan",
+                            warnings = listOf("[Authentication Error] Server rejected request credentials (HTTP $code).")
+                        )
+                    } else if (code == 429) {
+                        wakingTimer.cancel()
+                        android.util.Log.w("MainActivity", "Rate limit exceeded (HTTP 429)")
+                        Toast.makeText(this@MainActivity, "Scan rate limit exceeded (HTTP 429). Please wait before retrying.", Toast.LENGTH_LONG).show()
+                        preflightResult.copy(
+                            status = "failed_scan",
+                            warnings = listOf("[Rate Limited] Request limit exceeded (HTTP 429).")
+                        )
+                    } else if (code == 400 || code == 422) {
+                        wakingTimer.cancel()
+                        android.util.Log.w("MainActivity", "Invalid payload (HTTP $code)")
+                        Toast.makeText(this@MainActivity, "Scan payload rejected as invalid (HTTP $code).", Toast.LENGTH_LONG).show()
+                        preflightResult.copy(
+                            status = "failed_scan",
+                            warnings = listOf("[Invalid Input] Server rejected payload as invalid (HTTP $code).")
+                        )
                     } else {
                         wakingTimer.cancel()
-                        android.util.Log.w("MainActivity", "Cloud backend returned non-success; failing over to On-Device Shield.")
-                        preflightResult
+                        android.util.Log.w("MainActivity", "Cloud backend returned HTTP $code; using on-device heuristics with degraded status.")
+                        preflightResult.copy(
+                            status = "local_heuristic_scan",
+                            warnings = preflightResult.warnings + listOf("[Degraded Protection] Cloud server error (HTTP $code). Completed using on-device heuristics.")
+                        )
                     }
                 } catch (e: Exception) {
                     wakingTimer.cancel()
                     if (e is kotlinx.coroutines.CancellationException) throw e
-                    android.util.Log.w("MainActivity", "Cloud connection offline or timed out; failing over to On-Device Shield.")
-                    preflightResult
+                    android.util.Log.w("MainActivity", "Cloud connection offline or timed out; using on-device heuristics.")
+                    val warningMsg = if (e is kotlinx.coroutines.TimeoutCancellationException) {
+                        "[Degraded Protection] Connection to cloud backend timed out. Completed using on-device heuristics."
+                    } else {
+                        "[Degraded Protection] Cloud backend offline or unreachable. Completed using on-device heuristics."
+                    }
+                    preflightResult.copy(
+                        status = "local_heuristic_scan",
+                        warnings = preflightResult.warnings + listOf(warningMsg)
+                    )
                 }
 
                 currentResult = result
@@ -1415,9 +1457,15 @@ class MainActivity : AppCompatActivity() {
                     textFeedbackStatus.text = ""
                 }
 
-                val isLocalFallback = result.scan_id.startsWith("local-")
-                val sourceBadge = if (isLocalFallback) "Offline Check" else categorySuffix
-                badgeCategory.text = "${result.classification} ($sourceBadge)"
+                val isLocalFallback = result.status == "local_heuristic_scan" || result.scan_id.startsWith("local-")
+                val isScanFailed = result.status == "failed_scan"
+                val sourceBadge = when {
+                    isScanFailed -> "Failed"
+                    isLocalFallback -> "Offline Fallback"
+                    result.status == "partial_backend_scan" -> "$categorySuffix (Partial)"
+                    else -> categorySuffix
+                }
+                badgeCategory.text = if (isScanFailed) "Scan Incomplete ($sourceBadge)" else "${result.classification} ($sourceBadge)"
                 applyVerdictBadgeStyle(result.classification)
 
                 val confidencePct = (result.risk_assessment.confidence * 100).toInt()
