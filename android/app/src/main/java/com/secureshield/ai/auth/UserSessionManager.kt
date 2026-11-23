@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.annotation.VisibleForTesting
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -27,7 +28,11 @@ object UserSessionManager {
     private const val GCM_IV_LENGTH = 12
     private const val GCM_TAG_LENGTH = 128
 
+    @set:VisibleForTesting
+    internal var secretKeyProvider: (() -> SecretKey?)? = null
+
     private fun getSecretKey(): SecretKey? {
+        secretKeyProvider?.let { return it.invoke() }
         return try {
             val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
             if (!keyStore.containsAlias(KEY_ALIAS)) {
@@ -50,9 +55,9 @@ object UserSessionManager {
         }
     }
 
-    private fun encrypt(plainText: String): String {
+    private fun encrypt(plainText: String): String? {
         return try {
-            val key = getSecretKey() ?: return plainText
+            val key = getSecretKey() ?: return null
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, key)
             val iv = cipher.iv
@@ -62,7 +67,7 @@ object UserSessionManager {
             System.arraycopy(encryptedBytes, 0, combined, iv.size, encryptedBytes.size)
             Base64.encodeToString(combined, Base64.NO_WRAP)
         } catch (_: Exception) {
-            plainText
+            null
         }
     }
 
@@ -70,8 +75,8 @@ object UserSessionManager {
         if (encryptedBase64.isNullOrBlank()) return null
         return try {
             val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
-            if (combined.size <= GCM_IV_LENGTH) return encryptedBase64
-            val key = getSecretKey() ?: return encryptedBase64
+            if (combined.size <= GCM_IV_LENGTH) return null
+            val key = getSecretKey() ?: return null
             val iv = ByteArray(GCM_IV_LENGTH)
             val cipherText = ByteArray(combined.size - GCM_IV_LENGTH)
             System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH)
@@ -82,8 +87,7 @@ object UserSessionManager {
             cipher.init(Cipher.DECRYPT_MODE, key, spec)
             String(cipher.doFinal(cipherText), Charsets.UTF_8)
         } catch (_: Exception) {
-            // Safe fallback for unencrypted tokens or test environments
-            encryptedBase64
+            null
         }
     }
 
@@ -91,8 +95,8 @@ object UserSessionManager {
         return context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    fun saveSession(context: Context, auth: AuthResponse) {
-        val encryptedToken = encrypt(auth.token)
+    fun saveSession(context: Context, auth: AuthResponse): Boolean {
+        val encryptedToken = encrypt(auth.token) ?: return false
         getPrefs(context).edit().apply {
             putBoolean(KEY_IS_LOGGED_IN, true)
             putString(KEY_USER_ID, auth.user.user_id)
@@ -103,6 +107,7 @@ object UserSessionManager {
             putString(KEY_DB_FILE, auth.user.db_file)
             apply()
         }
+        return true
     }
 
     fun isLoggedIn(context: Context): Boolean {
@@ -122,8 +127,15 @@ object UserSessionManager {
     }
 
     fun getAuthToken(context: Context): String? {
-        val rawOrEncrypted = getPrefs(context).getString(KEY_TOKEN, null)
-        return decrypt(rawOrEncrypted)
+        val rawOrEncrypted = getPrefs(context).getString(KEY_TOKEN, null) ?: return null
+        val decrypted = decrypt(rawOrEncrypted)
+        if (decrypted == null) {
+            // Decryption failure: cryptographic key was invalidated, rotated, or session storage was tampered.
+            // Invalidate session immediately to prevent insecure authentication state.
+            clearSession(context)
+            return null
+        }
+        return decrypted
     }
 
     fun getUserDatabaseName(context: Context): String {

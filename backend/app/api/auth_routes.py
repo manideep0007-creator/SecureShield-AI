@@ -32,24 +32,16 @@ async def verify_google_id_token(
     Never trusts client-supplied email without cryptographic token validation.
     Returns: (is_valid, error_message, verified_email, verified_name)
     """
-    if not id_token:
-        if settings.ENVIRONMENT == "production":
-            return False, "Google ID token is required in production.", None, None
-        # In non-production tests without a token, only allow if explicitly in test mode
-        if os.getenv("TESTING") == "1" or "pytest" in sys.modules:
-            return True, None, client_supplied_email.strip().lower(), None
-        return False, "Google ID token is missing.", None, None
+    if not id_token or not id_token.strip():
+        return False, "Google ID token is required.", None, None
 
-    # Handle mock tokens during automated test executions
-    if id_token.startswith("mock_") or os.getenv("TESTING") == "1" or "pytest" in sys.modules:
-        clean_email = client_supplied_email.strip().lower()
-        return True, None, clean_email, "Verified Test User"
+    clean_token = id_token.strip()
 
     try:
         async with httpx.AsyncClient(timeout=6.0) as client:
             resp = await client.get(
                 "https://oauth2.googleapis.com/tokeninfo",
-                params={"id_token": id_token}
+                params={"id_token": clean_token}
             )
             if resp.status_code != 200:
                 return False, "Google ID token signature or token validation rejected by Google servers.", None, None
@@ -61,22 +53,28 @@ async def verify_google_id_token(
             if issuer not in ("accounts.google.com", "https://accounts.google.com"):
                 return False, f"Untrusted token issuer: {issuer}", None, None
 
-            # 2. Validate expiration
+            # 2. Validate audience if GOOGLE_CLIENT_ID is configured
+            if settings.GOOGLE_CLIENT_ID:
+                aud = token_data.get("aud")
+                if aud != settings.GOOGLE_CLIENT_ID:
+                    return False, "Google ID token audience does not match configured Google Client ID.", None, None
+
+            # 3. Validate expiration
             exp = token_data.get("exp")
-            if exp and int(exp) < int(time.time()):
+            if not exp or int(exp) < int(time.time()):
                 return False, "Google ID token has expired.", None, None
 
-            # 3. Validate email verification
+            # 4. Validate email verification
             email_verified = token_data.get("email_verified")
             if str(email_verified).lower() not in ("true", "1"):
                 return False, "Google account email is not verified.", None, None
 
-            # 4. Extract verified identity directly from token claims
+            # 5. Extract verified identity directly from token claims
             verified_email = token_data.get("email", "").strip().lower()
             if not verified_email:
                 return False, "Google token does not contain a valid email claim.", None, None
 
-            # 5. Prevent client from claiming an email that doesn't match the token
+            # 6. Prevent client from claiming an email that doesn't match the token
             if client_supplied_email and client_supplied_email.strip().lower() != verified_email:
                 return False, "Supplied email does not match verified Google token identity.", None, None
 
@@ -84,9 +82,7 @@ async def verify_google_id_token(
             return True, None, verified_email, verified_name
 
     except Exception as exc:
-        if settings.ENVIRONMENT != "production":
-            logger.warning("Google token check unreachable in dev mode: %s", exc)
-            return True, None, client_supplied_email.strip().lower(), None
+        logger.error("Google token verification service error: %s", exc)
         return False, "Could not contact Google identity verification service.", None, None
 
 

@@ -233,6 +233,9 @@ object ApiClient {
     @Volatile
     var isServerAwake: Boolean = false
 
+    @Volatile
+    var authTokenProvider: (() -> String?)? = null
+
     val baseUrl: String
         get() = customBaseUrl ?: BuildConfig.BASE_URL
 
@@ -244,6 +247,10 @@ object ApiClient {
                 val builder = request.newBuilder()
                 if (apiKey.isNotBlank()) {
                     builder.header("X-API-Key", apiKey)
+                }
+                val authToken = authTokenProvider?.invoke()
+                if (!authToken.isNullOrBlank() && request.header("Authorization") == null) {
+                    builder.header("Authorization", "Bearer $authToken")
                 }
                 chain.proceed(builder.build())
             }

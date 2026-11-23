@@ -1,8 +1,10 @@
+import ipaddress
+import logging
 import math
 import os
 import secrets
+import sqlite3
 import time
-from collections import defaultdict, deque
 from threading import Lock
 from typing import Callable, Tuple
 from fastapi import Request, Response
@@ -11,15 +13,44 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config.config import settings
 
+logger = logging.getLogger(__name__)
 
-class InMemoryRateLimiter:
-    """Thread-safe in-memory sliding window rate limiter."""
 
-    def __init__(self, max_requests: int = 30, window_seconds: float = 60.0):
+class SharedRateLimiter:
+    """
+    Multi-worker shared sliding-window rate limiter.
+    Stores window timestamps in SQLite database (with WAL mode) or Redis for multi-process safety.
+    """
+
+    def __init__(self, max_requests: int = 30, window_seconds: float = 60.0, db_name: str = "rate_limits.db"):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self._records: dict[str, deque[float]] = defaultdict(deque)
+        self.db_path = os.path.join(settings.resolved_data_dir, db_name)
         self._lock = Lock()
+        self._redis_client = None
+        if settings.REDIS_URL:
+            try:
+                import redis
+                self._redis_client = redis.from_url(settings.REDIS_URL)
+            except Exception as e:
+                logger.warning("Could not connect to Redis: %s", e)
+                self._redis_client = None
+        self._init_db()
+
+    def _init_db(self):
+        if self._redis_client:
+            return
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS rate_records (
+                    key TEXT NOT NULL,
+                    timestamp REAL NOT NULL
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_rate_key_time ON rate_records (key, timestamp);")
+            conn.commit()
 
     def check_and_record(self, key: str, now: float | None = None) -> Tuple[bool, int]:
         """
@@ -28,32 +59,76 @@ class InMemoryRateLimiter:
         """
         if now is None:
             now = time.time()
+
+        if self._redis_client:
+            try:
+                pipe = self._redis_client.pipeline()
+                cutoff = now - self.window_seconds
+                pipe.zremrangebyscore(key, "-inf", cutoff)
+                pipe.zcard(key)
+                pipe.zrange(key, 0, 0, withscores=True)
+                results = pipe.execute()
+                count = results[1]
+                oldest_entries = results[2]
+
+                if count >= self.max_requests:
+                    oldest_ts = oldest_entries[0][1] if oldest_entries else cutoff
+                    retry_after = max(1, math.ceil(oldest_ts + self.window_seconds - now))
+                    return False, retry_after
+
+                pipe = self._redis_client.pipeline()
+                pipe.zadd(key, {f"{now}_{secrets.token_hex(4)}": now})
+                pipe.expire(key, int(self.window_seconds) * 2)
+                pipe.execute()
+                return True, 0
+            except Exception as e:
+                logger.warning("Redis rate limit error, falling back to SQLite: %s", e)
+
+        cutoff = now - self.window_seconds
         with self._lock:
-            timestamps = self._records[key]
-            # Evict timestamps outside the sliding window
-            cutoff = now - self.window_seconds
-            while timestamps and timestamps[0] <= cutoff:
-                timestamps.popleft()
+            try:
+                with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM rate_records WHERE timestamp <= ?", (cutoff,))
+                    cursor.execute("SELECT timestamp FROM rate_records WHERE key = ? ORDER BY timestamp ASC", (key,))
+                    rows = cursor.fetchall()
 
-            if len(timestamps) >= self.max_requests:
-                oldest = timestamps[0]
-                retry_after = max(1, math.ceil(oldest + self.window_seconds - now))
-                return False, retry_after
+                    if len(rows) >= self.max_requests:
+                        oldest = rows[0][0]
+                        retry_after = max(1, math.ceil(oldest + self.window_seconds - now))
+                        return False, retry_after
 
-            timestamps.append(now)
-            return True, 0
+                    cursor.execute("INSERT INTO rate_records (key, timestamp) VALUES (?, ?)", (key, now))
+                    conn.commit()
+                    return True, 0
+            except Exception as exc:
+                logger.warning("SharedRateLimiter SQLite error: %s", exc)
+                return True, 0
 
     def reset(self):
         """Clears all recorded rate limit windows (useful for testing)."""
+        if self._redis_client:
+            try:
+                self._redis_client.flushdb()
+            except Exception:
+                pass
         with self._lock:
-            self._records.clear()
+            try:
+                with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+                    conn.execute("DELETE FROM rate_records")
+                    conn.commit()
+            except Exception:
+                pass
 
 
-# Separate limiters for sensitive actions (Phase 2: API Security & Rate Limiting)
-rate_limiter = InMemoryRateLimiter(max_requests=30, window_seconds=60.0)          # General scan
-auth_login_limiter = InMemoryRateLimiter(max_requests=10, window_seconds=60.0)    # 10 attempts / min
-auth_register_limiter = InMemoryRateLimiter(max_requests=5, window_seconds=60.0)  # 5 registrations / min
-general_api_limiter = InMemoryRateLimiter(max_requests=60, window_seconds=60.0)   # 60 req / min
+# Maintain backward-compatible class alias
+InMemoryRateLimiter = SharedRateLimiter
+
+# Shared limiters for sensitive actions (Phase 2: API Security & Rate Limiting)
+rate_limiter = SharedRateLimiter(max_requests=30, window_seconds=60.0)          # General scan
+auth_login_limiter = SharedRateLimiter(max_requests=10, window_seconds=60.0)    # 10 attempts / min
+auth_register_limiter = SharedRateLimiter(max_requests=5, window_seconds=60.0)  # 5 registrations / min
+general_api_limiter = SharedRateLimiter(max_requests=60, window_seconds=60.0)   # 60 req / min
 
 PUBLIC_HEALTH_PATHS = {
     "/",
@@ -86,6 +161,31 @@ def is_auth_path(path: str) -> bool:
     return normalized in PUBLIC_AUTH_PATHS or path in PUBLIC_AUTH_PATHS
 
 
+def is_trusted_proxy(ip_str: str) -> bool:
+    """Verifies whether an incoming peer IP is an authorized reverse proxy."""
+    if not ip_str or ip_str == "unknown":
+        return False
+    if ip_str == "testclient":
+        return True
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        for trusted in settings.trusted_proxy_list:
+            if trusted == "testclient":
+                continue
+            try:
+                if "/" in trusted:
+                    if ip in ipaddress.ip_network(trusted, strict=False):
+                        return True
+                else:
+                    if ip == ipaddress.ip_address(trusted):
+                        return True
+            except ValueError:
+                continue
+    except ValueError:
+        return False
+    return False
+
+
 def verify_api_key_header(api_key: str | None) -> bool:
     if not api_key:
         return False
@@ -105,11 +205,14 @@ class SecurityAndRateLimitMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # Extract client IP
-        client_ip = (
-            request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-            or (request.client.host if request.client else "unknown")
-        )
+        # Extract client IP with trusted proxy verification (prevents header spoofing)
+        peer_ip = request.client.host if request.client else "unknown"
+        client_ip = peer_ip
+        if is_trusted_proxy(peer_ip):
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                client_ip = forwarded.split(",")[0].strip() or peer_ip
+
         now = time.time()
 
         # 2. Allow unauthenticated health & docs
@@ -140,17 +243,33 @@ class SecurityAndRateLimitMiddleware(BaseHTTPMiddleware):
         if is_auth_path(path):
             return await call_next(request)
 
-        # 4. Enforce API Key authentication on all other /api/* endpoints
+        # 4. Enforce API Key or User Session Bearer authentication on protected endpoints
         if path.startswith("/api/"):
+            user = None
+            auth_header = request.headers.get("Authorization")
+            token = None
+            if auth_header and auth_header.strip().lower().startswith("bearer "):
+                token = auth_header.strip()[7:].strip()
+            elif request.headers.get("X-Auth-Token"):
+                token = request.headers.get("X-Auth-Token").strip()
+
+            if token:
+                from app.database.auth_db import get_user_from_token
+                user = get_user_from_token(token)
+
             api_key = request.headers.get("X-API-Key")
-            if not verify_api_key_header(api_key):
+            has_valid_api_key = verify_api_key_header(api_key)
+
+            if not user and not has_valid_api_key:
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": "Invalid or missing API key."},
-                    headers={"WWW-Authenticate": "ApiKey"},
+                    content={"detail": "Authentication required: Invalid or missing API key or session token."},
+                    headers={"WWW-Authenticate": "Bearer, ApiKey"},
                 )
 
-            # 5. Rate limiting per IP and per API Key on scan and protected endpoints
+            request.state.user = user
+
+            # 5. Rate limiting per IP and per identity (User ID or API Key)
             ip_allowed, ip_retry_after = rate_limiter.check_and_record(f"ip:{client_ip}", now=now)
             if not ip_allowed:
                 return JSONResponse(
@@ -159,12 +278,13 @@ class SecurityAndRateLimitMiddleware(BaseHTTPMiddleware):
                     headers={"Retry-After": str(ip_retry_after)},
                 )
 
-            key_allowed, key_retry_after = rate_limiter.check_and_record(f"key:{api_key}", now=now)
-            if not key_allowed:
+            identity_key = f"usr:{user['user_id']}" if user else f"key:{api_key}"
+            id_allowed, id_retry_after = rate_limiter.check_and_record(identity_key, now=now)
+            if not id_allowed:
                 return JSONResponse(
                     status_code=429,
                     content={"detail": "Rate limit exceeded. Please retry later."},
-                    headers={"Retry-After": str(key_retry_after)},
+                    headers={"Retry-After": str(id_retry_after)},
                 )
 
         return await call_next(request)
