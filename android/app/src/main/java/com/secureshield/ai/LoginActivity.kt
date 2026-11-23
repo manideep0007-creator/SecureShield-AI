@@ -155,6 +155,7 @@ class LoginActivity : AppCompatActivity() {
 
             layoutNameContainer.visibility = View.GONE
             textAutoCreateHint.visibility = View.VISIBLE
+            textAutoCreateHint.text = "Don't have an account? Tap 'SIGN UP' to register."
             btnSubmitAuth.text = "SIGN IN"
         }
     }
@@ -213,16 +214,11 @@ class LoginActivity : AppCompatActivity() {
                     if (response.isSuccessful && response.body() != null) {
                         val auth = response.body()!!
                         UserSessionManager.saveSession(this@LoginActivity, auth)
-                        val msg = if (auth.status == "auto_created") {
-                            "⚡ New account auto-created! Dedicated vault initialized."
-                        } else {
-                            "Authenticated. Loading private vault..."
-                        }
-                        Toast.makeText(this@LoginActivity, msg, Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@LoginActivity, "Authenticated. Loading private vault...", Toast.LENGTH_SHORT).show()
                         navigateToMain()
                     } else {
                         val errorJson = response.errorBody()?.string() ?: ""
-                        val parsedMessage = parseErrorMessage(errorJson, "Incorrect password. Please verify credentials.")
+                        val parsedMessage = parseErrorMessage(errorJson, "Invalid email or password. Please verify credentials or tap SIGN UP.")
                         showStatusMessage(parsedMessage, isError = true)
                     }
                 }
@@ -307,6 +303,17 @@ class LoginActivity : AppCompatActivity() {
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
+                    val authToken = UserSessionManager.getAuthToken(this@LoginActivity)
+                    val isAlreadyLoggedIn = UserSessionManager.isLoggedIn(this@LoginActivity)
+
+                    // If user has an active session token, unlock immediately
+                    if (isAlreadyLoggedIn && !authToken.isNullOrBlank()) {
+                        Toast.makeText(this@LoginActivity, "Biometric verified. Unlocking vault...", Toast.LENGTH_SHORT).show()
+                        navigateToMain()
+                        return
+                    }
+
+                    val currentPass = editPassword.text.toString().trim()
                     val savedEmail = UserSessionManager.getUserEmail(this@LoginActivity)
                     val currentEmail = editEmail.text.toString().trim()
                     val emailToUse = when {
@@ -315,13 +322,10 @@ class LoginActivity : AppCompatActivity() {
                         else -> ""
                     }
 
-                    if (emailToUse.isNotBlank()) {
-                        val currentPass = editPassword.text.toString().trim()
-                        val passToUse = if (currentPass.length >= 6) currentPass else "BiometricKey#${emailToUse.hashCode()}"
-                        executeLogin(emailToUse, passToUse, UserSessionManager.getUserFullName(this@LoginActivity))
-                    } else if (UserSessionManager.isLoggedIn(this@LoginActivity)) {
-                        Toast.makeText(this@LoginActivity, "Biometric verified. Loading vault...", Toast.LENGTH_SHORT).show()
-                        navigateToMain()
+                    if (emailToUse.isNotBlank() && currentPass.length >= 6) {
+                        executeLogin(emailToUse, currentPass, UserSessionManager.getUserFullName(this@LoginActivity))
+                    } else if (emailToUse.isNotBlank()) {
+                        showStatusMessage("Biometric confirmed. Please enter your password to sign in.", isError = false)
                     } else {
                         showStatusMessage("Biometrics verified! Please enter your email and password once to initialize your account.", isError = false)
                     }

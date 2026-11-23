@@ -2,6 +2,14 @@ package com.secureshield.ai.auth
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 object UserSessionManager {
     private const val PREFS_NAME = "secureshield_auth_session"
@@ -10,21 +18,88 @@ object UserSessionManager {
     private const val KEY_EMAIL = "email"
     private const val KEY_FULL_NAME = "full_name"
     private const val KEY_PROVIDER = "provider"
-    private const val KEY_TOKEN = "auth_token"
+    private const val KEY_TOKEN = "auth_token_enc"
     private const val KEY_DB_FILE = "db_file"
+
+    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+    private const val KEY_ALIAS = "SecureShieldSessionKey"
+    private const val TRANSFORMATION = "AES/GCM/NoPadding"
+    private const val GCM_IV_LENGTH = 12
+    private const val GCM_TAG_LENGTH = 128
+
+    private fun getSecretKey(): SecretKey? {
+        return try {
+            val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+            if (!keyStore.containsAlias(KEY_ALIAS)) {
+                val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+                val keyGenParameterSpec = KeyGenParameterSpec.Builder(
+                    KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build()
+                keyGenerator.init(keyGenParameterSpec)
+                keyGenerator.generateKey()
+            } else {
+                keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun encrypt(plainText: String): String {
+        return try {
+            val key = getSecretKey() ?: return plainText
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, key)
+            val iv = cipher.iv
+            val encryptedBytes = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
+            val combined = ByteArray(iv.size + encryptedBytes.size)
+            System.arraycopy(iv, 0, combined, 0, iv.size)
+            System.arraycopy(encryptedBytes, 0, combined, iv.size, encryptedBytes.size)
+            Base64.encodeToString(combined, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            plainText
+        }
+    }
+
+    private fun decrypt(encryptedBase64: String?): String? {
+        if (encryptedBase64.isNullOrBlank()) return null
+        return try {
+            val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
+            if (combined.size <= GCM_IV_LENGTH) return encryptedBase64
+            val key = getSecretKey() ?: return encryptedBase64
+            val iv = ByteArray(GCM_IV_LENGTH)
+            val cipherText = ByteArray(combined.size - GCM_IV_LENGTH)
+            System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH)
+            System.arraycopy(combined, GCM_IV_LENGTH, cipherText, 0, cipherText.size)
+
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            val spec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
+            cipher.init(Cipher.DECRYPT_MODE, key, spec)
+            String(cipher.doFinal(cipherText), Charsets.UTF_8)
+        } catch (_: Exception) {
+            // Safe fallback for unencrypted tokens or test environments
+            encryptedBase64
+        }
+    }
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
     fun saveSession(context: Context, auth: AuthResponse) {
+        val encryptedToken = encrypt(auth.token)
         getPrefs(context).edit().apply {
             putBoolean(KEY_IS_LOGGED_IN, true)
             putString(KEY_USER_ID, auth.user.user_id)
             putString(KEY_EMAIL, auth.user.email)
             putString(KEY_FULL_NAME, auth.user.full_name)
             putString(KEY_PROVIDER, auth.user.provider)
-            putString(KEY_TOKEN, auth.token)
+            putString(KEY_TOKEN, encryptedToken)
             putString(KEY_DB_FILE, auth.user.db_file)
             apply()
         }
@@ -47,7 +122,8 @@ object UserSessionManager {
     }
 
     fun getAuthToken(context: Context): String? {
-        return getPrefs(context).getString(KEY_TOKEN, null)
+        val rawOrEncrypted = getPrefs(context).getString(KEY_TOKEN, null)
+        return decrypt(rawOrEncrypted)
     }
 
     fun getUserDatabaseName(context: Context): String {

@@ -2,9 +2,7 @@
 V2 Engine Models — Standardized data structures for all detection engines.
 
 Every V2 engine must return an EngineResult. This replaces the ad-hoc dicts
-used in V1 (where each engine returned different keys) with a single contract.
-
-V1 engines (backend/engines/) are NOT modified. These models apply to V2 only.
+used in V1 with a single contract.
 """
 
 from __future__ import annotations
@@ -12,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class EngineStatus(str, Enum):
@@ -25,38 +23,13 @@ class EngineStatus(str, Enum):
 
 class EvidenceItem(BaseModel):
     """A single piece of evidence supporting a flag or score."""
-    key: str = Field(..., description="Machine-readable evidence identifier (e.g. 'gsb_threat_type', 'sha256_hash')")
+    key: str = Field(..., description="Machine-readable evidence identifier")
     value: Any = Field(..., description="The evidence value")
-    description: str = Field(default="", description="Optional human-readable explanation of this evidence")
+    description: str = Field(default="", description="Optional human-readable explanation")
 
 
 class EngineResult(BaseModel):
-    """
-    Universal return type for all V2 detection engines.
-
-    Every engine — URL, malware, NLP, sender, or any future engine — must
-    produce an EngineResult so the fusion layer can process them uniformly.
-
-    Fields
-    ------
-    engine_name : str
-        Unique identifier for the engine (e.g. "url_engine", "malware_engine").
-    risk_score : float
-        Threat score from 0.0 (safe) to 1.0 (maximum threat).
-    confidence : float
-        Self-reported confidence in the result, 0.0 to 1.0.
-        In V1 this was hardcoded in fusion.py; V2 engines report it themselves.
-    flags : list[str]
-        Machine-readable threat indicators (e.g. "ip_based_host", "vt_malicious").
-    evidence : list[EvidenceItem]
-        Supporting data points that justify the score and flags.
-    status : EngineStatus
-        Whether the engine succeeded, partially succeeded, errored, or was skipped.
-    error_message : str | None
-        Human-readable error description when status is ERROR or PARTIAL.
-    metadata : dict[str, Any]
-        Arbitrary engine-specific data (sub-scores, API responses, timing, etc.).
-    """
+    """Universal return type for all V2 detection engines."""
     engine_name: str = Field(..., description="Unique engine identifier")
     risk_score: float = Field(default=0.0, ge=0.0, le=100.0, description="Threat score 0–100")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Self-reported confidence 0.0–1.0")
@@ -65,6 +38,24 @@ class EngineResult(BaseModel):
     status: EngineStatus = Field(default=EngineStatus.SUCCESS, description="Execution outcome")
     error_message: str | None = Field(default=None, description="Error details when status is ERROR or PARTIAL")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Engine-specific auxiliary data")
+
+    @field_validator("risk_score", mode="before")
+    @classmethod
+    def clamp_risk_score(cls, v: Any) -> float:
+        try:
+            val = float(v)
+            return max(0.0, min(100.0, val))
+        except (ValueError, TypeError):
+            return 0.0
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def clamp_confidence(cls, v: Any) -> float:
+        try:
+            val = float(v)
+            return max(0.0, min(1.0, val))
+        except (ValueError, TypeError):
+            return 0.0
 
     @staticmethod
     def skipped(engine_name: str, reason: str = "Not applicable to input type") -> EngineResult:

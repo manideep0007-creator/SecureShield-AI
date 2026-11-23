@@ -309,27 +309,67 @@ object ApiClient {
     }
 
     /**
-     * Performs a resilient scan against the backend, automatically and seamlessly falling
-     * back to the autonomous On-Device Heuristic Engine if the remote service is unavailable,
-     * sleeping, or encounters connection/timeout failures.
+     * Performs a resilient scan against the backend with explicit fallback handling (Phase 5).
+     *
+     * Clearly distinguishes:
+     * - Full backend scan ("full_backend_scan")
+     * - Partial backend scan ("partial_backend_scan")
+     * - Local heuristic scan ("local_heuristic_scan" with degraded protection warning)
+     * - Throws explicit ScanAuthException, ScanRateLimitException, ScanInvalidInputException on 401/403/429/422.
      */
     suspend fun scanWithFallback(input: ScanInput): UnifiedScanResponse = withContext(Dispatchers.IO) {
         try {
-            val response = withTimeout(8000L) {
+            val response = withTimeout(10000L) {
                 api.scan(input)
             }
-            if (response.isSuccessful) {
-                val body = response.body()
-                if (body != null) {
+            val code = response.code()
+            when {
+                response.isSuccessful && response.body() != null -> {
                     isServerAwake = true
-                    return@withContext UnifiedScanResponseParser.parse(body)
+                    val parsed = UnifiedScanResponseParser.parse(response.body()!!)
+                    val determinedStatus = if (parsed.skipped_engines > 0 || parsed.completed_engines < parsed.total_engines) {
+                        "partial_backend_scan"
+                    } else {
+                        "full_backend_scan"
+                    }
+                    return@withContext parsed.copy(status = determinedStatus)
+                }
+                code == 401 || code == 403 -> {
+                    throw ScanAuthException("Defense server rejected authorization credentials (HTTP $code).")
+                }
+                code == 429 -> {
+                    val retryAfter = response.headers()["Retry-After"]?.toIntOrNull() ?: 60
+                    throw ScanRateLimitException("Scan rate limit exceeded (HTTP 429). Retry in $retryAfter seconds.", retryAfter)
+                }
+                code == 400 || code == 422 -> {
+                    throw ScanInvalidInputException("Defense server rejected scan payload as invalid (HTTP $code).")
+                }
+                else -> {
+                    // Cloud 5xx or server gateway error -> degraded fallback
+                    val fallback = OnDeviceHeuristicEngine.scan(input)
+                    val warnings = fallback.warnings + listOf(
+                        "[Degraded Protection] Cloud defense backend unavailable (HTTP $code). Completed using on-device heuristics."
+                    )
+                    return@withContext fallback.copy(
+                        status = "local_heuristic_scan",
+                        warnings = warnings
+                    )
                 }
             }
-            // Fallback for non-2xx responses (502, 503, 504, 500)
-            OnDeviceHeuristicEngine.scan(input)
-        } catch (_: Exception) {
-            // Fallback for network timeouts, ConnectException, offline, etc.
-            OnDeviceHeuristicEngine.scan(input)
+        } catch (e: ScanException) {
+            throw e
+        } catch (e: Exception) {
+            // Network timeout / ConnectException / offline -> fallback with degraded protection
+            val fallback = OnDeviceHeuristicEngine.scan(input)
+            val warningMsg = if (e is kotlinx.coroutines.TimeoutCancellationException) {
+                "[Degraded Protection] Connection to cloud defense backend timed out. Completed using on-device heuristics."
+            } else {
+                "[Degraded Protection] Cloud backend offline or unreachable. Completed using on-device heuristics."
+            }
+            return@withContext fallback.copy(
+                status = "local_heuristic_scan",
+                warnings = fallback.warnings + listOf(warningMsg)
+            )
         }
     }
 
@@ -405,4 +445,9 @@ object ApiClient {
 sealed class ProbeResult {
     data class Success(val latencyMs: Long) : ProbeResult()
     data class Failure(val message: String) : ProbeResult()
-}
+}
+
+open class ScanException(message: String, val statusCode: Int? = null) : Exception(message)
+class ScanAuthException(message: String = "Authentication or authorization failure.") : ScanException(message, 401)
+class ScanRateLimitException(message: String = "Rate limit exceeded. Please retry later.", val retryAfterSeconds: Int = 60) : ScanException(message, 429)
+class ScanInvalidInputException(message: String = "Invalid scan input payload.") : ScanException(message, 422)

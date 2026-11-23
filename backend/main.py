@@ -55,6 +55,7 @@ def init_databases():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings.validate_production_configuration()
     init_databases()
     # In automated tests, skip live external network sync unless explicitly enabled
     is_testing = "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") is not None or os.getenv("TESTING") == "1"
