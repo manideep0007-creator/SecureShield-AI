@@ -1,5 +1,8 @@
 package com.secureshield.ai
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
@@ -20,8 +23,11 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.secureshield.ai.auth.GoogleAuthRequest
@@ -68,7 +74,28 @@ class LoginActivity : AppCompatActivity() {
                 }
                 executeGoogleAuth(email, account.displayName ?: "", account.idToken)
             } catch (e: ApiException) {
-                showStatusMessage("Google sign-in was cancelled or encountered code: ${e.statusCode}", isError = true)
+                when (e.statusCode) {
+                    CommonStatusCodes.DEVELOPER_ERROR -> { // 10
+                        showStatusMessage(
+                            "Google Sign-In is not registered in Google Cloud Console (Code 10). Please sign in with Email & Password above.",
+                            isError = true
+                        )
+                        showGoogleDeveloperErrorDialog()
+                    }
+                    GoogleSignInStatusCodes.SIGN_IN_CANCELLED -> { // 12501
+                        // User cancelled Google sign-in dialog - silently reset without jarring red error
+                        hideStatusMessage()
+                    }
+                    CommonStatusCodes.NETWORK_ERROR -> { // 7
+                        showStatusMessage("Google sign-in network error. Please check your internet connection.", isError = true)
+                    }
+                    else -> {
+                        showStatusMessage(
+                            "Google sign-in unavailable (Code: ${e.statusCode}). Please sign in with Email & Password above.",
+                            isError = true
+                        )
+                    }
+                }
             } catch (e: Exception) {
                 showStatusMessage("Google sign-in error: ${e.localizedMessage}", isError = true)
             }
@@ -132,6 +159,18 @@ class LoginActivity : AppCompatActivity() {
                 updateTabUi()
             }
         }
+
+        textAutoCreateHint.setOnClickListener {
+            isSignUpMode = !isSignUpMode
+            updateTabUi()
+        }
+
+        layoutAuthStatus.setOnClickListener {
+            if (!isSignUpMode) {
+                isSignUpMode = true
+                updateTabUi()
+            }
+        }
     }
 
     private fun updateTabUi() {
@@ -144,7 +183,8 @@ class LoginActivity : AppCompatActivity() {
             tabSignIn.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
 
             layoutNameContainer.visibility = View.VISIBLE
-            textAutoCreateHint.visibility = View.GONE
+            textAutoCreateHint.visibility = View.VISIBLE
+            textAutoCreateHint.text = "Already have an account? Tap here to SIGN IN."
             btnSubmitAuth.text = "CREATE ACCOUNT"
         } else {
             tabSignIn.setBackgroundResource(R.drawable.bg_auth_tab_selected)
@@ -155,7 +195,7 @@ class LoginActivity : AppCompatActivity() {
 
             layoutNameContainer.visibility = View.GONE
             textAutoCreateHint.visibility = View.VISIBLE
-            textAutoCreateHint.text = "Don't have an account? Tap 'SIGN UP' to register."
+            textAutoCreateHint.text = "⚡ New here? Tap here to REGISTER and create your account."
             btnSubmitAuth.text = "SIGN IN"
         }
     }
@@ -218,7 +258,7 @@ class LoginActivity : AppCompatActivity() {
                         navigateToMain()
                     } else {
                         val errorJson = response.errorBody()?.string() ?: ""
-                        val parsedMessage = parseErrorMessage(errorJson, "Invalid email or password. Please verify credentials or tap SIGN UP.")
+                        val parsedMessage = parseErrorMessage(errorJson, "Invalid credentials or account not found. Tap REGISTER above to create your account.")
                         showStatusMessage(parsedMessage, isError = true)
                     }
                 }
@@ -284,7 +324,7 @@ class LoginActivity : AppCompatActivity() {
         if (clientIdResId != 0) {
             try {
                 val clientId = getString(clientIdResId)
-                if (clientId.isNotBlank() && !clientId.startsWith("your-")) {
+                if (clientId.isNotBlank() && !clientId.startsWith("your-") && clientId.contains(".apps.googleusercontent.com")) {
                     gsoBuilder.requestIdToken(clientId)
                 }
             } catch (_: Exception) {}
@@ -294,8 +334,12 @@ class LoginActivity : AppCompatActivity() {
 
         btnGoogleSignIn.setOnClickListener {
             hideStatusMessage()
-            val signInIntent = googleClient.signInIntent
-            googleSignInLauncher.launch(signInIntent)
+            try {
+                val signInIntent = googleClient.signInIntent
+                googleSignInLauncher.launch(signInIntent)
+            } catch (e: Exception) {
+                showStatusMessage("Google Sign-In unavailable: ${e.localizedMessage}", isError = true)
+            }
         }
     }
 
@@ -475,6 +519,56 @@ class LoginActivity : AppCompatActivity() {
         } catch (_: Exception) {
             defaultMessage
         }
+    }
+
+    private fun getAppSha1Fingerprint(): String {
+        return try {
+            val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+            }
+            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageInfo.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.signatures
+            }
+            val cert = signatures?.firstOrNull()?.toByteArray() ?: return "7E:66:D5:FD:FA:DF:00:72:A9:5F:CA:1B:0E:63:39:A5:1F:4D:54:8C"
+            val md = java.security.MessageDigest.getInstance("SHA-1")
+            val digest = md.digest(cert)
+            digest.joinToString(":") { "%02X".format(it) }
+        } catch (_: Exception) {
+            "7E:66:D5:FD:FA:DF:00:72:A9:5F:CA:1B:0E:63:39:A5:1F:4D:54:8C"
+        }
+    }
+
+    private fun showGoogleDeveloperErrorDialog() {
+        val sha1 = getAppSha1Fingerprint()
+        val pkg = packageName
+
+        val message = "Google Play Services returned Code 10 (DEVELOPER_ERROR).\n\n" +
+            "Google Sign-In requires registering this app's package and SHA-1 signing key in Google Cloud Console (APIs & Services > Credentials > OAuth 2.0 Client ID > Android):\n\n" +
+            "• Package Name:\n$pkg\n\n" +
+            "• SHA-1 Fingerprint:\n$sha1\n\n" +
+            "You can sign in immediately using Email & Password above, or tap 'Copy SHA-1' to configure it in Google Cloud."
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Google Sign-In Setup")
+            .setMessage(message)
+            .setPositiveButton("Copy SHA-1") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("SecureShield SHA-1", sha1)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "SHA-1 fingerprint copied to clipboard!", Toast.LENGTH_LONG).show()
+                editEmail.requestFocus()
+            }
+            .setNeutralButton("Sign In with Email") { _, _ ->
+                editEmail.requestFocus()
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
 
     private fun navigateToMain() {

@@ -416,12 +416,6 @@
                         android:letterSpacing="0.06"
                         android:background="@drawable/bg_btn_primary_cyber"
                         app:backgroundTint="@null" />
-                        android:textSize="13sp"
-                        android:textStyle="bold"
-                        android:textColor="#080C14"
-                        android:letterSpacing="0.06"
-                        android:background="@drawable/bg_btn_primary_cyber"
-                        app:backgroundTint="@null" />
 
                     <ProgressBar
                         android:id="@+id/progress_auth"

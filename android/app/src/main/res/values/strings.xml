@@ -2,4 +2,5 @@
     <string name="app_name">SecureShield AI</string>
     <string name="universal_link_guard_name">SecureShield Universal Link Guard</string>
     <string name="accessibility_service_description">Reads on-screen text to find dangerous links. Short suspicious messages may be sent to the SecureShield server for analysis; nothing is stored.</string>
+    <string name="default_web_client_id" translatable="false">secureshield-ai-render.apps.googleusercontent.com</string>
 </resources>
