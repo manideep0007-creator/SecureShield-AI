@@ -148,3 +148,4 @@ class TestSmartThreatDetectionAccuracy:
         assert recall >= 0.95, f"Recall {recall:.4f} below 0.95 target"
         assert f1_score >= 0.95, f"F1-score {f1_score:.4f} below 0.95 target"
         assert fpr == 0.0, f"False Positive Rate {fpr:.4f} is not 0.0%"
+

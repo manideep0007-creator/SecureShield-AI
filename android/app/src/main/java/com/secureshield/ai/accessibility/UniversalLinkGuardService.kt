@@ -133,10 +133,7 @@ class UniversalLinkGuardService : AccessibilityService() {
 
                     // Zero-delay pre-flight check: evaluate on-device immediately (<2ms)
                     val instantVerdict = OnDeviceHeuristicEngine.scan(input)
-                    if (THREAT_CATEGORIES.any { it.equals(instantVerdict.classification, ignoreCase = true) }) {
-                        android.util.Log.w("GuardianService", "⚡ INSTANT THREAT on-screen: ${instantVerdict.classification} for $url. Firing ASAP alert!")
-                        sendThreatNotification(instantVerdict, sourcePackage, targetDisplay = url)
-                    }
+                    handleScanVerdict(instantVerdict, sourcePackage, targetDisplay = url)
 
                     val success = try {
                         scanAndReport(input, sourcePackage, targetDisplay = url)
@@ -190,10 +187,7 @@ class UniversalLinkGuardService : AccessibilityService() {
 
                     // Zero-delay pre-flight check: evaluate on-device immediately (<2ms)
                     val instantVerdict = OnDeviceHeuristicEngine.scan(input)
-                    if (THREAT_CATEGORIES.any { it.equals(instantVerdict.classification, ignoreCase = true) }) {
-                        android.util.Log.w("GuardianService", "⚡ INSTANT TEXT THREAT on-screen: ${instantVerdict.classification}. Firing ASAP alert!")
-                        sendThreatNotification(instantVerdict, sourcePackage, targetDisplay = sanitizedSnippet)
-                    }
+                    handleScanVerdict(instantVerdict, sourcePackage, targetDisplay = sanitizedSnippet)
 
                     val success = try {
                         scanAndReport(input, sourcePackage, targetDisplay = sanitizedSnippet)
@@ -367,65 +361,7 @@ class UniversalLinkGuardService : AccessibilityService() {
         sourcePackage: String,
         targetDisplay: String
     ) {
-        ensureNotificationChannel()
-
-        val appLabel = try {
-            val pm = packageManager
-            val appInfo = pm.getApplicationInfo(sourcePackage, 0)
-            pm.getApplicationLabel(appInfo).toString()
-        } catch (_: Exception) {
-            sourcePackage
-        }
-
-        val topReason = scanResult.risk_assessment.reasons.firstOrNull()
-            ?: scanResult.risk_assessment.recommended_action.ifBlank { "Potential threat detected on screen" }
-
-        // Tapping notification opens the HUD overlay in GuardianInterceptActivity
-        val intent = Intent(applicationContext, GuardianInterceptActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("scan_id", scanResult.scan_id)
-            putExtra("target_url", targetDisplay)
-            putExtra("classification", scanResult.classification)
-            putExtra("score", scanResult.risk_score.toInt())
-            putExtra("source_app", appLabel)
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            applicationContext,
-            scanResult.scan_id.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notificationTitle = "🚨 SecureShield Alert in $appLabel"
-        val alertSummary = "${scanResult.classification} detected (Risk Score: ${scanResult.risk_score.toInt()}/100)"
-        val bigMessage = buildString {
-            appendLine("App: $appLabel ($sourcePackage)")
-            appendLine("Threat: ${scanResult.classification} (Risk: ${scanResult.risk_score.toInt()}/100)")
-            appendLine("Reason: $topReason")
-            append("Target: $targetDisplay")
-        }
-
-        val builder = NotificationCompat.Builder(applicationContext, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle(notificationTitle)
-            .setContentText(alertSummary)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigMessage))
-            .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setVibrate(longArrayOf(0, 250, 150, 250))
-            .setFullScreenIntent(pendingIntent, true)
-            .setOnlyAlertOnce(false)
-            .setAutoCancel(true)
-
-        try {
-            NotificationManagerCompat.from(applicationContext)
-                .notify(scanResult.scan_id.hashCode(), builder.build())
-        } catch (_: SecurityException) {
-            // Missing notification permission
-        }
+        handleScanVerdict(scanResult, sourcePackage, targetDisplay)
     }
 
     private fun ensureNotificationChannel() {
