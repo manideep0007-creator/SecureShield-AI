@@ -1,0 +1,32 @@
+name: Cleanup Old Releases
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/cleanup-releases.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Remove Previous Version Release APKs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Delete Old Release Assets and Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Cleaning up previous release APKs..."
+          for tag in v1.0.4 v1.0.3 v1.0.2 v1.0.1 v1.0.0; do
+            echo "Deleting release $tag..."
+            gh release delete "$tag" -y || true
+          done
+          echo "Cleanup complete! Remaining releases:"
+          gh release list
