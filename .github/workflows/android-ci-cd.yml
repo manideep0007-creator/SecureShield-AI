@@ -59,13 +59,16 @@ jobs:
         if: steps.check_signing.outputs.has_signing == 'true'
         run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
 
-      - name: Run Unit Tests & Build Debug APK
-        run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
-        env:
-          RELEASE_KEYSTORE_PATH: ${{ steps.check_signing.outputs.has_signing == 'true' && 'release.keystore' || '' }}
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Run Unit Tests
+        run: |
+          ./gradlew testDebugUnitTest --stacktrace || {
+            echo "::error::Unit tests failed! Displaying XML test failures:"
+            find app/build/test-results -name "*.xml" -exec cat {} + || true
+            exit 1
+          }
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
