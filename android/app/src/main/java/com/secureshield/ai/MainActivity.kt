@@ -1769,34 +1769,6 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun sendPushNotification(title: String, message: String) {
-        try {
-            val intent = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
-            val builder = NotificationCompat.Builder(this, "SS_ALERTS")
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-                .setContentIntent(pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setDefaults(NotificationCompat.DEFAULT_ALL)
-                .setVibrate(longArrayOf(0, 250, 150, 250))
-                .setFullScreenIntent(pendingIntent, true)
-                .setOnlyAlertOnce(false)
-                .setAutoCancel(true)
-            
-            NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), builder.build())
-        } catch (e: SecurityException) {
-            e.printStackTrace()
-        }
-    }
-
     private fun isThreatClassification(classification: String): Boolean =
         classification.equals("Suspicious", ignoreCase = true) ||
             classification.equals("Deceptive", ignoreCase = true) ||
