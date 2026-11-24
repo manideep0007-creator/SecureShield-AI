@@ -279,6 +279,42 @@ class TestSSRFPrevention(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(call_count, 3)
         self.assertIn("safe-site.com", result)
 
+    def test_validate_url_syntax_adversarial_edge_cases(self):
+        """Adversarial testing: CRLF, homographs, userinfo, invalid ports, and dotted octal/hex."""
+        # CRLF and whitespace injection
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://example.com/path\r\nHost: 127.0.0.1")
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://example.com/ path with spaces")
+
+        # Unicode full-width dot homographs
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://127\u30020\u30020\u30021/")
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://169\uff0e254\uff0e169\uff0e254/")
+
+        # Userinfo / credentials
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://admin:secret@example.com/")
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://attacker.com@127.0.0.1/")
+
+        # Invalid port numbers
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://example.com:0/")
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://example.com:70000/")
+
+        # Dotted octal and hex representations
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://0177.0.0.1/")
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://0x7f.0.0.1/")
+
+        # IPv6 zone index
+        self.assertFalse(is_safe_ip("fe80::1%eth0"))
+        self.assertFalse(is_safe_ip("fe80::1%wlan0"))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

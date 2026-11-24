@@ -137,6 +137,7 @@ def test_google_sign_in_flow(monkeypatch):
             return {
                 "iss": "https://accounts.google.com",
                 "aud": "expected-client-id.apps.googleusercontent.com",
+                "sub": "google_sub_10101",
                 "email": google_email,
                 "email_verified": "true",
                 "name": "Google User",
@@ -402,3 +403,70 @@ def test_user_scans_and_settings_isolation_between_sessions():
     res_a_settings = client.get("/api/auth/user/settings", headers={"Authorization": f"Bearer {token_a}"})
     assert res_a_settings.status_code == 200
     assert res_a_settings.json()["settings"].get("theme") == "matrix-green"
+
+
+def test_google_sign_in_rejects_missing_sub(monkeypatch):
+    """Google token without subject identifier (sub) must be rejected."""
+    class MockGoogleResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "iss": "https://accounts.google.com",
+                "aud": "expected-client-id.apps.googleusercontent.com",
+                "email": "nosub@gmail.com",
+                "email_verified": "true",
+                "exp": str(int(time.time()) + 3600),
+                # Missing 'sub'
+            }
+
+    async def mock_get(self, url, params=None):
+        return MockGoogleResponse()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
+    response = client.post(
+        "/api/auth/google",
+        json={"email": "nosub@gmail.com", "id_token": "token_missing_sub"}
+    )
+    assert response.status_code == 401
+    assert "subject identifier" in response.json()["detail"]["message"]
+
+
+def test_google_sign_in_rejects_future_iat(monkeypatch):
+    """Google token issued in the future must be rejected."""
+    class MockGoogleResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "iss": "https://accounts.google.com",
+                "aud": "expected-client-id.apps.googleusercontent.com",
+                "sub": "google_sub_12345",
+                "email": "future@gmail.com",
+                "email_verified": "true",
+                "exp": str(int(time.time()) + 7200),
+                "iat": str(int(time.time()) + 3600),  # 1 hour in future
+            }
+
+    async def mock_get(self, url, params=None):
+        return MockGoogleResponse()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
+    response = client.post(
+        "/api/auth/google",
+        json={"email": "future@gmail.com", "id_token": "token_future_iat"}
+    )
+    assert response.status_code == 401
+    assert "future" in response.json()["detail"]["message"]
+
+
+def test_user_vault_endpoints_reject_api_key_alone(monkeypatch):
+    """Sensitive endpoints must not be accessible through an API key alone."""
+    from app.config.config import settings
+    valid_key = settings.API_KEY or "secureshield_dev_secret_key_2026"
+
+    # Try accessing private user endpoints with valid API key but no session token
+    for endpoint in ["/api/auth/user/scans", "/api/auth/user/settings", "/api/auth/user/telemetry", "/api/auth/me"]:
+        res = client.get(endpoint, headers={"X-API-Key": valid_key})
+        assert res.status_code == 401, f"{endpoint} should reject API-key-only access"
+        assert "token" in res.text.lower()

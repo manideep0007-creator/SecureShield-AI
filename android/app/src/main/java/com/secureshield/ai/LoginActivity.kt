@@ -276,12 +276,21 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun setupGoogleSignIn() {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+        val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestProfile()
-            .build()
 
-        val googleClient = GoogleSignIn.getClient(this, gso)
+        val clientIdResId = resources.getIdentifier("default_web_client_id", "string", packageName)
+        if (clientIdResId != 0) {
+            try {
+                val clientId = getString(clientIdResId)
+                if (clientId.isNotBlank() && !clientId.startsWith("your-")) {
+                    gsoBuilder.requestIdToken(clientId)
+                }
+            } catch (_: Exception) {}
+        }
+
+        val googleClient = GoogleSignIn.getClient(this, gsoBuilder.build())
 
         btnGoogleSignIn.setOnClickListener {
             hideStatusMessage()
@@ -309,49 +318,23 @@ class LoginActivity : AppCompatActivity() {
                     val wrapper = pendingWrapper
                     pendingWrapper = null
 
-                    // If a cryptographic cipher was gated by biometrics, complete decryption using the authenticated cipher
-                    if (wrapper != null) {
-                        val authenticatedCipher = result.cryptoObject?.cipher ?: wrapper.cipher
-                        val decryptedToken = UserSessionManager.completeBiometricDecryption(
-                            this@LoginActivity,
-                            authenticatedCipher,
-                            wrapper.cipherText
-                        )
-                        if (!decryptedToken.isNullOrBlank()) {
-                            Toast.makeText(this@LoginActivity, "Biometric verified. Unlocking vault...", Toast.LENGTH_SHORT).show()
-                            navigateToMain()
-                            return
-                        } else {
-                            showStatusMessage("Session key invalidated. Please enter your password to re-authenticate.", isError = true)
-                            return
-                        }
-                    }
-
-                    val authToken = UserSessionManager.getAuthToken(this@LoginActivity)
-                    val isAlreadyLoggedIn = UserSessionManager.isLoggedIn(this@LoginActivity)
-
-                    // If user has an active session token, unlock immediately
-                    if (isAlreadyLoggedIn && !authToken.isNullOrBlank()) {
-                        Toast.makeText(this@LoginActivity, "Biometric verified. Unlocking vault...", Toast.LENGTH_SHORT).show()
-                        navigateToMain()
+                    // Strict cryptographic enforcement: Require authenticated cipher from CryptoObject
+                    val authenticatedCipher = result.cryptoObject?.cipher
+                    if (wrapper == null || authenticatedCipher == null) {
+                        showStatusMessage("Biometric authentication lacked required cryptographic proof. Please sign in with your password.", isError = true)
                         return
                     }
 
-                    val currentPass = editPassword.text.toString().trim()
-                    val savedEmail = UserSessionManager.getUserEmail(this@LoginActivity)
-                    val currentEmail = editEmail.text.toString().trim()
-                    val emailToUse = when {
-                        currentEmail.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(currentEmail).matches() -> currentEmail
-                        savedEmail.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(savedEmail).matches() -> savedEmail
-                        else -> ""
-                    }
-
-                    if (emailToUse.isNotBlank() && currentPass.length >= 6) {
-                        executeLogin(emailToUse, currentPass, UserSessionManager.getUserFullName(this@LoginActivity))
-                    } else if (emailToUse.isNotBlank()) {
-                        showStatusMessage("Biometric confirmed. Please enter your password to sign in.", isError = false)
+                    val decryptedToken = UserSessionManager.completeBiometricDecryption(
+                        this@LoginActivity,
+                        authenticatedCipher,
+                        wrapper.cipherText
+                    )
+                    if (!decryptedToken.isNullOrBlank()) {
+                        Toast.makeText(this@LoginActivity, "Biometric verified. Unlocking vault...", Toast.LENGTH_SHORT).show()
+                        navigateToMain()
                     } else {
-                        showStatusMessage("Biometrics verified! Please enter your email and password once to initialize your account.", isError = false)
+                        showStatusMessage("Cryptographic session decryption failed. Key may have been invalidated. Please sign in with your password.", isError = true)
                     }
                 }
 
@@ -370,25 +353,32 @@ class LoginActivity : AppCompatActivity() {
 
             when (biometricManager.canAuthenticate(authenticators)) {
                 BiometricManager.BIOMETRIC_SUCCESS -> {
+                    // Session check: A user must have an existing session to unlock via biometrics
+                    if (!UserSessionManager.isLoggedIn(this)) {
+                        showStatusMessage("No active session found. Please sign in with email and password to initialize your account.", isError = false)
+                        return@setOnClickListener
+                    }
+
+                    // Cryptographic Keystore key check: Must prepare authenticated decryption cipher
+                    val wrapper = UserSessionManager.createBiometricDecryptCipher(this)
+                    if (wrapper == null) {
+                        showStatusMessage("Session key invalidated or unavailable. Please enter your password to re-authenticate.", isError = true)
+                        return@setOnClickListener
+                    }
+
                     val promptInfo = BiometricPrompt.PromptInfo.Builder()
                         .setTitle("Touch / Face ID Unlock")
-                        .setSubtitle("Confirm your biometric credentials to unlock SecureShield")
+                        .setSubtitle("Confirm your biometric credentials to decrypt your session")
                         .setAllowedAuthenticators(authenticators)
                         .build()
 
-                    val wrapper = if (UserSessionManager.isLoggedIn(this)) {
-                        UserSessionManager.createBiometricDecryptCipher(this)
-                    } else null
-
                     pendingWrapper = wrapper
-                    if (wrapper != null) {
-                        try {
-                            biometricPrompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(wrapper.cipher))
-                        } catch (_: Exception) {
-                            biometricPrompt.authenticate(promptInfo)
-                        }
-                    } else {
-                        biometricPrompt.authenticate(promptInfo)
+                    try {
+                        // Strict requirement: Never fall back to unauthenticated prompt without CryptoObject
+                        biometricPrompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(wrapper.cipher))
+                    } catch (e: Exception) {
+                        pendingWrapper = null
+                        showStatusMessage("Biometric cryptographic hardware initialization failed. Please enter your password to sign in.", isError = true)
                     }
                 }
                 BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {

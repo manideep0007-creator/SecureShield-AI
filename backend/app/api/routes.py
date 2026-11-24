@@ -78,6 +78,12 @@ async def api_scan(payload: ScanInput, request: Request):
                 # Bind scan strictly to authenticated session identity
                 payload.metadata["user_id"] = user_id
                 payload.metadata["authenticated"] = True
+        else:
+            # If request is authenticated only via system API key without a user session,
+            # strictly sanitize and remove any client-supplied user_id to prevent identity spoofing
+            if isinstance(payload.metadata, dict):
+                payload.metadata.pop("user_id", None)
+                payload.metadata["authenticated"] = False
 
         results = await unified_pipeline.run(payload)
         profile = (

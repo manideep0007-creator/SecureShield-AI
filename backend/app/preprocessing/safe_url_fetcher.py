@@ -61,9 +61,13 @@ def is_safe_ip(ip_str: str) -> bool:
     """
     Validate whether an IP address is safe for outbound fetching.
     Blocks loopback, private, link-local, multicast, unspecified, reserved,
-    non-global, cloud metadata endpoints, Carrier Grade NAT, and internal
-    IPv4-mapped IPv6 addresses.
+    non-global, cloud metadata endpoints, Carrier Grade NAT, internal
+    IPv4-mapped IPv6 addresses, and IPv6 zone identifiers.
     """
+    if not ip_str or "%" in ip_str:
+        # Block IPv6 zone indices (e.g. fe80::1%eth0)
+        return False
+
     try:
         ip = ipaddress.ip_address(ip_str)
         # Block loopback, private, link-local, multicast, unspecified, and reserved IPs
@@ -95,17 +99,35 @@ class SafeURLFetcher:
 
     @staticmethod
     def validate_url_syntax(url: str):
+        # 1. Reject whitespace, control characters, and CRLF injection
+        if any(c in url for c in ("\r", "\n", "\t", " ")):
+            raise ValueError("SSRF Prevention: URL contains whitespace or control characters")
+
+        # 2. Reject unicode full-width dot homographs (e.g. \u3002, \uff0e, \uff61)
+        if any(c in url for c in ("\u3002", "\uff0e", "\uff61")):
+            raise ValueError("SSRF Prevention: Prohibited unicode homograph characters in URL")
+
         parsed = urlparse(url)
 
-        # 1. Scheme validation
+        # 3. Scheme validation
         if parsed.scheme.lower() not in ["http", "https"]:
             raise ValueError(f"SSRF Prevention: Unsupported scheme {parsed.scheme}")
 
-        # 2. Reject credentials in URL
-        if parsed.username or parsed.password:
+        # 4. Reject credentials or userinfo in URL
+        if parsed.username or parsed.password or ("@" in (parsed.netloc or "")):
             raise ValueError("SSRF Prevention: Embedded URL credentials are not allowed")
 
-        # 3. Host validation
+        # 5. Port validation
+        try:
+            port = parsed.port
+            if port is not None and not (1 <= port <= 65535):
+                raise ValueError(f"SSRF Prevention: Invalid port {port}")
+        except ValueError as e:
+            if "SSRF Prevention" in str(e):
+                raise
+            raise ValueError(f"SSRF Prevention: Invalid port in URL: {e}")
+
+        # 6. Host validation
         hostname = (parsed.hostname or "").lower()
         if not hostname:
             raise ValueError("SSRF Prevention: Missing URL host")
@@ -113,7 +135,13 @@ class SafeURLFetcher:
         if hostname in PROHIBITED_HOSTNAMES or any(hostname.endswith(sfx) for sfx in PROHIBITED_HOST_SUFFIXES):
             raise ValueError(f"SSRF Prevention: Prohibited internal host '{hostname}'")
 
-        # Disallow raw integer, octal, or hex obfuscated IP addresses that map to unsafe targets
+        # 7. Check for dotted hex or octal IP format (e.g. 0x7f.0.0.1, 0177.0.0.1)
+        labels = hostname.split(".")
+        for label in labels:
+            if label.startswith("0x") or (len(label) > 1 and label.startswith("0") and label.isdigit()):
+                raise ValueError(f"SSRF Prevention: Obfuscated IP format not allowed: '{hostname}'")
+
+        # 8. Disallow raw integer, octal, or hex obfuscated IP addresses that map to unsafe targets
         if hostname.isdigit():
             try:
                 int_val = int(hostname)

@@ -161,5 +161,12 @@ class UserSessionManagerTest {
         assertNull("Decryption of corrupted bytes must fail", decrypted)
         assertFalse("Corrupted decryption must wipe active session", UserSessionManager.isLoggedIn(context))
     }
+
+    @Test
+    fun testBiometricCipherCreationWhenLoggedOutReturnsNull() {
+        UserSessionManager.clearSession(context)
+        val wrapper = UserSessionManager.createBiometricDecryptCipher(context)
+        assertNull("Logged out user cannot generate biometric decrypt cipher wrapper", wrapper)
+    }
 }
 

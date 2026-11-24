@@ -72,31 +72,44 @@ class SharedRateLimiter:
         self._lock = Lock()
         self._redis_client = None
         self._redis_script = None
+        self._db_initialized = False
+
+        # Always initialize fallback SQLite database schema at startup
+        # Ensures that if Redis drops connection mid-flight, fallback to SQLite succeeds immediately
+        self._init_db()
+
         if settings.REDIS_URL:
             try:
                 import redis
-                self._redis_client = redis.from_url(settings.REDIS_URL)
+                self._redis_client = redis.from_url(
+                    settings.REDIS_URL,
+                    socket_timeout=2.0,
+                    socket_connect_timeout=2.0,
+                    decode_responses=True
+                )
+                self._redis_client.ping()
                 self._redis_script = self._redis_client.register_script(REDIS_SLIDING_WINDOW_LUA)
             except Exception as e:
-                logger.warning("Could not connect to Redis: %s", e)
+                logger.warning("Could not connect to Redis at startup: %s. Using SQLite fallback.", e)
                 self._redis_client = None
                 self._redis_script = None
-        self._init_db()
 
     def _init_db(self):
-        if self._redis_client:
-            return
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        with sqlite3.connect(self.db_path, timeout=10.0) as conn:
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS rate_records (
-                    key TEXT NOT NULL,
-                    timestamp REAL NOT NULL
-                );
-            """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_rate_key_time ON rate_records (key, timestamp);")
-            conn.commit()
+        try:
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+            with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS rate_records (
+                        key TEXT NOT NULL,
+                        timestamp REAL NOT NULL
+                    );
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_rate_key_time ON rate_records (key, timestamp);")
+                conn.commit()
+            self._db_initialized = True
+        except Exception as exc:
+            logger.warning("SharedRateLimiter SQLite init warning: %s", exc)
 
     def check_and_record(self, key: str, now: float | None = None) -> Tuple[bool, int]:
         """
@@ -332,6 +345,16 @@ class SecurityAndRateLimitMiddleware(BaseHTTPMiddleware):
                     content={"detail": "Authentication required: Invalid or missing API key or session token."},
                     headers={"WWW-Authenticate": "Bearer, ApiKey"},
                 )
+
+            # Sensitive user-vault endpoints strictly require an authenticated user session
+            # An API key alone CANNOT access, query, or modify user vaults, scans, settings, or telemetry.
+            if path.startswith("/api/auth/user/") or path == "/api/auth/me":
+                if not user:
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "User session token required. API key alone cannot access private user data."},
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
 
             request.state.user = user
 

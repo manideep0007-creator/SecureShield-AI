@@ -243,3 +243,25 @@ class TestAuthAndRateLimit(unittest.TestCase):
         self.assertIn("ZCARD", REDIS_SLIDING_WINDOW_LUA)
         self.assertIn("ZADD", REDIS_SLIDING_WINDOW_LUA)
         self.assertIn("EXPIRE", REDIS_SLIDING_WINDOW_LUA)
+
+    def test_redis_failure_mid_flight_transitions_seamlessly_to_sqlite(self):
+        """If Redis drops mid-operation, the rate limiter must fall back to SQLite without table errors."""
+        from app.api.security import SharedRateLimiter
+        from unittest.mock import MagicMock
+        db_name = f"redis_fallback_test_{int(time.time() * 1000)}.db"
+        limiter = SharedRateLimiter(max_requests=5, window_seconds=60.0, db_name=db_name)
+
+        # Mock a Redis client that suddenly raises a connection error
+        mock_redis = MagicMock()
+        mock_script = MagicMock(side_effect=Exception("Redis connection partition"))
+        limiter._redis_client = mock_redis
+        limiter._redis_script = mock_script
+
+        try:
+            # Fallback to SQLite must succeed without raising "no such table: rate_records"
+            allowed1, _ = limiter.check_and_record("test_failover_key")
+            self.assertTrue(allowed1)
+            allowed2, _ = limiter.check_and_record("test_failover_key")
+            self.assertTrue(allowed2)
+        finally:
+            limiter.reset()

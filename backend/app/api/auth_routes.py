@@ -64,9 +64,9 @@ async def verify_google_id_token(
             if not aud or aud.strip() != configured_aud.strip():
                 return False, "Google ID token audience does not match configured Google Client ID.", None, None
 
-            # 3. Validate expiration
+            # 3. Validate expiration with 60s clock skew allowance
             exp = token_data.get("exp")
-            if not exp or int(exp) < int(time.time()):
+            if not exp or int(exp) < int(time.time()) - 60:
                 return False, "Google ID token has expired.", None, None
 
             # 4. Validate email verification
@@ -74,12 +74,26 @@ async def verify_google_id_token(
             if str(email_verified).lower() not in ("true", "1"):
                 return False, "Google account email is not verified.", None, None
 
-            # 5. Extract verified identity directly from token claims
+            # 5. Validate subject identifier (unique user ID in Google)
+            sub = token_data.get("sub")
+            if not sub or not str(sub).strip():
+                return False, "Google token is missing a valid subject identifier (sub).", None, None
+
+            # 6. Validate issued-at timestamp (prevent future tokens)
+            iat = token_data.get("iat")
+            if iat:
+                try:
+                    if int(iat) > int(time.time()) + 120:
+                        return False, "Google ID token issued in the future.", None, None
+                except (ValueError, TypeError):
+                    pass
+
+            # 7. Extract verified identity directly from token claims
             verified_email = token_data.get("email", "").strip().lower()
             if not verified_email:
                 return False, "Google token does not contain a valid email claim.", None, None
 
-            # 6. Prevent client from claiming an email that doesn't match the token
+            # 8. Prevent client from claiming an email that doesn't match the token
             if client_supplied_email and client_supplied_email.strip().lower() != verified_email:
                 return False, "Supplied email does not match verified Google token identity.", None, None
 
