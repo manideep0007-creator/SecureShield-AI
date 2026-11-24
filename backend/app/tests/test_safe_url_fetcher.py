@@ -196,6 +196,89 @@ class TestSSRFPrevention(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(is_safe_ip("invalid_ip"))
         self.assertFalse(is_safe_ip(""))
 
+    def test_is_safe_ip_extended_ranges(self):
+        """Validate extended cloud metadata and reserved IP ranges are blocked."""
+        # Cloud metadata and internal services
+        self.assertFalse(is_safe_ip("168.63.129.16"))
+        self.assertFalse(is_safe_ip("100.100.100.200"))
+
+        # 0.0.0.0/8 source-only network
+        self.assertFalse(is_safe_ip("0.0.0.1"))
+        self.assertFalse(is_safe_ip("0.255.255.255"))
+
+        # Broadcast
+        self.assertFalse(is_safe_ip("255.255.255.255"))
+
+        # Documentation and benchmark ranges
+        self.assertFalse(is_safe_ip("198.18.0.5"))
+        self.assertFalse(is_safe_ip("192.0.2.100"))
+        self.assertFalse(is_safe_ip("198.51.100.42"))
+        self.assertFalse(is_safe_ip("203.0.113.1"))
+
+        # IPv6 documentation and discard
+        self.assertFalse(is_safe_ip("100::1"))
+        self.assertFalse(is_safe_ip("2001:db8::1"))
+        self.assertFalse(is_safe_ip("fc00::1"))
+
+    def test_validate_url_syntax_blocks_prohibited_hosts(self):
+        """Validate that internal hostnames and internal suffixes are rejected at syntax validation."""
+        for url in [
+            "http://localhost/test",
+            "http://metadata.google.internal/computeMetadata",
+            "http://instance-data/latest/meta-data",
+            "http://metadata.azure.com/metadata",
+            "http://database.local/admin",
+            "http://internal-service.internal/api",
+            "http://corp-router.lan/config",
+            "http://files.localdomain/secret",
+            "http://server.corp/login",
+            "http://nas.home/backups",
+            "http://domain.arpa/dns",
+        ]:
+            with self.assertRaises(ValueError, msg=f"Should reject {url}"):
+                SafeURLFetcher.validate_url_syntax(url)
+
+    def test_validate_url_syntax_blocks_integer_and_hex_ips(self):
+        """Validate integer and hex IP obfuscation targeting loopback or internal addresses is rejected."""
+        # 2130706433 == 127.0.0.1
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://2130706433/path")
+
+        # 0x7f000001 == 127.0.0.1
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://0x7f000001/path")
+
+        # 2852039166 == 169.254.169.254
+        with self.assertRaises(ValueError):
+            SafeURLFetcher.validate_url_syntax("http://2852039166/latest")
+
+    async def test_circular_redirect_handling(self):
+        """Verify circular redirect loop terminates without exceeding limit or hanging."""
+        # Simulate A -> B -> A redirect loop
+        call_count = 0
+
+        async def fake_head(url, *args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if "page-a" in url:
+                return httpx.Response(302, headers={"Location": "http://safe-site.com/page-b"})
+            else:
+                return httpx.Response(302, headers={"Location": "http://safe-site.com/page-a"})
+
+        orig_getaddrinfo = socket.getaddrinfo
+        def fake_getaddrinfo(host, port, *args, **kwargs):
+            if host == "safe-site.com":
+                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.215.14', port or 80))]
+            return orig_getaddrinfo(host, port, *args, **kwargs)
+
+        with patch("socket.getaddrinfo", side_effect=fake_getaddrinfo):
+            with patch("httpx.AsyncClient.head", side_effect=fake_head):
+                result = await SafeURLFetcher.resolve_redirects("http://safe-site.com/page-a", max_redirects=5)
+
+        # Loop must terminate early due to visited_urls detection
+        self.assertLessEqual(call_count, 3)
+        self.assertIn("safe-site.com", result)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

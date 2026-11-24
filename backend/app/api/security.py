@@ -16,25 +16,71 @@ from app.config.config import settings
 logger = logging.getLogger(__name__)
 
 
+# Redis Lua script for strictly atomic sliding-window rate limiting.
+# Executes eviction, count check, insertion, and expiration in a single single-threaded Redis transaction.
+REDIS_SLIDING_WINDOW_LUA = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local max_requests = tonumber(ARGV[3])
+local member = ARGV[4]
+local cutoff = now - window
+
+-- 1. Evict expired entries outside the sliding window
+redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
+
+-- 2. Count active entries within current window
+local count = redis.call('ZCARD', key)
+
+if count >= max_requests then
+    local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+    local oldest_ts = cutoff
+    if oldest and #oldest >= 2 then
+        oldest_ts = tonumber(oldest[2])
+    end
+    local retry_after = math.ceil(oldest_ts + window - now)
+    if retry_after < 1 then retry_after = 1 end
+    return {0, retry_after}
+else
+    redis.call('ZADD', key, now, member)
+    redis.call('EXPIRE', key, math.ceil(window * 2))
+    return {1, 0}
+end
+"""
+
+
 class SharedRateLimiter:
     """
     Multi-worker shared sliding-window rate limiter.
-    Stores window timestamps in SQLite database (with WAL mode) or Redis for multi-process safety.
+    Stores window timestamps in Redis (via atomic Lua script) or SQLite database
+    (via atomic BEGIN IMMEDIATE transaction locking) for multi-worker process safety.
+    If rate-limit storage fails, sensitive limiters fail closed (fail_closed=True)
+    to protect against brute-force attacks and resource exhaustion.
     """
 
-    def __init__(self, max_requests: int = 30, window_seconds: float = 60.0, db_name: str = "rate_limits.db"):
+    def __init__(
+        self,
+        max_requests: int = 30,
+        window_seconds: float = 60.0,
+        db_name: str = "rate_limits.db",
+        fail_closed: bool = False
+    ):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.db_path = os.path.join(settings.resolved_data_dir, db_name)
+        self.fail_closed = fail_closed
         self._lock = Lock()
         self._redis_client = None
+        self._redis_script = None
         if settings.REDIS_URL:
             try:
                 import redis
                 self._redis_client = redis.from_url(settings.REDIS_URL)
+                self._redis_script = self._redis_client.register_script(REDIS_SLIDING_WINDOW_LUA)
             except Exception as e:
                 logger.warning("Could not connect to Redis: %s", e)
                 self._redis_client = None
+                self._redis_script = None
         self._init_db()
 
     def _init_db(self):
@@ -56,54 +102,65 @@ class SharedRateLimiter:
         """
         Checks if the request key exceeds rate limit.
         Returns (is_allowed, retry_after_seconds).
+        If rate-limit storage fails:
+          - If fail_closed=True: rejects request with retry_after window (safe fail-closed).
+          - If fail_closed=False: allows request with warning (fail-open for general non-sensitive metrics).
         """
         if now is None:
             now = time.time()
 
-        if self._redis_client:
+        # Atomic Redis sliding window check via Lua script
+        if self._redis_client and self._redis_script:
             try:
-                pipe = self._redis_client.pipeline()
-                cutoff = now - self.window_seconds
-                pipe.zremrangebyscore(key, "-inf", cutoff)
-                pipe.zcard(key)
-                pipe.zrange(key, 0, 0, withscores=True)
-                results = pipe.execute()
-                count = results[1]
-                oldest_entries = results[2]
-
-                if count >= self.max_requests:
-                    oldest_ts = oldest_entries[0][1] if oldest_entries else cutoff
-                    retry_after = max(1, math.ceil(oldest_ts + self.window_seconds - now))
-                    return False, retry_after
-
-                pipe = self._redis_client.pipeline()
-                pipe.zadd(key, {f"{now}_{secrets.token_hex(4)}": now})
-                pipe.expire(key, int(self.window_seconds) * 2)
-                pipe.execute()
-                return True, 0
+                member = f"{now}_{secrets.token_hex(4)}"
+                result = self._redis_script(
+                    keys=[key],
+                    args=[now, self.window_seconds, self.max_requests, member]
+                )
+                is_allowed = bool(result[0] == 1)
+                retry_after = int(result[1])
+                return is_allowed, retry_after
             except Exception as e:
-                logger.warning("Redis rate limit error, falling back to SQLite: %s", e)
+                logger.warning("Atomic Redis rate limit script error, falling back to SQLite: %s", e)
 
+        # Atomic SQLite sliding window check using BEGIN IMMEDIATE transaction
         cutoff = now - self.window_seconds
         with self._lock:
+            conn = None
             try:
-                with sqlite3.connect(self.db_path, timeout=10.0) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM rate_records WHERE timestamp <= ?", (cutoff,))
-                    cursor.execute("SELECT timestamp FROM rate_records WHERE key = ? ORDER BY timestamp ASC", (key,))
-                    rows = cursor.fetchall()
+                conn = sqlite3.connect(self.db_path, timeout=10.0, isolation_level=None)
+                conn.execute("BEGIN IMMEDIATE")
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM rate_records WHERE timestamp <= ?", (cutoff,))
+                cursor.execute("SELECT timestamp FROM rate_records WHERE key = ? ORDER BY timestamp ASC", (key,))
+                rows = cursor.fetchall()
 
-                    if len(rows) >= self.max_requests:
-                        oldest = rows[0][0]
-                        retry_after = max(1, math.ceil(oldest + self.window_seconds - now))
-                        return False, retry_after
+                if len(rows) >= self.max_requests:
+                    oldest = rows[0][0]
+                    retry_after = max(1, math.ceil(oldest + self.window_seconds - now))
+                    conn.execute("COMMIT")
+                    return False, retry_after
 
-                    cursor.execute("INSERT INTO rate_records (key, timestamp) VALUES (?, ?)", (key, now))
-                    conn.commit()
-                    return True, 0
-            except Exception as exc:
-                logger.warning("SharedRateLimiter SQLite error: %s", exc)
+                cursor.execute("INSERT INTO rate_records (key, timestamp) VALUES (?, ?)", (key, now))
+                conn.execute("COMMIT")
                 return True, 0
+            except Exception as exc:
+                if conn:
+                    try:
+                        conn.execute("ROLLBACK")
+                    except Exception:
+                        pass
+                logger.error("SharedRateLimiter SQLite storage error: %s", exc)
+                if self.fail_closed:
+                    # Fail closed on sensitive endpoints: never silently allow unlimited requests
+                    return False, int(self.window_seconds)
+                return True, 0
+            finally:
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
 
     def reset(self):
         """Clears all recorded rate limit windows (useful for testing)."""
@@ -125,10 +182,11 @@ class SharedRateLimiter:
 InMemoryRateLimiter = SharedRateLimiter
 
 # Shared limiters for sensitive actions (Phase 2: API Security & Rate Limiting)
-rate_limiter = SharedRateLimiter(max_requests=30, window_seconds=60.0)          # General scan
-auth_login_limiter = SharedRateLimiter(max_requests=10, window_seconds=60.0)    # 10 attempts / min
-auth_register_limiter = SharedRateLimiter(max_requests=5, window_seconds=60.0)  # 5 registrations / min
-general_api_limiter = SharedRateLimiter(max_requests=60, window_seconds=60.0)   # 60 req / min
+# Sensitive auth endpoints FAIL CLOSED if rate-limit storage fails.
+rate_limiter = SharedRateLimiter(max_requests=30, window_seconds=60.0, fail_closed=False)          # General scan
+auth_login_limiter = SharedRateLimiter(max_requests=10, window_seconds=60.0, fail_closed=True)    # 10 attempts / min (Fail Closed)
+auth_register_limiter = SharedRateLimiter(max_requests=5, window_seconds=60.0, fail_closed=True)  # 5 registrations / min (Fail Closed)
+general_api_limiter = SharedRateLimiter(max_requests=60, window_seconds=60.0, fail_closed=False)   # 60 req / min
 
 PUBLIC_HEALTH_PATHS = {
     "/",
@@ -187,6 +245,14 @@ def is_trusted_proxy(ip_str: str) -> bool:
 
 
 def verify_api_key_header(api_key: str | None) -> bool:
+    """
+    Restricted legacy/server-to-server API key verification.
+    SECURITY POLICY:
+    - API keys grant access strictly in a system/anonymous context (request.state.user = None).
+    - API keys CANNOT access, query, or modify user-isolated vaults, telemetry, or settings.
+    - Mobile clients authenticate exclusively via authenticated user sessions (Bearer tokens).
+    - In production, default development keys are strictly rejected.
+    """
     if not api_key:
         return False
     expected_key = os.getenv("API_KEY") or settings.API_KEY

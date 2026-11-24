@@ -176,6 +176,33 @@ def test_google_sign_in_rejects_empty_token():
     assert response.json()["detail"]["code"] == "invalid_google_token"
 
 
+def test_google_client_id_mandatory_in_production(monkeypatch):
+    """GOOGLE_CLIENT_ID must be mandatory in production. Startup must fail if missing or default."""
+    from app.config.config import Settings
+    s = Settings(ENVIRONMENT="production", API_KEY="real_production_secret_key_9999", GOOGLE_CLIENT_ID="")
+    with pytest.raises(ValueError, match="GOOGLE_CLIENT_ID must be explicitly configured in production"):
+        s.validate_production_configuration()
+
+    s_default = Settings(ENVIRONMENT="production", API_KEY="real_production_secret_key_9999", GOOGLE_CLIENT_ID="expected-client-id.apps.googleusercontent.com")
+    with pytest.raises(ValueError, match="cannot use test/development defaults"):
+        s_default.validate_production_configuration()
+
+
+def test_google_sign_in_rejects_when_google_client_id_unconfigured(monkeypatch):
+    from app.config.config import settings
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
+
+    response = client.post(
+        "/api/auth/google",
+        json={
+            "email": "user@gmail.com",
+            "id_token": "some_token_123"
+        }
+    )
+    assert response.status_code == 401
+    assert "Google OAuth client ID is not configured" in response.json()["detail"]["message"]
+
+
 def test_google_sign_in_rejects_audience_mismatch(monkeypatch):
     from app.config.config import settings
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "expected-client-id.apps.googleusercontent.com")
@@ -214,6 +241,7 @@ def test_google_sign_in_rejects_expired_token(monkeypatch):
         def json(self):
             return {
                 "iss": "https://accounts.google.com",
+                "aud": "expected-client-id.apps.googleusercontent.com",
                 "email": "expired@gmail.com",
                 "email_verified": "true",
                 "exp": str(int(time.time()) - 100),
@@ -241,6 +269,7 @@ def test_google_sign_in_rejects_unverified_email(monkeypatch):
         def json(self):
             return {
                 "iss": "https://accounts.google.com",
+                "aud": "expected-client-id.apps.googleusercontent.com",
                 "email": "unverified@gmail.com",
                 "email_verified": "false",
                 "exp": str(int(time.time()) + 3600),
@@ -321,3 +350,55 @@ def test_each_user_has_separate_database():
     assert os.path.exists(user_b["db_file"])
     assert user_a["user_id"] in user_a["db_file"]
     assert user_b["user_id"] in user_b["db_file"]
+
+
+def test_user_scans_and_settings_isolation_between_sessions():
+    """A valid session must only access the authenticated user's own scans, settings, and database."""
+    from app.database.auth_db import save_user_scan
+    user_a = create_user(email="tenant_a@shield.ai", password="PassA123456!", full_name="Tenant A")
+    token_a = create_session(user_a["user_id"])
+
+    user_b = create_user(email="tenant_b@shield.ai", password="PassB123456!", full_name="Tenant B")
+    token_b = create_session(user_b["user_id"])
+
+    # User A records a private scan
+    save_user_scan(
+        user_id=user_a["user_id"],
+        scan_id="scan_confidential_a_1",
+        scan_type="url",
+        target="https://internal-bank.a.com",
+        threat_level="Safe",
+        threat_score=10.0,
+        details_json='{"note": "secret financial portal"}'
+    )
+
+    # User A requests their own scans -> receives 1 scan
+    res_a = client.get("/api/auth/user/scans", headers={"Authorization": f"Bearer {token_a}"})
+    assert res_a.status_code == 200
+    scans_a = res_a.json()["scans"]
+    assert len(scans_a) == 1
+    assert scans_a[0]["scan_id"] == "scan_confidential_a_1"
+    assert scans_a[0]["target"] == "https://internal-bank.a.com"
+
+    # User B requests their own scans -> receives 0 scans (complete isolation!)
+    res_b = client.get("/api/auth/user/scans", headers={"Authorization": f"Bearer {token_b}"})
+    assert res_b.status_code == 200
+    scans_b = res_b.json()["scans"]
+    assert len(scans_b) == 0
+
+    # User A configures private setting
+    client.post(
+        "/api/auth/user/settings",
+        json={"key": "theme", "value": "matrix-green"},
+        headers={"Authorization": f"Bearer {token_a}"}
+    )
+
+    # User B cannot see User A's settings
+    res_b_settings = client.get("/api/auth/user/settings", headers={"Authorization": f"Bearer {token_b}"})
+    assert res_b_settings.status_code == 200
+    assert "theme" not in res_b_settings.json()["settings"]
+
+    # User A sees their own setting
+    res_a_settings = client.get("/api/auth/user/settings", headers={"Authorization": f"Bearer {token_a}"})
+    assert res_a_settings.status_code == 200
+    assert res_a_settings.json()["settings"].get("theme") == "matrix-green"

@@ -129,5 +129,37 @@ class UserSessionManagerTest {
         assertEquals("", UserSessionManager.getUserEmail(context))
         assertNull(UserSessionManager.getAuthToken(context))
     }
+
+    @Test
+    fun testBiometricCipherGatedDecryptionSuccess() {
+        val sample = createSampleAuth("biometric_gated_token_9988")
+        val saved = UserSessionManager.saveSession(context, sample)
+        assertTrue(saved)
+
+        // Prepare biometric decrypt cipher
+        val wrapper = UserSessionManager.createBiometricDecryptCipher(context)
+        assertNotNull("Biometric cipher wrapper must be created", wrapper)
+        assertNotNull("Cipher instance must be initialized", wrapper!!.cipher)
+
+        // Complete decryption after simulated biometric authentication
+        val decrypted = UserSessionManager.completeBiometricDecryption(context, wrapper.cipher, wrapper.cipherText)
+        assertNotNull(decrypted)
+        assertEquals("biometric_gated_token_9988", decrypted)
+        assertTrue(UserSessionManager.isLoggedIn(context))
+    }
+
+    @Test
+    fun testBiometricDecryptionWithCorruptedDataClearsSession() {
+        val sample = createSampleAuth("token_to_fail")
+        UserSessionManager.saveSession(context, sample)
+        val wrapper = UserSessionManager.createBiometricDecryptCipher(context)
+        assertNotNull(wrapper)
+
+        // Corrupt ciphertext
+        val corruptedBytes = byteArrayOf(0, 1, 2, 3, 4, 5, 6, 7)
+        val decrypted = UserSessionManager.completeBiometricDecryption(context, wrapper!!.cipher, corruptedBytes)
+        assertNull("Decryption of corrupted bytes must fail", decrypted)
+        assertFalse("Corrupted decryption must wipe active session", UserSessionManager.isLoggedIn(context))
+    }
 }
 

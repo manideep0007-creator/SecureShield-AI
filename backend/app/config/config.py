@@ -13,7 +13,8 @@ class Settings(BaseSettings):
     DATA_DIR: str | None = None
 
     # Google OAuth2 Client ID for token audience validation
-    GOOGLE_CLIENT_ID: str | None = None
+    # Default provided for local development and test fixtures; strictly enforced in production
+    GOOGLE_CLIENT_ID: str | None = "expected-client-id.apps.googleusercontent.com"
 
     # Distributed Rate Limiting (Redis URL, or SQLite shared database if not set)
     REDIS_URL: str | None = None
@@ -47,6 +48,15 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Production security violation: API_KEY must be explicitly set and cannot "
                     "use the default development secret."
+                )
+            if (
+                not self.GOOGLE_CLIENT_ID
+                or not self.GOOGLE_CLIENT_ID.strip()
+                or self.GOOGLE_CLIENT_ID == "expected-client-id.apps.googleusercontent.com"
+            ):
+                raise ValueError(
+                    "Production security violation: GOOGLE_CLIENT_ID must be explicitly configured in production "
+                    "and cannot use test/development defaults."
                 )
 
 settings = Settings()

@@ -35,6 +35,12 @@ async def verify_google_id_token(
     if not id_token or not id_token.strip():
         return False, "Google ID token is required.", None, None
 
+    # Server configuration check: GOOGLE_CLIENT_ID must be configured
+    configured_aud = settings.GOOGLE_CLIENT_ID
+    if not configured_aud or not configured_aud.strip():
+        logger.error("Google ID token verification failed: GOOGLE_CLIENT_ID is not configured on the server.")
+        return False, "Server misconfiguration: Google OAuth client ID is not configured.", None, None
+
     clean_token = id_token.strip()
 
     try:
@@ -53,11 +59,10 @@ async def verify_google_id_token(
             if issuer not in ("accounts.google.com", "https://accounts.google.com"):
                 return False, f"Untrusted token issuer: {issuer}", None, None
 
-            # 2. Validate audience if GOOGLE_CLIENT_ID is configured
-            if settings.GOOGLE_CLIENT_ID:
-                aud = token_data.get("aud")
-                if aud != settings.GOOGLE_CLIENT_ID:
-                    return False, "Google ID token audience does not match configured Google Client ID.", None, None
+            # 2. Validate audience against configured client ID. Never skip audience validation.
+            aud = token_data.get("aud")
+            if not aud or aud.strip() != configured_aud.strip():
+                return False, "Google ID token audience does not match configured Google Client ID.", None, None
 
             # 3. Validate expiration
             exp = token_data.get("exp")
@@ -240,3 +245,59 @@ def logout(token: Optional[str] = Depends(extract_token)):
     if token:
         invalidate_session(token)
     return {"status": "success", "message": "Signed out successfully."}
+
+
+@auth_router.get("/user/scans")
+def get_current_user_scans(token: Optional[str] = Depends(extract_token), limit: int = 50):
+    """
+    Fetch scan history belonging strictly to currently authenticated user.
+    Never trusts client-supplied user_id: uses session token ownership exclusively.
+    """
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required.")
+    user = get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    from app.database.auth_db import get_user_scans
+    return {"user_id": user["user_id"], "scans": get_user_scans(user["user_id"], limit=limit)}
+
+
+@auth_router.get("/user/settings")
+def get_current_user_settings(token: Optional[str] = Depends(extract_token)):
+    """Fetch user settings belonging strictly to currently authenticated user."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required.")
+    user = get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    from app.database.auth_db import get_user_settings
+    return {"user_id": user["user_id"], "settings": get_user_settings(user["user_id"])}
+
+
+@auth_router.post("/user/settings")
+def update_current_user_setting(payload: dict, token: Optional[str] = Depends(extract_token)):
+    """Update user settings belonging strictly to currently authenticated user."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required.")
+    user = get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    key = payload.get("key")
+    value = payload.get("value")
+    if not key or value is None:
+        raise HTTPException(status_code=422, detail="Fields 'key' and 'value' are required.")
+    from app.database.auth_db import set_user_setting
+    set_user_setting(user["user_id"], str(key), str(value))
+    return {"status": "success", "user_id": user["user_id"], "key": key, "value": value}
+
+
+@auth_router.get("/user/telemetry")
+def get_current_user_telemetry(token: Optional[str] = Depends(extract_token), limit: int = 50):
+    """Fetch telemetry events belonging strictly to currently authenticated user."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required.")
+    user = get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    from app.database.auth_db import get_user_telemetry
+    return {"user_id": user["user_id"], "telemetry": get_user_telemetry(user["user_id"], limit=limit)}

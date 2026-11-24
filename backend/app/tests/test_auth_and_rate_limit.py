@@ -219,3 +219,27 @@ class TestAuthAndRateLimit(unittest.TestCase):
         finally:
             worker_1.reset()
             worker_2.reset()
+
+    def test_rate_limiter_fails_closed_on_storage_failure(self):
+        """Sensitive limiters configured with fail_closed=True must reject requests when storage fails."""
+        from app.api.security import SharedRateLimiter
+        from unittest.mock import patch
+        import sqlite3
+
+        limiter = SharedRateLimiter(
+            max_requests=5,
+            window_seconds=60.0,
+            fail_closed=True
+        )
+        with patch("sqlite3.connect", side_effect=sqlite3.OperationalError("Database disk I/O error")):
+            allowed, retry_after = limiter.check_and_record("sensitive_key")
+            self.assertFalse(allowed)
+            self.assertEqual(retry_after, 60)
+
+    def test_rate_limiter_redis_atomic_lua_script(self):
+        """Verify Redis Lua script structure handles atomic sliding window."""
+        from app.api.security import REDIS_SLIDING_WINDOW_LUA
+        self.assertIn("ZREMRANGEBYSCORE", REDIS_SLIDING_WINDOW_LUA)
+        self.assertIn("ZCARD", REDIS_SLIDING_WINDOW_LUA)
+        self.assertIn("ZADD", REDIS_SLIDING_WINDOW_LUA)
+        self.assertIn("EXPIRE", REDIS_SLIDING_WINDOW_LUA)

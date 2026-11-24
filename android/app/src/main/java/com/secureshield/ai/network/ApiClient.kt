@@ -243,11 +243,7 @@ object ApiClient {
         OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val request = chain.request()
-                val apiKey = BuildConfig.API_KEY
                 val builder = request.newBuilder()
-                if (apiKey.isNotBlank()) {
-                    builder.header("X-API-Key", apiKey)
-                }
                 val authToken = authTokenProvider?.invoke()
                 if (!authToken.isNullOrBlank() && request.header("Authorization") == null) {
                     builder.header("Authorization", "Bearer $authToken")
@@ -434,10 +430,10 @@ object ApiClient {
         OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val request = chain.request()
-                val apiKey = BuildConfig.API_KEY
                 val builder = request.newBuilder()
-                if (apiKey.isNotBlank()) {
-                    builder.header("X-API-Key", apiKey)
+                val authToken = authTokenProvider?.invoke()
+                if (!authToken.isNullOrBlank() && request.header("Authorization") == null) {
+                    builder.header("Authorization", "Bearer $authToken")
                 }
                 chain.proceed(builder.build())
             }

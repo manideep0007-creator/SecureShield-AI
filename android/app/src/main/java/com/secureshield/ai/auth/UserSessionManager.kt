@@ -146,4 +146,39 @@ object UserSessionManager {
     fun clearSession(context: Context) {
         getPrefs(context).edit().clear().apply()
     }
+
+    data class BiometricCipherWrapper(
+        val cipher: Cipher,
+        val cipherText: ByteArray
+    )
+
+    fun createBiometricDecryptCipher(context: Context): BiometricCipherWrapper? {
+        val encryptedBase64 = getPrefs(context).getString(KEY_TOKEN, null) ?: return null
+        return try {
+            val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
+            if (combined.size <= GCM_IV_LENGTH) return null
+            val key = getSecretKey() ?: return null
+            val iv = ByteArray(GCM_IV_LENGTH)
+            val cipherText = ByteArray(combined.size - GCM_IV_LENGTH)
+            System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH)
+            System.arraycopy(combined, GCM_IV_LENGTH, cipherText, 0, cipherText.size)
+
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            val spec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
+            cipher.init(Cipher.DECRYPT_MODE, key, spec)
+            BiometricCipherWrapper(cipher, cipherText)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun completeBiometricDecryption(context: Context, cipher: Cipher, cipherText: ByteArray): String? {
+        return try {
+            val decryptedBytes = cipher.doFinal(cipherText)
+            String(decryptedBytes, Charsets.UTF_8)
+        } catch (_: Exception) {
+            clearSession(context)
+            null
+        }
+    }
 }
