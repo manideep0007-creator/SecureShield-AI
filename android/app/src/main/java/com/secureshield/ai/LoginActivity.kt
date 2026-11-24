@@ -292,10 +292,13 @@ class LoginActivity : AppCompatActivity() {
 
     private fun setupBiometricUnlock() {
         val executor = ContextCompat.getMainExecutor(this)
+        var pendingWrapper: UserSessionManager.BiometricCipherWrapper? = null
+
         val biometricPrompt = BiometricPrompt(this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
+                    pendingWrapper = null
                     if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
                         showStatusMessage("Biometric unlock: $errString", isError = true)
                     }
@@ -303,6 +306,27 @@ class LoginActivity : AppCompatActivity() {
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
+                    val wrapper = pendingWrapper
+                    pendingWrapper = null
+
+                    // If a cryptographic cipher was gated by biometrics, complete decryption using the authenticated cipher
+                    if (wrapper != null) {
+                        val authenticatedCipher = result.cryptoObject?.cipher ?: wrapper.cipher
+                        val decryptedToken = UserSessionManager.completeBiometricDecryption(
+                            this@LoginActivity,
+                            authenticatedCipher,
+                            wrapper.cipherText
+                        )
+                        if (!decryptedToken.isNullOrBlank()) {
+                            Toast.makeText(this@LoginActivity, "Biometric verified. Unlocking vault...", Toast.LENGTH_SHORT).show()
+                            navigateToMain()
+                            return
+                        } else {
+                            showStatusMessage("Session key invalidated. Please enter your password to re-authenticate.", isError = true)
+                            return
+                        }
+                    }
+
                     val authToken = UserSessionManager.getAuthToken(this@LoginActivity)
                     val isAlreadyLoggedIn = UserSessionManager.isLoggedIn(this@LoginActivity)
 
@@ -351,7 +375,21 @@ class LoginActivity : AppCompatActivity() {
                         .setSubtitle("Confirm your biometric credentials to unlock SecureShield")
                         .setAllowedAuthenticators(authenticators)
                         .build()
-                    biometricPrompt.authenticate(promptInfo)
+
+                    val wrapper = if (UserSessionManager.isLoggedIn(this)) {
+                        UserSessionManager.createBiometricDecryptCipher(this)
+                    } else null
+
+                    pendingWrapper = wrapper
+                    if (wrapper != null) {
+                        try {
+                            biometricPrompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(wrapper.cipher))
+                        } catch (_: Exception) {
+                            biometricPrompt.authenticate(promptInfo)
+                        }
+                    } else {
+                        biometricPrompt.authenticate(promptInfo)
+                    }
                 }
                 BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
                     showStatusMessage("No biometric sensor detected on this device.", isError = true)

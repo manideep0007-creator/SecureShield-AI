@@ -23,12 +23,6 @@ val prodBaseUrl = System.getenv("PROD_BASE_URL")
     ?: localProperties.getProperty("PROD_BASE_URL")
     ?: defaultProdUrl
 
-val apiKey = System.getenv("SECURESHIELD_API_KEY")
-    ?: System.getenv("API_KEY")
-    ?: localProperties.getProperty("SECURESHIELD_API_KEY")
-    ?: localProperties.getProperty("API_KEY")
-    ?: "secureshield_dev_secret_key_2026"
-
 android {
     namespace = "com.secureshield.ai"
     compileSdk = 34
@@ -41,7 +35,6 @@ android {
         versionName = "1.2"
         
         buildConfigField("String", "BASE_URL", "\"${devBaseUrl}\"")
-        buildConfigField("String", "API_KEY", "\"${apiKey}\"")
     }
 
     signingConfigs {
@@ -145,4 +138,20 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.11.1")
     testImplementation("androidx.test.ext:junit-ktx:1.1.5")
     testImplementation("androidx.test:core-ktx:1.5.0")
+}
+
+gradle.taskGraph.whenReady {
+    val isReleaseBuildRequested = allTasks.any { task ->
+        task.name.contains("Release", ignoreCase = true) &&
+        !task.name.contains("test", ignoreCase = true) &&
+        !task.name.contains("lint", ignoreCase = true)
+    }
+    if (isReleaseBuildRequested) {
+        val releaseConfig = android.signingConfigs.getByName("release")
+        if (releaseConfig.storeFile == null || !releaseConfig.storeFile!!.exists()) {
+            throw GradleException(
+                "RELEASE SIGNING ERROR: Production release builds require a valid release keystore configured via RELEASE_KEYSTORE_PATH. Debug keys cannot be used for production releases."
+            )
+        }
+    }
 }

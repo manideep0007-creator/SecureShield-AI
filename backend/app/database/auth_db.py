@@ -184,6 +184,95 @@ def init_user_isolated_db(user_id: str) -> str:
     return str(db_path)
 
 
+def get_user_db_path(user_id: str) -> Path:
+    if not re.match(r"^usr_[a-zA-Z0-9_-]{8,64}$", user_id):
+        raise ValueError(f"Invalid user_id format: potential path traversal prevented: {user_id}")
+    return get_user_dbs_dir() / f"{user_id}.db"
+
+
+def save_user_scan(
+    user_id: str,
+    scan_id: str,
+    scan_type: str,
+    target: str,
+    threat_level: str,
+    threat_score: float,
+    details_json: str = "{}"
+) -> None:
+    db_path = get_user_db_path(user_id)
+    if not db_path.exists():
+        init_user_isolated_db(user_id)
+    now = get_current_iso_timestamp()
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO user_scans (scan_id, scan_type, target, threat_level, threat_score, details_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (scan_id, scan_type, target, threat_level, threat_score, details_json, now))
+        conn.commit()
+
+
+def get_user_scans(user_id: str, limit: int = 50) -> list[dict]:
+    db_path = get_user_db_path(user_id)
+    if not db_path.exists():
+        return []
+    with get_db_connection(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM user_scans ORDER BY created_at DESC LIMIT ?", (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def save_user_telemetry(user_id: str, event_type: str, event_data: str) -> None:
+    db_path = get_user_db_path(user_id)
+    if not db_path.exists():
+        init_user_isolated_db(user_id)
+    now = get_current_iso_timestamp()
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_telemetry (event_type, event_data, timestamp)
+            VALUES (?, ?, ?)
+        """, (event_type, event_data, now))
+        conn.commit()
+
+
+def get_user_telemetry(user_id: str, limit: int = 50) -> list[dict]:
+    db_path = get_user_db_path(user_id)
+    if not db_path.exists():
+        return []
+    with get_db_connection(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM user_telemetry ORDER BY timestamp DESC LIMIT ?", (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def set_user_setting(user_id: str, key: str, value: str) -> None:
+    db_path = get_user_db_path(user_id)
+    if not db_path.exists():
+        init_user_isolated_db(user_id)
+    now = get_current_iso_timestamp()
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO user_settings (key, value, updated_at)
+            VALUES (?, ?, ?)
+        """, (key, value, now))
+        conn.commit()
+
+
+def get_user_settings(user_id: str) -> dict[str, str]:
+    db_path = get_user_db_path(user_id)
+    if not db_path.exists():
+        return {}
+    with get_db_connection(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM user_settings")
+        return {row["key"]: row["value"] for row in cursor.fetchall()}
+
+
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     init_auth_db()
     clean_email = email.strip().lower()

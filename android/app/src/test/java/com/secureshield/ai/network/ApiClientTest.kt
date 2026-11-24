@@ -363,15 +363,15 @@ class ApiClientTest {
     }
 
     @Test
-    fun `test api client transmits X-API-Key header when key is present`() = runTest {
+    fun `test api client transmits Authorization Bearer header when session token is present`() = runTest {
         ApiClient.setBaseUrl(mockWebServer.url("/").toString())
+        ApiClient.authTokenProvider = { "test_session_bearer_token_123" }
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("{\"status\":\"ok\"}"))
         
         ApiClient.api.healthCheck()
         val recorded = mockWebServer.takeRequest()
-        if (com.secureshield.ai.BuildConfig.API_KEY.isNotBlank()) {
-            assertEquals(com.secureshield.ai.BuildConfig.API_KEY, recorded.getHeader("X-API-Key"))
-        }
+        assertEquals("Bearer test_session_bearer_token_123", recorded.getHeader("Authorization"))
+        ApiClient.authTokenProvider = null
     }
 
     @Test

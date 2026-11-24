@@ -32,24 +32,22 @@ async def verify_google_id_token(
     Never trusts client-supplied email without cryptographic token validation.
     Returns: (is_valid, error_message, verified_email, verified_name)
     """
-    if not id_token:
-        if settings.ENVIRONMENT == "production":
-            return False, "Google ID token is required in production.", None, None
-        # In non-production tests without a token, only allow if explicitly in test mode
-        if os.getenv("TESTING") == "1" or "pytest" in sys.modules:
-            return True, None, client_supplied_email.strip().lower(), None
-        return False, "Google ID token is missing.", None, None
+    if not id_token or not id_token.strip():
+        return False, "Google ID token is required.", None, None
 
-    # Handle mock tokens during automated test executions
-    if id_token.startswith("mock_") or os.getenv("TESTING") == "1" or "pytest" in sys.modules:
-        clean_email = client_supplied_email.strip().lower()
-        return True, None, clean_email, "Verified Test User"
+    # Server configuration check: GOOGLE_CLIENT_ID must be configured
+    configured_aud = settings.GOOGLE_CLIENT_ID
+    if not configured_aud or not configured_aud.strip():
+        logger.error("Google ID token verification failed: GOOGLE_CLIENT_ID is not configured on the server.")
+        return False, "Server misconfiguration: Google OAuth client ID is not configured.", None, None
+
+    clean_token = id_token.strip()
 
     try:
         async with httpx.AsyncClient(timeout=6.0) as client:
             resp = await client.get(
                 "https://oauth2.googleapis.com/tokeninfo",
-                params={"id_token": id_token}
+                params={"id_token": clean_token}
             )
             if resp.status_code != 200:
                 return False, "Google ID token signature or token validation rejected by Google servers.", None, None
@@ -61,22 +59,27 @@ async def verify_google_id_token(
             if issuer not in ("accounts.google.com", "https://accounts.google.com"):
                 return False, f"Untrusted token issuer: {issuer}", None, None
 
-            # 2. Validate expiration
+            # 2. Validate audience against configured client ID. Never skip audience validation.
+            aud = token_data.get("aud")
+            if not aud or aud.strip() != configured_aud.strip():
+                return False, "Google ID token audience does not match configured Google Client ID.", None, None
+
+            # 3. Validate expiration
             exp = token_data.get("exp")
-            if exp and int(exp) < int(time.time()):
+            if not exp or int(exp) < int(time.time()):
                 return False, "Google ID token has expired.", None, None
 
-            # 3. Validate email verification
+            # 4. Validate email verification
             email_verified = token_data.get("email_verified")
             if str(email_verified).lower() not in ("true", "1"):
                 return False, "Google account email is not verified.", None, None
 
-            # 4. Extract verified identity directly from token claims
+            # 5. Extract verified identity directly from token claims
             verified_email = token_data.get("email", "").strip().lower()
             if not verified_email:
                 return False, "Google token does not contain a valid email claim.", None, None
 
-            # 5. Prevent client from claiming an email that doesn't match the token
+            # 6. Prevent client from claiming an email that doesn't match the token
             if client_supplied_email and client_supplied_email.strip().lower() != verified_email:
                 return False, "Supplied email does not match verified Google token identity.", None, None
 
@@ -84,9 +87,7 @@ async def verify_google_id_token(
             return True, None, verified_email, verified_name
 
     except Exception as exc:
-        if settings.ENVIRONMENT != "production":
-            logger.warning("Google token check unreachable in dev mode: %s", exc)
-            return True, None, client_supplied_email.strip().lower(), None
+        logger.error("Google token verification service error: %s", exc)
         return False, "Could not contact Google identity verification service.", None, None
 
 
@@ -244,3 +245,59 @@ def logout(token: Optional[str] = Depends(extract_token)):
     if token:
         invalidate_session(token)
     return {"status": "success", "message": "Signed out successfully."}
+
+
+@auth_router.get("/user/scans")
+def get_current_user_scans(token: Optional[str] = Depends(extract_token), limit: int = 50):
+    """
+    Fetch scan history belonging strictly to currently authenticated user.
+    Never trusts client-supplied user_id: uses session token ownership exclusively.
+    """
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required.")
+    user = get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    from app.database.auth_db import get_user_scans
+    return {"user_id": user["user_id"], "scans": get_user_scans(user["user_id"], limit=limit)}
+
+
+@auth_router.get("/user/settings")
+def get_current_user_settings(token: Optional[str] = Depends(extract_token)):
+    """Fetch user settings belonging strictly to currently authenticated user."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required.")
+    user = get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    from app.database.auth_db import get_user_settings
+    return {"user_id": user["user_id"], "settings": get_user_settings(user["user_id"])}
+
+
+@auth_router.post("/user/settings")
+def update_current_user_setting(payload: dict, token: Optional[str] = Depends(extract_token)):
+    """Update user settings belonging strictly to currently authenticated user."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required.")
+    user = get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    key = payload.get("key")
+    value = payload.get("value")
+    if not key or value is None:
+        raise HTTPException(status_code=422, detail="Fields 'key' and 'value' are required.")
+    from app.database.auth_db import set_user_setting
+    set_user_setting(user["user_id"], str(key), str(value))
+    return {"status": "success", "user_id": user["user_id"], "key": key, "value": value}
+
+
+@auth_router.get("/user/telemetry")
+def get_current_user_telemetry(token: Optional[str] = Depends(extract_token), limit: int = 50):
+    """Fetch telemetry events belonging strictly to currently authenticated user."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required.")
+    user = get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    from app.database.auth_db import get_user_telemetry
+    return {"user_id": user["user_id"], "telemetry": get_user_telemetry(user["user_id"], limit=limit)}

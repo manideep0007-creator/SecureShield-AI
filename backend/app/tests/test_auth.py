@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import time
 import pytest
 from fastapi.testclient import TestClient
 
@@ -126,14 +127,33 @@ def test_signup_already_existing_user_returns_conflict():
     assert "User already exists" in detail["message"]
 
 
-def test_google_sign_in_flow():
+def test_google_sign_in_flow(monkeypatch):
     google_email = "google_user@gmail.com"
+    future_exp = str(int(time.time()) + 3600)
+
+    class MockGoogleResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "iss": "https://accounts.google.com",
+                "aud": "expected-client-id.apps.googleusercontent.com",
+                "email": google_email,
+                "email_verified": "true",
+                "name": "Google User",
+                "exp": future_exp,
+            }
+
+    async def mock_get(self, url, params=None):
+        return MockGoogleResponse()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
     response = client.post(
         "/api/auth/google",
         json={
             "email": google_email,
             "full_name": "Google User",
-            "id_token": "mock_google_id_token_12345"
+            "id_token": "valid_signed_google_id_token"
         }
     )
     assert response.status_code == 200
@@ -143,20 +163,181 @@ def test_google_sign_in_flow():
     assert os.path.exists(data["user"]["db_file"])
 
 
-def test_google_sign_in_rejects_empty_token_in_production(monkeypatch):
-    from app.config.config import settings
-    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
-
+def test_google_sign_in_rejects_empty_token():
     response = client.post(
         "/api/auth/google",
         json={
-            "email": "prod_hacker@gmail.com",
+            "email": "hacker@gmail.com",
             "full_name": "Hacker",
             "id_token": ""
         }
     )
     assert response.status_code == 401
     assert response.json()["detail"]["code"] == "invalid_google_token"
+
+
+def test_google_client_id_mandatory_in_production(monkeypatch):
+    """GOOGLE_CLIENT_ID must be mandatory in production. Startup must fail if missing or default."""
+    from app.config.config import Settings
+    s = Settings(ENVIRONMENT="production", API_KEY="real_production_secret_key_9999", GOOGLE_CLIENT_ID="")
+    with pytest.raises(ValueError, match="GOOGLE_CLIENT_ID must be explicitly configured in production"):
+        s.validate_production_configuration()
+
+    s_default = Settings(ENVIRONMENT="production", API_KEY="real_production_secret_key_9999", GOOGLE_CLIENT_ID="expected-client-id.apps.googleusercontent.com")
+    with pytest.raises(ValueError, match="cannot use test/development defaults"):
+        s_default.validate_production_configuration()
+
+
+def test_google_sign_in_rejects_when_google_client_id_unconfigured(monkeypatch):
+    from app.config.config import settings
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
+
+    response = client.post(
+        "/api/auth/google",
+        json={
+            "email": "user@gmail.com",
+            "id_token": "some_token_123"
+        }
+    )
+    assert response.status_code == 401
+    assert "Google OAuth client ID is not configured" in response.json()["detail"]["message"]
+
+
+def test_google_sign_in_rejects_audience_mismatch(monkeypatch):
+    from app.config.config import settings
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "expected-client-id.apps.googleusercontent.com")
+
+    class MockGoogleResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "iss": "https://accounts.google.com",
+                "aud": "rogue-client-id.apps.googleusercontent.com",
+                "email": "aud_mismatch@gmail.com",
+                "email_verified": "true",
+                "name": "Audience Mismatch",
+                "exp": str(int(time.time()) + 3600),
+            }
+
+    async def mock_get(self, url, params=None):
+        return MockGoogleResponse()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
+    response = client.post(
+        "/api/auth/google",
+        json={
+            "email": "aud_mismatch@gmail.com",
+            "id_token": "token_with_wrong_aud"
+        }
+    )
+    assert response.status_code == 401
+    assert "audience does not match" in response.json()["detail"]["message"]
+
+
+def test_google_sign_in_rejects_expired_token(monkeypatch):
+    class MockGoogleResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "iss": "https://accounts.google.com",
+                "aud": "expected-client-id.apps.googleusercontent.com",
+                "email": "expired@gmail.com",
+                "email_verified": "true",
+                "exp": str(int(time.time()) - 100),
+            }
+
+    async def mock_get(self, url, params=None):
+        return MockGoogleResponse()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
+    response = client.post(
+        "/api/auth/google",
+        json={
+            "email": "expired@gmail.com",
+            "id_token": "expired_token"
+        }
+    )
+    assert response.status_code == 401
+    assert "expired" in response.json()["detail"]["message"]
+
+
+def test_google_sign_in_rejects_unverified_email(monkeypatch):
+    class MockGoogleResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "iss": "https://accounts.google.com",
+                "aud": "expected-client-id.apps.googleusercontent.com",
+                "email": "unverified@gmail.com",
+                "email_verified": "false",
+                "exp": str(int(time.time()) + 3600),
+            }
+
+    async def mock_get(self, url, params=None):
+        return MockGoogleResponse()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
+    response = client.post(
+        "/api/auth/google",
+        json={
+            "email": "unverified@gmail.com",
+            "id_token": "unverified_token"
+        }
+    )
+    assert response.status_code == 401
+    assert "not verified" in response.json()["detail"]["message"]
+
+
+def test_google_sign_in_rejects_mismatched_client_email(monkeypatch):
+    class MockGoogleResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "iss": "https://accounts.google.com",
+                "email": "legit_victim@gmail.com",
+                "email_verified": "true",
+                "exp": str(int(time.time()) + 3600),
+            }
+
+    async def mock_get(self, url, params=None):
+        return MockGoogleResponse()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
+    response = client.post(
+        "/api/auth/google",
+        json={
+            "email": "attacker_spoofed@gmail.com",
+            "id_token": "victim_token"
+        }
+    )
+    assert response.status_code == 401
+    assert "does not match" in response.json()["detail"]["message"]
+
+
+def test_google_sign_in_rejects_rejected_signature(monkeypatch):
+    class MockGoogleResponse:
+        status_code = 400
+        def json(self):
+            return {"error_description": "Invalid Value"}
+
+    async def mock_get(self, url, params=None):
+        return MockGoogleResponse()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
+    response = client.post(
+        "/api/auth/google",
+        json={
+            "email": "someone@gmail.com",
+            "id_token": "invalid_signature_token"
+        }
+    )
+    assert response.status_code == 401
+    assert "rejected" in response.json()["detail"]["message"]
 
 
 def test_each_user_has_separate_database():
@@ -169,3 +350,55 @@ def test_each_user_has_separate_database():
     assert os.path.exists(user_b["db_file"])
     assert user_a["user_id"] in user_a["db_file"]
     assert user_b["user_id"] in user_b["db_file"]
+
+
+def test_user_scans_and_settings_isolation_between_sessions():
+    """A valid session must only access the authenticated user's own scans, settings, and database."""
+    from app.database.auth_db import save_user_scan
+    user_a = create_user(email="tenant_a@shield.ai", password="PassA123456!", full_name="Tenant A")
+    token_a = create_session(user_a["user_id"])
+
+    user_b = create_user(email="tenant_b@shield.ai", password="PassB123456!", full_name="Tenant B")
+    token_b = create_session(user_b["user_id"])
+
+    # User A records a private scan
+    save_user_scan(
+        user_id=user_a["user_id"],
+        scan_id="scan_confidential_a_1",
+        scan_type="url",
+        target="https://internal-bank.a.com",
+        threat_level="Safe",
+        threat_score=10.0,
+        details_json='{"note": "secret financial portal"}'
+    )
+
+    # User A requests their own scans -> receives 1 scan
+    res_a = client.get("/api/auth/user/scans", headers={"Authorization": f"Bearer {token_a}"})
+    assert res_a.status_code == 200
+    scans_a = res_a.json()["scans"]
+    assert len(scans_a) == 1
+    assert scans_a[0]["scan_id"] == "scan_confidential_a_1"
+    assert scans_a[0]["target"] == "https://internal-bank.a.com"
+
+    # User B requests their own scans -> receives 0 scans (complete isolation!)
+    res_b = client.get("/api/auth/user/scans", headers={"Authorization": f"Bearer {token_b}"})
+    assert res_b.status_code == 200
+    scans_b = res_b.json()["scans"]
+    assert len(scans_b) == 0
+
+    # User A configures private setting
+    client.post(
+        "/api/auth/user/settings",
+        json={"key": "theme", "value": "matrix-green"},
+        headers={"Authorization": f"Bearer {token_a}"}
+    )
+
+    # User B cannot see User A's settings
+    res_b_settings = client.get("/api/auth/user/settings", headers={"Authorization": f"Bearer {token_b}"})
+    assert res_b_settings.status_code == 200
+    assert "theme" not in res_b_settings.json()["settings"]
+
+    # User A sees their own setting
+    res_a_settings = client.get("/api/auth/user/settings", headers={"Authorization": f"Bearer {token_a}"})
+    assert res_a_settings.status_code == 200
+    assert res_a_settings.json()["settings"].get("theme") == "matrix-green"

@@ -4,6 +4,59 @@ import ipaddress
 from urllib.parse import urlparse, urljoin
 
 
+BLOCKED_IP_NETWORKS = [
+    ipaddress.ip_network("0.0.0.0/8"),          # Current network (source only)
+    ipaddress.ip_network("10.0.0.0/8"),          # RFC 1918 private
+    ipaddress.ip_network("100.64.0.0/10"),      # Carrier Grade NAT (RFC 6598)
+    ipaddress.ip_network("127.0.0.0/8"),        # Loopback
+    ipaddress.ip_network("169.254.0.0/16"),     # Link-local / Cloud metadata (AWS, GCP, etc.)
+    ipaddress.ip_network("172.16.0.0/12"),      # RFC 1918 private
+    ipaddress.ip_network("192.0.0.0/24"),       # IETF Protocol Assignments
+    ipaddress.ip_network("192.0.2.0/24"),       # TEST-NET-1 (Documentation)
+    ipaddress.ip_network("192.168.0.0/16"),     # RFC 1918 private
+    ipaddress.ip_network("198.18.0.0/15"),      # Network interconnect device benchmark
+    ipaddress.ip_network("198.51.100.0/24"),    # TEST-NET-2 (Documentation)
+    ipaddress.ip_network("203.0.113.0/24"),     # TEST-NET-3 (Documentation)
+    ipaddress.ip_network("224.0.0.0/4"),        # Multicast
+    ipaddress.ip_network("240.0.0.0/4"),        # Reserved / Future use
+    ipaddress.ip_network("255.255.255.255/32"), # Limited broadcast
+]
+
+BLOCKED_EXACT_IPS = {
+    ipaddress.ip_address("168.63.129.16"),     # Azure virtual network metadata
+    ipaddress.ip_address("100.100.100.200"),   # Alibaba Cloud internal metadata
+}
+
+BLOCKED_IPV6_NETWORKS = [
+    ipaddress.ip_network("::1/128"),            # Loopback
+    ipaddress.ip_network("::/128"),             # Unspecified
+    ipaddress.ip_network("64:ff9b:1::/48"),     # Local-use IPv4/IPv6 translation
+    ipaddress.ip_network("100::/64"),           # Discard prefix
+    ipaddress.ip_network("2001:db8::/32"),      # Documentation
+    ipaddress.ip_network("fc00::/7"),           # Unique local (private)
+    ipaddress.ip_network("fe80::/10"),          # Link-local
+    ipaddress.ip_network("ff00::/8"),           # Multicast
+]
+
+PROHIBITED_HOST_SUFFIXES = (
+    ".localhost",
+    ".local",
+    ".internal",
+    ".lan",
+    ".localdomain",
+    ".corp",
+    ".home",
+    ".arpa",
+)
+
+PROHIBITED_HOSTNAMES = {
+    "localhost",
+    "metadata.google.internal",
+    "instance-data",
+    "metadata.azure.com",
+}
+
+
 def is_safe_ip(ip_str: str) -> bool:
     """
     Validate whether an IP address is safe for outbound fetching.
@@ -21,13 +74,16 @@ def is_safe_ip(ip_str: str) -> bool:
         if ip.version == 6 and ip.ipv4_mapped:
             return is_safe_ip(str(ip.ipv4_mapped))
 
-        # Block Carrier Grade NAT (RFC 6598: 100.64.0.0/10)
         if ip.version == 4:
-            if ip in ipaddress.ip_network("100.64.0.0/10"):
+            if ip in BLOCKED_EXACT_IPS:
                 return False
-            # Block Benchmarking / Documentation / Test networks
-            if ip in ipaddress.ip_network("198.18.0.0/15") or ip in ipaddress.ip_network("192.0.2.0/24") or ip in ipaddress.ip_network("198.51.100.0/24") or ip in ipaddress.ip_network("203.0.113.0/24"):
-                return False
+            for net in BLOCKED_IP_NETWORKS:
+                if ip in net:
+                    return False
+        elif ip.version == 6:
+            for net in BLOCKED_IPV6_NETWORKS:
+                if ip in net:
+                    return False
 
         return True
     except ValueError:
@@ -50,8 +106,32 @@ class SafeURLFetcher:
             raise ValueError("SSRF Prevention: Embedded URL credentials are not allowed")
 
         # 3. Host validation
-        if not parsed.hostname:
+        hostname = (parsed.hostname or "").lower()
+        if not hostname:
             raise ValueError("SSRF Prevention: Missing URL host")
+
+        if hostname in PROHIBITED_HOSTNAMES or any(hostname.endswith(sfx) for sfx in PROHIBITED_HOST_SUFFIXES):
+            raise ValueError(f"SSRF Prevention: Prohibited internal host '{hostname}'")
+
+        # Disallow raw integer, octal, or hex obfuscated IP addresses that map to unsafe targets
+        if hostname.isdigit():
+            try:
+                int_val = int(hostname)
+                if 0 <= int_val <= 0xFFFFFFFF:
+                    ip_obj = ipaddress.ip_address(int_val)
+                    if not is_safe_ip(str(ip_obj)):
+                        raise ValueError(f"SSRF Prevention: Disallowed integer IP address '{hostname}'")
+            except OverflowError:
+                pass
+        elif hostname.startswith("0x"):
+            try:
+                int_val = int(hostname, 16)
+                if 0 <= int_val <= 0xFFFFFFFF:
+                    ip_obj = ipaddress.ip_address(int_val)
+                    if not is_safe_ip(str(ip_obj)):
+                        raise ValueError(f"SSRF Prevention: Disallowed hex IP address '{hostname}'")
+            except OverflowError:
+                pass
 
         return parsed
 
@@ -63,8 +143,14 @@ class SafeURLFetcher:
         Connects directly to the already-validated IP with Host and SNI headers to prevent TOCTOU / DNS rebinding.
         """
         current_url = url
+        visited_urls: set[str] = set()
 
         for _ in range(max_redirects + 1):
+            if current_url in visited_urls:
+                # Prevent circular redirect loops
+                return current_url
+            visited_urls.add(current_url)
+
             try:
                 parsed = cls.validate_url_syntax(current_url)
             except ValueError:
@@ -117,7 +203,7 @@ class SafeURLFetcher:
 
             try:
                 # Disable httpx's internal auto-redirect so we inspect and validate each hop ourselves
-                async with httpx.AsyncClient(follow_redirects=False, timeout=5.0) as client:
+                async with httpx.AsyncClient(verify=True, follow_redirects=False, timeout=5.0) as client:
                     response = await client.head(target_url, headers=headers, extensions=extensions)
                     if response.status_code == 405:  # Method Not Allowed fallback
                         response = await client.get(target_url, headers=headers, extensions=extensions)
@@ -130,6 +216,9 @@ class SafeURLFetcher:
                         # Handle relative redirects
                         if not next_location.lower().startswith("http"):
                             next_location = urljoin(current_url, next_location)
+
+                        if next_location in visited_urls:
+                            return current_url
 
                         current_url = next_location
                     else:

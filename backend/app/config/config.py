@@ -12,6 +12,16 @@ class Settings(BaseSettings):
     # Base directory for SQLite databases and local data files
     DATA_DIR: str | None = None
 
+    # Google OAuth2 Client ID for token audience validation
+    # Default provided for local development and test fixtures; strictly enforced in production
+    GOOGLE_CLIENT_ID: str | None = "expected-client-id.apps.googleusercontent.com"
+
+    # Distributed Rate Limiting (Redis URL, or SQLite shared database if not set)
+    REDIS_URL: str | None = None
+
+    # Trusted proxy IPs or CIDRs allowed to supply X-Forwarded-For headers
+    TRUSTED_PROXIES: str = "127.0.0.1,::1,testclient,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+
     # Threat Intelligence external API keys
     GOOGLE_SAFE_BROWSING_API_KEY: str | None = None
     VIRUSTOTAL_API_KEY: str | None = None
@@ -27,6 +37,10 @@ class Settings(BaseSettings):
             return os.path.abspath(self.DATA_DIR)
         return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
 
+    @property
+    def trusted_proxy_list(self) -> list[str]:
+        return [p.strip() for p in self.TRUSTED_PROXIES.split(",") if p.strip()]
+
     def validate_production_configuration(self) -> None:
         """Enforces that production builds have non-default secrets configured."""
         if self.ENVIRONMENT == "production":
@@ -34,6 +48,15 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Production security violation: API_KEY must be explicitly set and cannot "
                     "use the default development secret."
+                )
+            if (
+                not self.GOOGLE_CLIENT_ID
+                or not self.GOOGLE_CLIENT_ID.strip()
+                or self.GOOGLE_CLIENT_ID == "expected-client-id.apps.googleusercontent.com"
+            ):
+                raise ValueError(
+                    "Production security violation: GOOGLE_CLIENT_ID must be explicitly configured in production "
+                    "and cannot use test/development defaults."
                 )
 
 settings = Settings()
