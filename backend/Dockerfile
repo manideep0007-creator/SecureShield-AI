@@ -2,10 +2,12 @@
 FROM python:3.11-slim
 
 # Set environment variables
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    ENVIRONMENT=production
+    ENVIRONMENT=production \
+    API_KEY=secureshield_render_prod_key_2026_x89a \
+    GOOGLE_CLIENT_ID=secureshield-ai-render.apps.googleusercontent.com \
+    PORT=10000
 
 WORKDIR /app
 

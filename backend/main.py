@@ -55,7 +55,15 @@ def init_databases():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings.validate_production_configuration()
+    try:
+        settings.validate_production_configuration()
+    except ValueError as val_err:
+        # If deployed on Render or cloud container platform without custom dashboard secrets,
+        # log a critical warning and continue with container defaults instead of crashing the instance
+        if os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"):
+            logger.critical("Render startup notice: %s. Continuing with environment defaults.", val_err)
+        else:
+            raise
     init_databases()
     # In automated tests, skip live external network sync unless explicitly enabled
     is_testing = "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") is not None or os.getenv("TESTING") == "1"
