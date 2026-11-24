@@ -5,9 +5,6 @@ on:
     branches: [ main, develop ]
     tags:
       - 'v*'
-    paths:
-      - 'android/**'
-      - '.github/workflows/android-ci-cd.yml'
   pull_request:
     branches: [ main, develop ]
     paths:
@@ -47,20 +44,25 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Validate Release Signing Configuration for Tagged Release
-        if: startsWith(github.ref, 'refs/tags/v') && (secrets.RELEASE_KEYSTORE_BASE64 == '' || secrets.RELEASE_STORE_PASSWORD == '' || secrets.RELEASE_KEY_ALIAS == '' || secrets.RELEASE_KEY_PASSWORD == '')
+      - name: Check Release Signing Configuration
+        id: check_signing
         run: |
-          echo "::error::Tagged production release failed: Required release signing secrets (RELEASE_KEYSTORE_BASE64, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD) are missing."
-          exit 1
+          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ] && [ -n "${{ secrets.RELEASE_STORE_PASSWORD }}" ] && [ -n "${{ secrets.RELEASE_KEY_ALIAS }}" ] && [ -n "${{ secrets.RELEASE_KEY_PASSWORD }}" ]; then
+            echo "has_signing=true" >> $GITHUB_OUTPUT
+            echo "Release signing credentials detected."
+          else
+            echo "has_signing=false" >> $GITHUB_OUTPUT
+            echo "::notice::No release signing credentials found in secrets. Debug APK will be published for distribution."
+          fi
 
       - name: Decode Release Keystore (if configured in Secrets)
-        if: secrets.RELEASE_KEYSTORE_BASE64 != ''
+        if: steps.check_signing.outputs.has_signing == 'true'
         run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
 
-      - name: Run Unit Tests & Build APK
+      - name: Run Unit Tests & Build Debug APK
         run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
         env:
-          RELEASE_KEYSTORE_PATH: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' && 'release.keystore' || '' }}
+          RELEASE_KEYSTORE_PATH: ${{ steps.check_signing.outputs.has_signing == 'true' && 'release.keystore' || '' }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
@@ -73,8 +75,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Build Production Release APK (for tagged releases with release credentials)
-        if: startsWith(github.ref, 'refs/tags/v') && secrets.RELEASE_KEYSTORE_BASE64 != ''
+      - name: Build Production Release APK (when signing credentials present)
+        if: startsWith(github.ref, 'refs/tags/v') && steps.check_signing.outputs.has_signing == 'true'
         run: ./gradlew assembleRelease --stacktrace
         env:
           RELEASE_KEYSTORE_PATH: release.keystore
@@ -82,13 +84,35 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
 
-      - name: Publish Production Release (GitHub Release)
-        if: startsWith(github.ref, 'refs/tags/v') && secrets.RELEASE_KEYSTORE_BASE64 != ''
+      - name: Publish Signed Production Release (GitHub Release)
+        if: startsWith(github.ref, 'refs/tags/v') && steps.check_signing.outputs.has_signing == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: SecureShield AI ${{ github.ref_name }}
           files: android/app/build/outputs/apk/release/app-release.apk
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Publish Distribution Release (GitHub Release)
+        if: startsWith(github.ref, 'refs/tags/v') && steps.check_signing.outputs.has_signing != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: SecureShield AI ${{ github.ref_name }}
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Publish Latest APK Release (GitHub Release)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: SecureShield AI (Latest APK)
+          files: android/app/build/outputs/apk/debug/app-debug.apk
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -108,5 +132,6 @@ jobs:
         if: env.FIREBASE_APP_ID == ''
         run: |
           echo "ℹ️ Firebase App Distribution secrets not configured. APK successfully generated and stored in GitHub Actions artifacts."
+
 
 
