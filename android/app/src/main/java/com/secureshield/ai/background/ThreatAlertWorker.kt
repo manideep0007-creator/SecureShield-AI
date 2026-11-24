@@ -82,6 +82,16 @@ class ThreatAlertWorker(
 
     private fun sendThreatNotification(classification: String, riskScore: Float, recommendedAction: String, scanId: String) {
         try {
+            val threatId = com.secureshield.ai.notification.SmartNotificationManager.computeThreatFingerprint(scanId, classification)
+            if (com.secureshield.ai.notification.SmartNotificationManager.isDuplicateOrInCooldown(
+                    applicationContext,
+                    threatId,
+                    com.secureshield.ai.notification.SmartNotificationManager.NotificationTier.CRITICAL_ALERT
+                )
+            ) {
+                return
+            }
+
             val intent = Intent(applicationContext, com.secureshield.ai.ScanHistoryActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra("scan_id", scanId)

@@ -1347,11 +1347,7 @@ class MainActivity : AppCompatActivity() {
             }
             val isPreflightThreat = isThreatClassification(preflightResult.classification)
             if (isPreflightThreat) {
-                android.util.Log.w("MainActivity", "⚡ INSTANT THREAT DETECTED (<5ms): ${preflightResult.classification}")
-                sendPushNotification(
-                    "🚨 ${preflightResult.classification} Detected",
-                    "Risk Score: ${preflightResult.risk_score.toInt()}/100 • ${preflightResult.risk_assessment.reasons.firstOrNull() ?: "Threat intercepted on device"}"
-                )
+                android.util.Log.i("MainActivity", "⚡ Instant preflight risk indicator (<5ms): ${preflightResult.classification}")
                 updateHeroProtectionState(latestThreat = true)
             }
 
@@ -1496,8 +1492,15 @@ class MainActivity : AppCompatActivity() {
                 val isThreat = isThreatClassification(result.classification)
                 updateHeroProtectionState(latestThreat = isThreat)
 
-                if (isThreat) {
-                    sendPushNotification(notifyTitle, "Risk: ${result.classification}")
+                // Results are already rendered directly on screen in MainActivity HUD.
+                // Critical threats are logged, and SmartNotificationManager enforces policy.
+                if (isThreat && (result.classification.equals("Phishing", ignoreCase = true) || result.classification.equals("Malware", ignoreCase = true))) {
+                    com.secureshield.ai.notification.SmartNotificationManager.handleScanVerdict(
+                        this@MainActivity,
+                        result,
+                        packageName,
+                        resolvedInput.url ?: resolvedInput.text ?: "Manual Scan"
+                    )
                 }
                 onScanCompleted?.invoke(result)
             } catch (e: Exception) {

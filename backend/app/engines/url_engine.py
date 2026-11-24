@@ -12,7 +12,28 @@ from app.engines.registry import engine_registry
 from app.models.engine_result import EngineResult, EngineStatus, EvidenceItem
 from app.models.scan_input import ScanInput
 
-def lexical_heuristics(url: str) -> dict:
+AUTHENTIC_BRAND_DOMAINS = {
+    "paypal": {"paypal.com", "paypal.me"},
+    "google": {"google.com", "google.co.in", "google.co.uk", "youtube.com", "gmail.com"},
+    "microsoft": {"microsoft.com", "live.com", "office.com", "office365.com", "outlook.com"},
+    "apple": {"apple.com", "icloud.com"},
+    "amazon": {"amazon.com", "amazon.in", "amazon.co.uk", "amazon.de"},
+    "netflix": {"netflix.com"},
+    "facebook": {"facebook.com", "fb.com", "meta.com"},
+    "instagram": {"instagram.com"},
+    "whatsapp": {"whatsapp.com"},
+    "chase": {"chase.com"},
+    "wellsfargo": {"wellsfargo.com"},
+    "bankofamerica": {"bankofamerica.com", "bofa.com"},
+    "binance": {"binance.com"},
+    "coinbase": {"coinbase.com"},
+    "dropbox": {"dropbox.com"},
+    "adobe": {"adobe.com"},
+}
+
+TARGET_BRANDS = list(AUTHENTIC_BRAND_DOMAINS.keys())
+
+def lexical_heuristics(url: str, is_whitelisted: bool = False, root_domain: str = "") -> dict:
     """Analyze URL string for suspicious patterns."""
     score = 0.0
     flags = []
@@ -34,15 +55,16 @@ def lexical_heuristics(url: str) -> dict:
         flags.append("at_symbol_present")
         
     # 3. Hyphen count
-    hostname = url.split("://")[-1].split("/")[0]
-    hyphen_count = hostname.count("-")
-    if hyphen_count >= 3:
+    hostname_clean = url.split("://")[-1].split("/")[0]
+    hyphen_count = hostname_clean.count("-")
+    if hyphen_count >= 3 and not is_whitelisted:
         score += 0.2
         flags.append(f"high_hyphen_count({hyphen_count})")
         
     # 4. Suspicious TLDs
     suspicious_tlds = [".xyz", ".top", ".cc", ".tk", ".ml", ".ga", ".cf", ".gq"]
-    if any(hostname.endswith(t) for t in suspicious_tlds):
+    has_suspicious_tld = any(hostname.endswith(t) for t in suspicious_tlds)
+    if has_suspicious_tld and not is_whitelisted:
         score += 0.4
         flags.append("suspicious_tld")
         
@@ -50,9 +72,41 @@ def lexical_heuristics(url: str) -> dict:
     shorteners = ["bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "cli.gs"]
     if any(s in hostname for s in shorteners):
         flags.append("url_shortener") # doesn't necessarily add malice, but noted
-        
-    # --- PHASE 2: Core Lexical & Host Features (6-9) ---
-    # Scoring is unchanged intentionally. We only flag and build evidence.
+
+    # Homograph / IDN / Punycode Attacks
+    has_punycode = hostname.startswith("xn--") or ".xn--" in hostname or any(ord(c) > 127 for c in hostname)
+    if has_punycode and not is_whitelisted:
+        score += 0.70
+        flags.append("homograph_punycode_attack")
+        evidence.append(EvidenceItem(
+            key="HOMOGRAPH_ATTACK",
+            value=hostname,
+            description="Domain uses Punycode (IDN) or non-ASCII characters to deceive visual inspection."
+        ))
+
+    # Brand Impersonation / Subdomain Nesting Spoofing
+    if not is_whitelisted and root_domain:
+        lower_host = hostname.lower()
+        lower_path = path.lower()
+        matched_brand = None
+        for brand, authentic_domains in AUTHENTIC_BRAND_DOMAINS.items():
+            if (brand in lower_host or brand in lower_path) and (root_domain.lower() not in authentic_domains):
+                matched_brand = brand
+                break
+        if matched_brand:
+            score += 0.60
+            flags.append("brand_impersonation_spoofing")
+            evidence.append(EvidenceItem(
+                key="BRAND_SPOOFING",
+                value=matched_brand,
+                description=f"Deceptive impersonation of brand '{matched_brand}' detected on untrusted destination '{root_domain}'."
+            ))
+
+    # If domain is verified on whitelist without severe evasion, suppress generic structural penalties
+    if is_whitelisted and "ip_based_host" not in flags and "at_symbol_present" not in flags:
+        return {"lexical_score": 0.0, "lexical_flags": flags, "evidence": evidence}
+
+    # --- Core Lexical & Host Features for Untrusted Domains ---
 
     # 6. URL Length Deviation
     url_length = len(url)
@@ -75,7 +129,6 @@ def lexical_heuristics(url: str) -> dict:
         ))
 
     # 8. Subdomain Depth Count
-    # Example approximation (without external TLD database):
     parts = hostname.split('.')
     subdomains = max(0, len(parts) - 2)
     if len(parts) > 0 and parts[0] == "www":
@@ -100,6 +153,9 @@ def lexical_heuristics(url: str) -> dict:
             value=matched,
             description=f"Security-critical keywords detected in URL path/subdomain: {', '.join(matched)}."
         ))
+        if has_suspicious_tld:
+            score += 0.25
+            flags.append("suspicious_tld_with_credential_harvesting")
 
     # 10. Open Redirect Signature (Double Slash)
     # Start looking just after the scheme designation
@@ -271,13 +327,10 @@ class URLEngine(BaseEngine):
         # 1. Primary Check: Verified global threat feeds (URLhaus / OpenPhish)
         from app.intelligence.threat_feeds import threat_store
         threat_match = threat_store.lookup_url(url)
-        is_whitelisted = threat_store.is_whitelisted_domain(url)
 
-        heuristics = lexical_heuristics(url)
-        gsb_result = await check_google_safe_browsing(url)
-        
-        # Feature 18: DOMAIN_AGE_DAYS
+        # Feature 18: DOMAIN_AGE_DAYS & Root Domain Extraction
         domain_age = None
+        root_domain = ""
         try:
             # Safely extract root domain avoiding TLD confusion (e.g. co.uk)
             ext = tldextract.extract(url)
@@ -286,6 +339,13 @@ class URLEngine(BaseEngine):
                 domain_age = await _get_domain_age_days(root_domain)
         except Exception:
             pass
+
+        is_whitelisted = threat_store.is_whitelisted_domain(url)
+        if not is_whitelisted and root_domain:
+            is_whitelisted = threat_store.is_whitelisted_domain(root_domain)
+
+        heuristics = lexical_heuristics(url, is_whitelisted=is_whitelisted, root_domain=root_domain)
+        gsb_result = await check_google_safe_browsing(url)
         
         lexical = heuristics["lexical_score"]
         gsb = gsb_result["gsb_score"]
@@ -299,13 +359,17 @@ class URLEngine(BaseEngine):
             # with lexical heuristics scaling the remaining [90, 100] interval.
             combined_score = min(1.0, 0.90 + (lexical * 0.10))
             confidence_level = 0.85
+        elif "homograph_punycode_attack" in heuristics["lexical_flags"] or "brand_impersonation_spoofing" in heuristics["lexical_flags"]:
+            # High-signal active deception attack
+            combined_score = max(0.85, lexical)
+            confidence_level = 0.90
         elif gsb > 0:
             combined_score = lexical * 0.4 + gsb * 0.6
             confidence_level = 0.80
         elif is_whitelisted and "ip_based_host" not in heuristics["lexical_flags"] and "at_symbol_present" not in heuristics["lexical_flags"]:
             # Verified top trusted destination without severe evasion signs
-            combined_score = min(lexical * 0.25, 0.15)
-            confidence_level = 0.90
+            combined_score = 0.0
+            confidence_level = 0.95
         else:
             combined_score = lexical * 0.7 + gsb * 0.3
             confidence_level = 0.80

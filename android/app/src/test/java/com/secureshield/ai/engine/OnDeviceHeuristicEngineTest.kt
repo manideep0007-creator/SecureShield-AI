@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.secureshield.ai.network.ScanInput
 import com.secureshield.ai.network.UnifiedScanResponseParser
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -78,6 +79,47 @@ class OnDeviceHeuristicEngineTest {
         assertEquals("Safe", cleanResponse.classification)
         assertTrue("Risk score should be low: ${cleanResponse.risk_score}", cleanResponse.risk_score < 25f)
         assertTrue(cleanResponse.risk_assessment.reasons.isNotEmpty())
+    }
+
+    @Test
+    fun `popular trusted domains with login or account paths return Safe with low risk score`() {
+        val googleLogin = ScanInput(url = "https://accounts.google.com/signin/v2/identifier")
+        val googleResp = OnDeviceHeuristicEngine.scan(googleLogin)
+        assertEquals("Safe", googleResp.classification)
+        assertTrue("Expected score < 20 for accounts.google.com, got ${googleResp.risk_score}", googleResp.risk_score < 20f)
+        assertTrue(googleResp.risk_assessment.flags.contains("whitelisted_trusted_domain"))
+        assertFalse(googleResp.risk_assessment.flags.contains("suspicious_keywords"))
+
+        val msftAccount = ScanInput(url = "https://support.microsoft.com/en-us/account-billing/help")
+        val msftResp = OnDeviceHeuristicEngine.scan(msftAccount)
+        assertEquals("Safe", msftResp.classification)
+        assertTrue("Expected score < 20 for support.microsoft.com, got ${msftResp.risk_score}", msftResp.risk_score < 20f)
+        assertTrue(msftResp.risk_assessment.flags.contains("whitelisted_trusted_domain"))
+
+        val wikiPage = ScanInput(url = "https://en.wikipedia.org/wiki/Phishing")
+        val wikiResp = OnDeviceHeuristicEngine.scan(wikiPage)
+        assertEquals("Safe", wikiResp.classification)
+        assertTrue(wikiResp.risk_score < 20f)
+    }
+
+    @Test
+    fun `brand impersonation spoofing on untrusted root domain is classified as Phishing or Deceptive`() {
+        val spoofInput = ScanInput(url = "http://paypal.com.account-update.xyz/login")
+        val spoofResp = OnDeviceHeuristicEngine.scan(spoofInput)
+
+        assertTrue("Risk score should be >= 80, got ${spoofResp.risk_score}", spoofResp.risk_score >= 80f)
+        assertTrue(spoofResp.classification in setOf("Phishing", "Deceptive"))
+        assertTrue(spoofResp.risk_assessment.flags.contains("brand_impersonation_spoofing"))
+    }
+
+    @Test
+    fun `homograph punycode domain is classified as high risk Phishing`() {
+        // Cyrillic 'а' (U+0430) in paypal.com
+        val homographInput = ScanInput(url = "https://pаypal.com/signin")
+        val homographResp = OnDeviceHeuristicEngine.scan(homographInput)
+
+        assertTrue("Homograph score should be >= 60, got ${homographResp.risk_score}", homographResp.risk_score >= 60f)
+        assertTrue(homographResp.risk_assessment.flags.contains("homograph_punycode_attack"))
     }
 
     @Test
