@@ -26,6 +26,36 @@ object OnDeviceHeuristicEngine {
         "stream", "download", "racing", "win", "bid", "date", "faith"
     )
 
+    private val TRUSTED_ROOT_DOMAINS = setOf(
+        "google.com", "google.co.in", "google.co.uk", "youtube.com", "microsoft.com",
+        "live.com", "office.com", "apple.com", "icloud.com", "amazon.com", "amazon.in",
+        "github.com", "gitlab.com", "wikipedia.org", "wikimedia.org", "linkedin.com",
+        "twitter.com", "x.com", "facebook.com", "instagram.com", "whatsapp.com",
+        "netflix.com", "spotify.com", "yahoo.com", "bing.com", "reddit.com",
+        "stackoverflow.com", "dropbox.com", "adobe.com", "zoom.us", "slack.com"
+    )
+
+    private val AUTHENTIC_BRAND_DOMAINS = mapOf(
+        "paypal" to setOf("paypal.com", "paypal.me"),
+        "google" to setOf("google.com", "google.co.in", "google.co.uk", "youtube.com", "gmail.com"),
+        "microsoft" to setOf("microsoft.com", "live.com", "office.com", "office365.com", "outlook.com"),
+        "apple" to setOf("apple.com", "icloud.com"),
+        "amazon" to setOf("amazon.com", "amazon.in", "amazon.co.uk", "amazon.de"),
+        "netflix" to setOf("netflix.com"),
+        "facebook" to setOf("facebook.com", "fb.com", "meta.com"),
+        "instagram" to setOf("instagram.com"),
+        "whatsapp" to setOf("whatsapp.com"),
+        "chase" to setOf("chase.com"),
+        "wellsfargo" to setOf("wellsfargo.com"),
+        "bankofamerica" to setOf("bankofamerica.com", "bofa.com"),
+        "binance" to setOf("binance.com"),
+        "coinbase" to setOf("coinbase.com"),
+        "dropbox" to setOf("dropbox.com"),
+        "adobe" to setOf("adobe.com")
+    )
+
+    private val TARGET_BRANDS = AUTHENTIC_BRAND_DOMAINS.keys.toList()
+
     private val SUSPICIOUS_URL_KEYWORDS = listOf(
         "login", "verify", "account", "secure", "banking", "update", "suspend",
         "confirm", "password", "wallet", "billing", "support", "auth", "signin",
@@ -161,8 +191,8 @@ object OnDeviceHeuristicEngine {
             finalScore >= 80f -> {
                 if (malwareResult?.status == "success" && malwareResult.risk_score >= 80f) "Malware" else "Phishing"
             }
-            finalScore >= 50f -> "Deceptive"
-            finalScore >= 25f -> "Suspicious"
+            finalScore >= 60f -> "Deceptive"
+            finalScore >= 30f -> "Suspicious"
             else -> "Safe"
         }
 
@@ -234,8 +264,15 @@ object OnDeviceHeuristicEngine {
 
         val host = uri?.host ?: extractHostFallback(cleanUrl)
         val scheme = uri?.scheme ?: if (cleanUrl.startsWith("https://", true)) "https" else "http"
+        val rootDomain = if (host != null) extractRootDomain(host) else ""
+        val isTrusted = isTrustedDomain(host)
 
-        // 1. IP-based host check
+        if (isTrusted) {
+            flags.add("whitelisted_trusted_domain")
+            evidence.add(EvidenceItem("WHITELISTED_DOMAIN", rootDomain, "Root domain is verified on global trusted authority list."))
+        }
+
+        // 1. IP-based host check (high evasion risk regardless of whitelist)
         val hasIp = Regex("""://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}""").containsMatchIn(cleanUrl) ||
                 (host != null && IP_REGEX.matches(host))
         if (hasIp) {
@@ -258,52 +295,90 @@ object OnDeviceHeuristicEngine {
             score += 10f
         }
 
-        // 4. Suspicious TLD check
-        val tld = host?.substringAfterLast('.', "")?.lowercase()
-        if (!tld.isNullOrBlank() && SUSPICIOUS_TLDS.contains(tld)) {
-            flags.add("suspicious_tld")
-            evidence.add(EvidenceItem("TOP_LEVEL_DOMAIN", ".$tld", "Uses TLD associated with spam and malware campaigns: .$tld"))
-            score += 25f
-        }
+        val isHostAnIp = host != null && IP_REGEX.matches(host)
 
-        // 5. Security Keywords check in host and path
-        val lowerUrl = cleanUrl.lowercase()
-        val matchedKeywords = SUSPICIOUS_URL_KEYWORDS.filter { keyword ->
-            lowerUrl.contains(keyword)
-        }
-        if (matchedKeywords.isNotEmpty()) {
-            flags.add("suspicious_keywords")
-            evidence.add(EvidenceItem("SUSPICIOUS_KEYWORDS", matchedKeywords, "Detected credential and security keywords in URL: ${matchedKeywords.joinToString(", ")}"))
-            score += min(35f, matchedKeywords.size * 10f)
-        }
-
-        // 6. Subdomain depth anomaly
-        val dotCount = host?.count { it == '.' } ?: 0
-        if (dotCount >= 3 && host != null && !IP_REGEX.matches(host)) {
-            flags.add("subdomain_depth_anomaly")
-            evidence.add(EvidenceItem("SUBDOMAIN_DEPTH", dotCount, "Hostname exhibits excessive subdomain nesting: $dotCount levels."))
-            score += 20f
-        }
-
-        // 7. Shannon character entropy & digit ratio
-        if (host != null) {
-            val entropy = calculateShannonEntropy(host)
-            if (entropy > 4.0) {
-                flags.add("high_shannon_entropy")
-                evidence.add(EvidenceItem("SHANNON_ENTROPY", "%.2f".format(entropy), "Hostname exhibits high randomness entropy: %.2f".format(entropy)))
-                score += 15f
-            }
-
-            val digits = host.count { it.isDigit() }
-            val digitRatio = digits.toFloat() / max(1, host.length)
-            if (digitRatio > 0.25f && !IP_REGEX.matches(host)) {
-                flags.add("high_digit_ratio")
-                evidence.add(EvidenceItem("DIGIT_RATIO", "%.0f%%".format(digitRatio * 100), "Unusually high digit density in domain: %.0f%%".format(digitRatio * 100)))
-                score += 15f
+        // Check for Homograph / IDN / Punycode attacks (applies to all non-IP hosts)
+        if (host != null && !isHostAnIp) {
+            val hasPunycode = host.startsWith("xn--", ignoreCase = true) || host.contains(".xn--", ignoreCase = true)
+            val hasNonAscii = host.any { it.code > 127 }
+            if (hasPunycode || hasNonAscii) {
+                flags.add("homograph_punycode_attack")
+                evidence.add(EvidenceItem("HOMOGRAPH_ATTACK", host, "Domain uses Punycode or non-ASCII characters to spoof visual appearance."))
+                score += 65f
             }
         }
 
-        val finalUrlScore = min(100f, score)
+        // If domain is NOT trusted, perform deeper phishing / impersonation heuristics
+        if (!isTrusted && host != null) {
+            val lowerHost = host.lowercase()
+            val lowerPath = (uri?.path ?: "").lowercase()
+
+            // 4. Brand Impersonation / Subdomain Nesting Spoofing
+            if (!isHostAnIp) {
+                val matchedBrand = AUTHENTIC_BRAND_DOMAINS.keys.firstOrNull { brand ->
+                    val authDomains = AUTHENTIC_BRAND_DOMAINS[brand] ?: emptySet()
+                    (lowerHost.contains(brand) || lowerPath.contains(brand)) && !authDomains.contains(rootDomain)
+                }
+                if (matchedBrand != null) {
+                    flags.add("brand_impersonation_spoofing")
+                    evidence.add(EvidenceItem("BRAND_SPOOFING", matchedBrand, "Brand '$matchedBrand' detected in untrusted destination '$rootDomain'."))
+                    score += 55f
+                }
+
+                // 5. Suspicious TLD check
+                val tld = host.substringAfterLast('.', "").lowercase()
+                val hasSuspiciousTld = tld.isNotBlank() && SUSPICIOUS_TLDS.contains(tld)
+                if (hasSuspiciousTld) {
+                    flags.add("suspicious_tld")
+                    evidence.add(EvidenceItem("TOP_LEVEL_DOMAIN", ".$tld", "Uses TLD associated with spam and malware campaigns: .$tld"))
+                    score += 25f
+                }
+            }
+
+            // 6. Security Keywords check in host and path
+            val lowerUrl = cleanUrl.lowercase()
+            val matchedKeywords = SUSPICIOUS_URL_KEYWORDS.filter { keyword ->
+                lowerUrl.contains(keyword)
+            }
+            if (matchedKeywords.isNotEmpty()) {
+                flags.add("suspicious_keywords")
+                evidence.add(EvidenceItem("SUSPICIOUS_KEYWORDS", matchedKeywords, "Detected credential and security keywords in untrusted URL: ${matchedKeywords.joinToString(", ")}"))
+                score += min(35f, matchedKeywords.size * 10f)
+            }
+
+            // 7. Subdomain depth anomaly & Entropy (domain names only)
+            if (!isHostAnIp) {
+                val dotCount = host.count { it == '.' }
+                if (dotCount >= 3) {
+                    flags.add("subdomain_depth_anomaly")
+                    evidence.add(EvidenceItem("SUBDOMAIN_DEPTH", dotCount, "Hostname exhibits excessive subdomain nesting: $dotCount levels."))
+                    score += 20f
+                }
+
+                // 8. Shannon character entropy & digit ratio
+                val entropy = calculateShannonEntropy(host)
+                if (entropy > 4.0) {
+                    flags.add("high_shannon_entropy")
+                    evidence.add(EvidenceItem("SHANNON_ENTROPY", "%.2f".format(entropy), "Hostname exhibits high randomness entropy: %.2f".format(entropy)))
+                    score += 15f
+                }
+
+                val digits = host.count { it.isDigit() }
+                val digitRatio = digits.toFloat() / max(1, host.length)
+                if (digitRatio > 0.25f) {
+                    flags.add("high_digit_ratio")
+                    evidence.add(EvidenceItem("DIGIT_RATIO", "%.0f%%".format(digitRatio * 100), "Unusually high digit density in domain: %.0f%%".format(digitRatio * 100)))
+                    score += 15f
+                }
+            }
+        }
+
+        // On trusted domains without evasion, score is strictly capped at clean/safe level
+        val finalUrlScore = if (isTrusted && !hasIp && !cleanUrl.contains("@")) {
+            min(10f, score)
+        } else {
+            min(100f, score)
+        }
 
         return EngineResult(
             engine_name = "url_engine",
@@ -486,6 +561,29 @@ object OnDeviceHeuristicEngine {
         )
     }
 
+    fun extractRootDomain(host: String): String {
+        val cleanHost = host.lowercase().trim().removePrefix("www.")
+        val parts = cleanHost.split(".")
+        if (parts.size <= 2) return cleanHost
+        val secondLast = parts[parts.size - 2]
+        val last = parts[parts.size - 1]
+        val commonTwoPartSuffixes = setOf("co.uk", "co.in", "com.au", "co.jp", "com.br", "gov.in", "edu.in", "org.uk")
+        val possibleSuffix = "$secondLast.$last"
+        return if (commonTwoPartSuffixes.contains(possibleSuffix) && parts.size >= 3) {
+            "${parts[parts.size - 3]}.$possibleSuffix"
+        } else {
+            "${parts[parts.size - 2]}.$last"
+        }
+    }
+
+    fun isTrustedDomain(host: String?): Boolean {
+        if (host.isNullOrBlank()) return false
+        val root = extractRootDomain(host)
+        return TRUSTED_ROOT_DOMAINS.contains(root) ||
+                root.endsWith(".gov") || root.endsWith(".edu") || root.endsWith(".mil") ||
+                TRUSTED_ROOT_DOMAINS.any { root.endsWith(".$it") }
+    }
+
     private fun extractFirstUrl(text: String?): String? {
         if (text == null) return null
         return URL_REGEX.find(text)?.value
@@ -521,6 +619,9 @@ object OnDeviceHeuristicEngine {
         "http_without_https" -> "The URL transmits unencrypted data via HTTP instead of secure HTTPS."
         "high_shannon_entropy" -> "The hostname appears algorithmically generated with high randomness entropy."
         "high_digit_ratio" -> "The domain name comprises an abnormally high density of numerical digits."
+        "brand_impersonation_spoofing" -> "Deceptive brand impersonation detected targeting established services on an untrusted root domain."
+        "homograph_punycode_attack" -> "Visual homoglyph / Punycode spoofing detected to impersonate a legitimate domain name."
+        "whitelisted_trusted_domain" -> "Verified authentic root domain on trusted global authority list."
         else -> null
     }
 

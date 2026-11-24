@@ -12,3 +12,4 @@ tldextract
 opencv-python-headless
 easyocr
 numpy
+redis

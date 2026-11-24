@@ -347,19 +347,19 @@ class UniversalLinkGuardService : AccessibilityService() {
     }
 
     private fun handleScanVerdict(result: UnifiedScanResponse, sourcePackage: String, targetDisplay: String) {
-        val isThreat = THREAT_CATEGORIES.any { it.equals(result.classification, ignoreCase = true) }
         android.util.Log.i(
             "GuardianService",
-            "Verdict for target: ${result.classification} (Score: ${result.risk_score}, Threat: $isThreat)"
+            "Evaluating smart alert policy for: ${result.classification} (Score: ${result.risk_score})"
         )
 
-        // Safe or excluded -> no notification, do not interfere with normal experience
-        if (!isThreat) {
-            return
-        }
-
-        // Suspicious/Deceptive/Phishing/Malware -> fire high-priority notification on SS_ALERTS channel
-        sendThreatNotification(result, sourcePackage, targetDisplay)
+        // Delegate to centralized SmartNotificationManager for policy evaluation,
+        // persistent deduplication, and alert cooldown enforcement.
+        com.secureshield.ai.notification.SmartNotificationManager.handleScanVerdict(
+            applicationContext,
+            result,
+            sourcePackage,
+            targetDisplay
+        )
     }
 
     private fun sendThreatNotification(
